@@ -3,6 +3,7 @@
 import { OrderFormBlockData } from "../landing-page-types";
 import { useState } from "react";
 import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE } from "@/lib/bd-phone-validator";
+import { trackMetaPurchase, getMetaCookie } from "@/presentation/components/meta-pixel";
 
 interface OrderFormBlockRenderProps {
 	data: OrderFormBlockData;
@@ -109,6 +110,9 @@ export default function OrderFormBlockRender({
 			if (isFieldRequired("address")) customerInfo.address = formState.address;
 
 			// Step 3: Create order (will use cart items)
+			const fbc = getMetaCookie("_fbc");
+			const fbp = getMetaCookie("_fbp");
+
 			const payload = {
 				shipping_address: {
 					first_name: formState.firstName,
@@ -124,6 +128,8 @@ export default function OrderFormBlockRender({
 				shipping_method: "standard",
 				payment_method: "cash_on_delivery",
 				source: "landing_page",
+				fbc: fbc || null,
+				fbp: fbp || null,
 			};
 
 			const response = await fetch("/api/v1/orders", {
@@ -138,6 +144,28 @@ export default function OrderFormBlockRender({
 				const errorData = await response.json();
 				throw new Error(errorData.message || "Failed to submit order");
 			}
+
+			const orderJson = await response.json().catch(() => null);
+			const createdOrderId =
+				orderJson?.data?.order?.id || orderJson?.order?.id || `ORD-${Date.now()}`;
+
+			// Track Meta Pixel & CAPI Purchase
+			try {
+				trackMetaPurchase({
+					eventId: createdOrderId,
+					value: totalPrice,
+					currency: "BDT",
+					contentIds: [selectedProduct.id],
+					contents: [
+						{
+							id: selectedProduct.id,
+							quantity: formState.quantity,
+							item_price: selectedProduct.price,
+						},
+					],
+					numItems: formState.quantity,
+				});
+			} catch {}
 
 			// Step 4: Clear the cart after successful order
 			await fetch("/api/v1/cart", {

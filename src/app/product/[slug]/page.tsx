@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useApp } from '../../../store/AppContext'
 import { normalizeProduct, Product } from '../../../data/products'
 import ProductCard from '../../../components/ProductCard'
+import { trackMetaViewContent } from '@/presentation/components/meta-pixel'
 
 const fmt = (n: number) => '৳' + (Number(n) || 0).toLocaleString('en-BD')
 
@@ -50,6 +51,16 @@ export default function ProductDetail() {
         if (json.success && json.data) {
           const norm = normalizeProduct(json.data)
           setProduct(norm)
+
+          // Track Meta Pixel & CAPI ViewContent
+          try {
+            trackMetaViewContent({
+              productId: norm.id,
+              productName: norm.name,
+              price: norm.price,
+              currency: 'BDT',
+            })
+          } catch {}
 
           // Load related products
           const relRes = await fetch(`/api/v1/products?show_all=true&limit=10`)

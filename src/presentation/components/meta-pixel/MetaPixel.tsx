@@ -1,12 +1,13 @@
 /**
  * Meta Pixel Client Script
- * Loads and initializes Meta Pixel for client-side tracking.
+ * Loads and initializes Meta Pixel for client-side tracking with CAPI deduplication.
  *
- * Deduplication note:
- *  - Purchase events must be sent with { eventID: orderId } to match the
- *    server-side CAPI event_id so Meta deduplicates them into one conversion.
- *  - PageView events should also include an eventID when possible (generated
- *    once per page load) to help Meta match the CAPI PageView signal.
+ * Deduplication rules:
+ *  - Every event (Purchase, PageView, ViewContent, AddToCart, InitiateCheckout)
+ *    shares the identical event_id between the browser Pixel (eventID parameter)
+ *    and the server-side Conversions API (CAPI event_id payload).
+ *  - CAPI relay runs even when browser fbq is blocked by adblockers to ensure
+ *    reliable server-side tracking.
  */
 
 "use client";
@@ -28,12 +29,27 @@ declare global {
 	}
 }
 
+/**
+ * Generate a unique event ID for Meta Pixel + CAPI deduplication.
+ */
+export function generateMetaEventId(prefix = "evt"): string {
+	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Get cookie by name safely in the browser.
+ */
+export function getMetaCookie(name: string): string | undefined {
+	if (typeof document === "undefined") return undefined;
+	const match = document.cookie
+		.split(";")
+		.find((c) => c.trim().startsWith(name + "="));
+	return match ? match.split("=").slice(1).join("=") : undefined;
+}
+
 export function MetaPixel({ pixelId, enabled, enabledEvents, externalId }: MetaPixelProps) {
-	// Track whether we've already initialized to prevent double-init when
-	// React re-renders (e.g. in Strict Mode or after hydration).
 	const initialized = useRef(false);
 
-	// Called by Next.js Script onLoad — fbevents.js is ready at this point.
 	function handleScriptLoad() {
 		if (!enabled || !pixelId || initialized.current) return;
 		initialized.current = true;
@@ -42,16 +58,11 @@ export function MetaPixel({ pixelId, enabled, enabledEvents, externalId }: MetaP
 		window.fbq("init", pixelId, externalId ? { external_id: externalId } : {});
 
 		if (enabledEvents.includes("PageView")) {
-			// Generate a stable per-pageload event ID so the optional server-side
-			// PageView CAPI signal can use the same ID for deduplication.
-			const pageViewEventId = `pv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			const pageViewEventId = generateMetaEventId("pv");
 			window.fbq("track", "PageView", {}, { eventID: pageViewEventId });
 		}
 	}
 
-	// If the script was already loaded before this component mounted (e.g.
-	// navigating between pages in a SPA), fbq will already exist — initialize
-	// directly from the effect rather than waiting for onLoad.
 	useEffect(() => {
 		if (!enabled || !pixelId || initialized.current) return;
 		if (typeof window !== "undefined" && window.fbq) {
@@ -94,19 +105,18 @@ export function MetaPixel({ pixelId, enabled, enabledEvents, externalId }: MetaP
 	);
 }
 
-
 /**
  * Track a standard Meta Pixel event.
- * @param eventName - Standard event name (e.g. "ViewContent", "AddToCart")
- * @param parameters - Event-specific parameters
  */
 export function trackMetaEvent(
 	eventName: string,
 	parameters?: Record<string, any>,
+	eventId = generateMetaEventId("evt"),
 ) {
 	if (typeof window !== "undefined" && window.fbq) {
-		window.fbq("track", eventName, parameters);
+		window.fbq("track", eventName, parameters, { eventID: eventId });
 	}
+	relayCapi(eventName, parameters || {}, eventId);
 }
 
 /**
@@ -115,78 +125,12 @@ export function trackMetaEvent(
 export function trackMetaCustomEvent(
 	eventName: string,
 	parameters?: Record<string, any>,
+	eventId = generateMetaEventId("cust"),
 ) {
 	if (typeof window !== "undefined" && window.fbq) {
-		window.fbq("trackCustom", eventName, parameters);
+		window.fbq("trackCustom", eventName, parameters, { eventID: eventId });
 	}
-}
-
-/**
- * Track a Purchase event with deduplication support.
- *
- * Pass the Order's UUID as `eventId` — this MUST match the `event_id` sent
- * by the server-side Conversions API (CAPI) for the same order so Meta can
- * deduplicate the two signals and count the purchase only once.
- *
- * Also accepts an optional `externalId` (user's internal ID) to improve
- * match quality when the Pixel and CAPI share the same `external_id`.
- *
- * @example
- * trackMetaPurchase({
- *   eventId: order.id,          // Order UUID — shared with CAPI
- *   value: 1250,
- *   currency: "BDT",
- *   contentIds: ["sku-1", "sku-2"],
- *   numItems: 2,
- *   externalId: user?.id,       // optional — hashed server-side in CAPI
- * });
- */
-export function trackMetaPurchase({
-	eventId,
-	value,
-	currency = "BDT",
-	contentIds = [],
-	numItems,
-	externalId,
-}: {
-	eventId: string;
-	value: number;
-	currency?: string;
-	contentIds?: string[];
-	numItems?: number;
-	externalId?: string;
-}) {
-	if (typeof window === "undefined" || !window.fbq) return;
-
-	const parameters: Record<string, any> = {
-		value,
-		currency,
-		content_type: "product",
-	};
-
-	if (contentIds.length > 0) parameters.content_ids = contentIds;
-	if (numItems !== undefined) parameters.num_items = numItems;
-
-	// The eventID option (note: camelCase) is what Meta uses for deduplication.
-	// It must be identical to the event_id sent to the Conversions API.
-	const eventOptions: Record<string, string> = { eventID: eventId };
-
-	// Attach external_id if available for better match quality
-	if (externalId) {
-		parameters.external_id = externalId;
-	}
-
-	window.fbq("track", "Purchase", parameters, eventOptions);
-}
-
-// ─── Cookie helpers ─────────────────────────────────────────────────────────
-
-function getCookie(name: string): string | undefined {
-	if (typeof document === "undefined") return undefined;
-	return document.cookie
-		.split(";")
-		.find((c) => c.trim().startsWith(name + "="))
-		?.split("=")[1];
+	relayCapi(eventName, parameters || {}, eventId);
 }
 
 /**
@@ -194,18 +138,31 @@ function getCookie(name: string): string | undefined {
  * Reads _fbc/_fbp cookies and forwards them along with custom data.
  * Fire-and-forget — never blocks the caller.
  */
-function relayCapi(
+export function relayCapi(
 	eventName: string,
 	customData: Record<string, any>,
 	eventId?: string,
 	externalId?: string,
 ) {
 	try {
+		if (typeof window === "undefined") return;
+
+		const fbc =
+			getMetaCookie("_fbc") ||
+			(() => {
+				try {
+					return sessionStorage.getItem("_fbc") || undefined;
+				} catch {
+					return undefined;
+				}
+			})();
+		const fbp = getMetaCookie("_fbp");
+
 		const payload: Record<string, any> = {
 			event_name: eventName,
 			event_source_url: window.location.href,
-			fbc: getCookie("_fbc"),
-			fbp: getCookie("_fbp"),
+			fbc,
+			fbp,
 			custom_data: customData,
 		};
 		if (eventId) payload.event_id = eventId;
@@ -222,11 +179,56 @@ function relayCapi(
 	}
 }
 
+/**
+ * Track a Purchase event with deduplication support.
+ *
+ * Pass the Order UUID as `eventId` — this MUST match the `event_id` sent
+ * by the server-side Conversions API (CAPI) for the same order so Meta can
+ * deduplicate the two signals into one conversion.
+ */
+export function trackMetaPurchase({
+	eventId,
+	value,
+	currency = "BDT",
+	contentIds = [],
+	contents = [],
+	numItems,
+	externalId,
+}: {
+	eventId: string;
+	value: number;
+	currency?: string;
+	contentIds?: string[];
+	contents?: Array<{ id: string; quantity: number; item_price?: number }>;
+	numItems?: number;
+	externalId?: string;
+}) {
+	const customData: Record<string, any> = {
+		value,
+		currency,
+		content_type: "product",
+		order_id: eventId,
+	};
+
+	if (contentIds.length > 0) customData.content_ids = contentIds;
+	if (contents.length > 0) customData.contents = contents;
+	if (numItems !== undefined) customData.num_items = numItems;
+	if (externalId) customData.external_id = externalId;
+
+	// 1. Browser Pixel with eventID option
+	if (typeof window !== "undefined" && window.fbq) {
+		window.fbq("track", "Purchase", customData, { eventID: eventId });
+	}
+
+	// 2. Server CAPI relay with matching event_id
+	relayCapi("Purchase", customData, eventId, externalId);
+}
+
 // ─── ViewContent ─────────────────────────────────────────────────────────────
 
 /**
  * Track ViewContent for a product page.
- * Fires browser pixel + server-side CAPI relay.
+ * Fires browser pixel + server-side CAPI relay with synchronized event_id.
  */
 export function trackMetaViewContent({
 	productId,
@@ -234,15 +236,15 @@ export function trackMetaViewContent({
 	price,
 	currency = "BDT",
 	externalId,
+	eventId = generateMetaEventId("vc"),
 }: {
 	productId: string;
 	productName: string;
 	price: number;
 	currency?: string;
 	externalId?: string;
+	eventId?: string;
 }) {
-	if (typeof window === "undefined" || !window.fbq) return;
-
 	const customData: Record<string, any> = {
 		content_ids: [productId],
 		content_type: "product",
@@ -253,45 +255,38 @@ export function trackMetaViewContent({
 	};
 	if (externalId) customData.external_id = externalId;
 
-	window.fbq("track", "ViewContent", customData);
-	relayCapi(
-		"ViewContent",
-		{
-			content_ids: [productId],
-			content_type: "product",
-			content_name: productName,
-			contents: [{ id: productId, quantity: 1, item_price: price }],
-			currency,
-			value: price,
-		},
-		undefined,
-		externalId,
-	);
+	// 1. Browser Pixel
+	if (typeof window !== "undefined" && window.fbq) {
+		window.fbq("track", "ViewContent", customData, { eventID: eventId });
+	}
+
+	// 2. CAPI relay
+	relayCapi("ViewContent", customData, eventId, externalId);
 }
 
 // ─── AddToCart ───────────────────────────────────────────────────────────────
 
 /**
  * Track AddToCart for a product.
- * Fires browser pixel + server-side CAPI relay.
+ * Fires browser pixel + server-side CAPI relay with synchronized event_id.
  */
 export function trackMetaAddToCart({
 	productId,
 	productName,
 	price,
-	quantity,
+	quantity = 1,
 	currency = "BDT",
 	externalId,
+	eventId = generateMetaEventId("atc"),
 }: {
 	productId: string;
 	productName: string;
 	price: number;
-	quantity: number;
+	quantity?: number;
 	currency?: string;
 	externalId?: string;
+	eventId?: string;
 }) {
-	if (typeof window === "undefined" || !window.fbq) return;
-
 	const value = price * quantity;
 	const customData: Record<string, any> = {
 		content_ids: [productId],
@@ -303,27 +298,20 @@ export function trackMetaAddToCart({
 	};
 	if (externalId) customData.external_id = externalId;
 
-	window.fbq("track", "AddToCart", customData);
-	relayCapi(
-		"AddToCart",
-		{
-			content_ids: [productId],
-			content_type: "product",
-			content_name: productName,
-			contents: [{ id: productId, quantity, item_price: price }],
-			currency,
-			value,
-		},
-		undefined,
-		externalId,
-	);
+	// 1. Browser Pixel
+	if (typeof window !== "undefined" && window.fbq) {
+		window.fbq("track", "AddToCart", customData, { eventID: eventId });
+	}
+
+	// 2. CAPI relay
+	relayCapi("AddToCart", customData, eventId, externalId);
 }
 
 // ─── InitiateCheckout ────────────────────────────────────────────────────────
 
 /**
  * Track InitiateCheckout when the user lands on the checkout page.
- * Fires browser pixel + server-side CAPI relay.
+ * Fires browser pixel + server-side CAPI relay with synchronized event_id.
  */
 export function trackMetaInitiateCheckout({
 	contentIds,
@@ -332,6 +320,7 @@ export function trackMetaInitiateCheckout({
 	value,
 	currency = "BDT",
 	externalId,
+	eventId = generateMetaEventId("ic"),
 }: {
 	contentIds: string[];
 	contents: Array<{ id: string; quantity: number; item_price?: number }>;
@@ -339,9 +328,8 @@ export function trackMetaInitiateCheckout({
 	value: number;
 	currency?: string;
 	externalId?: string;
+	eventId?: string;
 }) {
-	if (typeof window === "undefined" || !window.fbq) return;
-
 	const customData: Record<string, any> = {
 		content_ids: contentIds,
 		content_type: "product",
@@ -352,18 +340,11 @@ export function trackMetaInitiateCheckout({
 	};
 	if (externalId) customData.external_id = externalId;
 
-	window.fbq("track", "InitiateCheckout", customData);
-	relayCapi(
-		"InitiateCheckout",
-		{
-			content_ids: contentIds,
-			content_type: "product",
-			contents,
-			num_items: numItems,
-			currency,
-			value,
-		},
-		undefined,
-		externalId,
-	);
+	// 1. Browser Pixel
+	if (typeof window !== "undefined" && window.fbq) {
+		window.fbq("track", "InitiateCheckout", customData, { eventID: eventId });
+	}
+
+	// 2. CAPI relay
+	relayCapi("InitiateCheckout", customData, eventId, externalId);
 }

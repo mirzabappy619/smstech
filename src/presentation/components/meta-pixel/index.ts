@@ -3,5 +3,16 @@
  * Export all Meta Pixel components and utilities
  */
 
-export { MetaPixel, trackMetaEvent, trackMetaCustomEvent, trackMetaPurchase, trackMetaViewContent, trackMetaAddToCart, trackMetaInitiateCheckout } from "./MetaPixel";
+export {
+	MetaPixel,
+	trackMetaEvent,
+	trackMetaCustomEvent,
+	trackMetaPurchase,
+	trackMetaViewContent,
+	trackMetaAddToCart,
+	trackMetaInitiateCheckout,
+	generateMetaEventId,
+	getMetaCookie,
+	relayCapi,
+} from "./MetaPixel";
 export { MetaPixelProvider } from "./MetaPixelProvider";

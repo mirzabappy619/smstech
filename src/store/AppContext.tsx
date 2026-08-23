@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import type { Product } from '../data/products'
+import { trackMetaAddToCart } from '@/presentation/components/meta-pixel'
 
 type CartItem = {
   product: Product
@@ -54,6 +55,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return [...prev, { product, quantity: 1, variant }]
     })
     setCartOpen(true)
+
+    // Fire Meta Pixel & CAPI AddToCart event
+    try {
+      trackMetaAddToCart({
+        productId: product.id,
+        productName: product.name,
+        price: product.price,
+        quantity: 1,
+        currency: 'BDT',
+      })
+    } catch {}
   }, [])
 
   const removeFromCart = useCallback((productId: string) => {

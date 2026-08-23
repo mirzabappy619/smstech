@@ -1,10 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useApp } from '../../store/AppContext'
 import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE } from '@/lib/bd-phone-validator'
+import {
+  trackMetaInitiateCheckout,
+  trackMetaPurchase,
+  getMetaCookie,
+} from '@/presentation/components/meta-pixel'
 
 const fmt = (n: number) => '৳' + (Number(n) || 0).toLocaleString('en-BD')
 
@@ -32,10 +37,31 @@ export default function Checkout() {
   const [otpVerified, setOtpVerified] = useState(false)
   const [otpError, setOtpError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const initiateCheckoutTracked = useRef(false)
 
   const delivery_fee = delivery === 'pickup' || cartTotal > 100000 ? 0 : 120
   const finalTotal = cartTotal + delivery_fee
   const splitAdvanceAmount = Math.round(finalTotal * 0.10) // 10% advance deposit for unit reservation
+
+  // Track InitiateCheckout on checkout mount
+  useEffect(() => {
+    if (initiateCheckoutTracked.current || cart.length === 0) return
+    initiateCheckoutTracked.current = true
+
+    try {
+      trackMetaInitiateCheckout({
+        contentIds: cart.map((i) => i.product.id),
+        contents: cart.map((i) => ({
+          id: i.product.id,
+          quantity: i.quantity,
+          item_price: i.product.price,
+        })),
+        numItems: cart.reduce((sum, i) => sum + i.quantity, 0),
+        value: finalTotal,
+        currency: 'BDT',
+      })
+    } catch {}
+  }, [cart, finalTotal])
 
   const handleSendOtp = () => {
     if (!form.phone.trim() || !isValidBDPhone(form.phone)) {
@@ -60,6 +86,9 @@ export default function Checkout() {
     setLoading(true)
     try {
       const chosenStore = STORES.find(s => s.id === selectedStore)
+      const fbc = getMetaCookie('_fbc')
+      const fbp = getMetaCookie('_fbp')
+
       const orderPayload = {
         customer_name: form.name || 'Customer',
         customer_email: form.email || 'customer@smstech.bd',
@@ -85,13 +114,34 @@ export default function Checkout() {
         shipping_fee: delivery_fee,
         total_amount: finalTotal,
         source: 'storefront',
+        fbc: fbc || null,
+        fbp: fbp || null,
       }
 
-      await fetch('/api/v1/orders', {
+      const res = await fetch('/api/v1/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload),
-      }).catch(() => {})
+      })
+
+      const json = await res.json().catch(() => null)
+      const createdOrderId = json?.data?.order?.id || json?.order?.id || `ORD-${Date.now()}`
+
+      // Track Meta Pixel & CAPI Purchase with matching eventId
+      try {
+        trackMetaPurchase({
+          eventId: createdOrderId,
+          value: finalTotal,
+          currency: 'BDT',
+          contentIds: cart.map((i) => i.product.id),
+          contents: cart.map((i) => ({
+            id: i.product.id,
+            quantity: i.quantity,
+            item_price: i.product.price,
+          })),
+          numItems: cart.reduce((sum, i) => sum + i.quantity, 0),
+        })
+      } catch {}
 
       router.push('/order-success')
     } catch {

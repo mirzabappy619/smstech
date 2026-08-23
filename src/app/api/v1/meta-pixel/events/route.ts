@@ -13,10 +13,11 @@ import { MetaPixelService } from "@/infrastructure/meta-pixel/meta-pixel-service
 
 const eventSchema = z.object({
   event_name: z.enum([
+    "PageView",
     "ViewContent",
     "AddToCart",
     "InitiateCheckout",
-    "PageView",
+    "Purchase",
     "Search",
     "AddPaymentInfo",
     "Lead",
@@ -44,6 +45,7 @@ const eventSchema = z.object({
         )
         .optional(),
       num_items: z.number().optional(),
+      order_id: z.string().optional(),
     })
     .optional(),
 });
