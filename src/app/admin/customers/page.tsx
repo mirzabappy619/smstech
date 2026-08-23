@@ -332,125 +332,206 @@ export default function CustomersPage() {
 						<p className="text-zinc-600 dark:text-zinc-400 font-medium">No customers found matching your criteria.</p>
 					</div>
 				) : (
-					<div className="overflow-x-auto">
-						<table className="w-full text-left text-xs">
-							<thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 uppercase font-semibold">
-								<tr>
-									<th className="px-6 py-3">Customer</th>
-									<th className="px-6 py-3">Contact</th>
-									<th className="px-6 py-3">Login Status</th>
-									<th className="px-6 py-3">Risk Level</th>
-									<th className="px-6 py-3">Orders / Spent</th>
-									<th className="px-6 py-3 text-right">Quick Management Actions</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-								{customers.map((customer) => (
-									<tr key={customer.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
-										<td className="px-6 py-4 whitespace-nowrap">
-											<div className="flex items-center gap-3">
-												<div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm">
-													{customer.first_name?.[0] || "C"}
-													{customer.last_name?.[0] || ""}
-												</div>
-												<div>
-													<Link href={`/admin/customers/${customer.id}`} className="font-bold text-zinc-900 dark:text-white hover:text-blue-600 text-sm block">
-														{customer.first_name} {customer.last_name}
-													</Link>
-													<span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${getRoleBadge(customer.role)} uppercase tracking-wider`}>
-														{customer.role}
-													</span>
-												</div>
-											</div>
-										</td>
-
-										<td className="px-6 py-4 whitespace-nowrap">
-											<p className="font-semibold text-zinc-900 dark:text-white">{customer.email}</p>
-											{customer.phone && <p className="text-zinc-500 text-xs">📱 {customer.phone}</p>}
-										</td>
-
-										<td className="px-6 py-4 whitespace-nowrap">
-											{customer.is_disabled ? (
-												<div>
-													<span className="px-2.5 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 inline-block">
-														🚫 Login Disabled
-													</span>
-													{customer.disabled_reason && (
-														<p className="text-[11px] text-red-600 dark:text-red-400 mt-1 max-w-xs truncate" title={customer.disabled_reason}>
-															Reason: {customer.disabled_reason}
-														</p>
-													)}
-												</div>
-											) : (
-												<span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 inline-block">
-													🟢 Active
-												</span>
-											)}
-										</td>
-
-										<td className="px-6 py-4 whitespace-nowrap">
-											{getFraudBadge(customer.fraud_status)}
-											{customer.fraud_reason && (
-												<p className="text-[11px] text-zinc-500 mt-1 max-w-xs truncate" title={customer.fraud_reason}>
-													{customer.fraud_reason}
-												</p>
-											)}
-										</td>
-
-										<td className="px-6 py-4 whitespace-nowrap">
-											<p className="font-bold text-zinc-900 dark:text-white">{customer.total_orders || 0} Orders</p>
-											<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">৳{Math.round(customer.total_spent || 0).toLocaleString()}</p>
-										</td>
-
-										<td className="px-6 py-4 whitespace-nowrap text-right">
-											<div className="flex items-center justify-end gap-2">
-												{/* Set Password */}
-												<button
-													onClick={() => { setSelectedCustomer(customer); setNewPassword(""); setShowSetPasswordModal(true); }}
-													title="Set New Password"
-													className="px-2.5 py-1.5 text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg transition-colors flex items-center gap-1 border border-zinc-300 dark:border-zinc-700">
-													🔑 Password
-												</button>
-
-												{/* Reset Link */}
-												<button
-													onClick={() => handleGenerateResetLink(customer)}
-													title="Send Reset Password Link"
-													className="px-2.5 py-1.5 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors border border-blue-200 dark:border-blue-800">
-													📩 Reset Link
-												</button>
-
-												{/* Disable / Enable Login */}
-												<button
-													onClick={() => { setSelectedCustomer(customer); setDisableReasonInput(customer.disabled_reason || ""); setShowDisableModal(true); }}
-													title={customer.is_disabled ? "Enable Login Access" : "Disable Login Access"}
-													className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
-														customer.is_disabled
-															? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100"
-															: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 hover:bg-red-100"
-													}`}>
-													{customer.is_disabled ? "🟢 Enable Login" : "🚫 Disable Login"}
-												</button>
-
-												{/* Fraud / Spam Flag */}
-												<button
-													onClick={() => {
-														setSelectedCustomer(customer);
-														setSelectedFraudStatus(customer.fraud_status || "clean");
-														setFraudReasonInput(customer.fraud_reason || "");
-														setShowFraudModal(true);
-													}}
-													title="Flag Fraud / Spam Risk Status"
-													className="px-2.5 py-1.5 text-xs font-semibold bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-lg transition-colors border border-orange-200 dark:border-orange-800">
-													🚨 Fraud Flag
-												</button>
-											</div>
-										</td>
+					<>
+						{/* Desktop Table View */}
+						<div className="hidden md:block overflow-x-auto">
+							<table className="w-full text-left text-xs">
+								<thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 uppercase font-semibold">
+									<tr>
+										<th className="px-6 py-3.5">Customer</th>
+										<th className="px-6 py-3.5">Contact</th>
+										<th className="px-6 py-3.5">Login Status</th>
+										<th className="px-6 py-3.5">Risk Level</th>
+										<th className="px-6 py-3.5">Orders / Spent</th>
+										<th className="px-6 py-3.5 text-right">Quick Management Actions</th>
 									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
+								</thead>
+								<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+									{customers.map((customer) => (
+										<tr key={customer.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors">
+											<td className="px-6 py-4 whitespace-nowrap">
+												<div className="flex items-center gap-3">
+													<div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-xs">
+														{customer.first_name?.[0] || "C"}
+														{customer.last_name?.[0] || ""}
+													</div>
+													<div>
+														<Link href={`/admin/customers/${customer.id}`} className="font-bold text-zinc-900 dark:text-white hover:text-blue-600 text-sm block">
+															{customer.first_name} {customer.last_name}
+														</Link>
+														<span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${getRoleBadge(customer.role)} uppercase tracking-wider`}>
+															{customer.role}
+														</span>
+													</div>
+												</div>
+											</td>
+
+											<td className="px-6 py-4 whitespace-nowrap">
+												<p className="font-semibold text-zinc-900 dark:text-white">{customer.email}</p>
+												{customer.phone && <p className="text-zinc-500 text-xs">📱 {customer.phone}</p>}
+											</td>
+
+											<td className="px-6 py-4 whitespace-nowrap">
+												{customer.is_disabled ? (
+													<div>
+														<span className="px-2.5 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 inline-block">
+															🚫 Login Disabled
+														</span>
+														{customer.disabled_reason && (
+															<p className="text-[11px] text-red-600 dark:text-red-400 mt-1 max-w-xs truncate" title={customer.disabled_reason}>
+																Reason: {customer.disabled_reason}
+															</p>
+														)}
+													</div>
+												) : (
+													<span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 inline-block">
+														🟢 Active
+													</span>
+												)}
+											</td>
+
+											<td className="px-6 py-4 whitespace-nowrap">
+												{getFraudBadge(customer.fraud_status)}
+												{customer.fraud_reason && (
+													<p className="text-[11px] text-zinc-500 mt-1 max-w-xs truncate" title={customer.fraud_reason}>
+														{customer.fraud_reason}
+													</p>
+												)}
+											</td>
+
+											<td className="px-6 py-4 whitespace-nowrap">
+												<p className="font-bold text-zinc-900 dark:text-white">{customer.total_orders || 0} Orders</p>
+												<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">৳{Math.round(customer.total_spent || 0).toLocaleString()}</p>
+											</td>
+
+											<td className="px-6 py-4 whitespace-nowrap text-right">
+												<div className="flex items-center justify-end gap-1.5">
+													{/* Set Password */}
+													<button
+														onClick={() => { setSelectedCustomer(customer); setNewPassword(""); setShowSetPasswordModal(true); }}
+														title="Set New Password"
+														className="px-2.5 py-1.5 text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg transition-colors flex items-center gap-1 border border-zinc-300 dark:border-zinc-700">
+														🔑 Password
+													</button>
+
+													{/* Reset Link */}
+													<button
+														onClick={() => handleGenerateResetLink(customer)}
+														title="Send Reset Password Link"
+														className="px-2.5 py-1.5 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors border border-blue-200 dark:border-blue-800">
+														📩 Link
+													</button>
+
+													{/* Disable / Enable Login */}
+													<button
+														onClick={() => { setSelectedCustomer(customer); setDisableReasonInput(customer.disabled_reason || ""); setShowDisableModal(true); }}
+														title={customer.is_disabled ? "Enable Login Access" : "Disable Login Access"}
+														className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
+															customer.is_disabled
+																? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100"
+																: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 hover:bg-red-100"
+														}`}>
+														{customer.is_disabled ? "🟢 Enable" : "🚫 Disable"}
+													</button>
+
+													{/* Fraud / Spam Flag */}
+													<button
+														onClick={() => {
+															setSelectedCustomer(customer);
+															setSelectedFraudStatus(customer.fraud_status || "clean");
+															setFraudReasonInput(customer.fraud_reason || "");
+															setShowFraudModal(true);
+														}}
+														title="Flag Fraud / Spam Risk Status"
+														className="px-2.5 py-1.5 text-xs font-semibold bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-lg transition-colors border border-orange-200 dark:border-orange-800">
+														🚨 Risk
+													</button>
+												</div>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						{/* Mobile Card View */}
+						<div className="md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+							{customers.map((customer) => (
+								<div key={customer.id} className="p-4 space-y-3">
+									<div className="flex items-start justify-between gap-3">
+										<div className="flex items-center gap-3">
+											<div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0">
+												{customer.first_name?.[0] || "C"}
+												{customer.last_name?.[0] || ""}
+											</div>
+											<div>
+												<Link href={`/admin/customers/${customer.id}`} className="font-bold text-zinc-900 dark:text-white text-sm hover:text-blue-600 block">
+													{customer.first_name} {customer.last_name}
+												</Link>
+												<span className={`inline-block px-2 py-0.2 text-[10px] font-bold rounded-full ${getRoleBadge(customer.role)} uppercase tracking-wider`}>
+													{customer.role}
+												</span>
+											</div>
+										</div>
+										<div className="text-right shrink-0">
+											<p className="font-bold text-xs text-zinc-900 dark:text-white">{customer.total_orders || 0} Orders</p>
+											<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">৳{Math.round(customer.total_spent || 0).toLocaleString()}</p>
+										</div>
+									</div>
+
+									<div className="text-xs text-zinc-500 space-y-0.5">
+										<p className="text-zinc-700 dark:text-zinc-300 font-medium">{customer.email}</p>
+										{customer.phone && <p>📱 {customer.phone}</p>}
+									</div>
+
+									<div className="flex items-center gap-2 flex-wrap text-xs">
+										{customer.is_disabled ? (
+											<span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+												🚫 Disabled
+											</span>
+										) : (
+											<span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+												🟢 Active
+											</span>
+										)}
+										{getFraudBadge(customer.fraud_status)}
+									</div>
+
+									<div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[11px]">
+										<button
+											onClick={() => { setSelectedCustomer(customer); setNewPassword(""); setShowSetPasswordModal(true); }}
+											className="py-1.5 px-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold rounded-lg text-center transition-colors">
+											🔑 Pass
+										</button>
+										<button
+											onClick={() => handleGenerateResetLink(customer)}
+											className="py-1.5 px-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold rounded-lg text-center transition-colors">
+											📩 Link
+										</button>
+										<button
+											onClick={() => { setSelectedCustomer(customer); setDisableReasonInput(customer.disabled_reason || ""); setShowDisableModal(true); }}
+											className={`py-1.5 px-1 font-semibold rounded-lg text-center transition-colors ${
+												customer.is_disabled
+													? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+													: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+											}`}>
+											{customer.is_disabled ? "🟢 Enable" : "🚫 Block"}
+										</button>
+										<button
+											onClick={() => {
+												setSelectedCustomer(customer);
+												setSelectedFraudStatus(customer.fraud_status || "clean");
+												setFraudReasonInput(customer.fraud_reason || "");
+												setShowFraudModal(true);
+											}}
+											className="py-1.5 px-1 bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-semibold rounded-lg text-center transition-colors">
+											🚨 Risk
+										</button>
+									</div>
+								</div>
+							))}
+						</div>
+					</>
 				)}
 
 				{/* Pagination */}

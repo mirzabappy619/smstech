@@ -69,8 +69,8 @@ export interface NavGroupDef {
 
 const NAV_GROUPS: NavGroupDef[] = [
 	{
-		id: "overview",
-		title: "Overview & Core",
+		id: "operations",
+		title: "Daily Operations",
 		items: [
 			{
 				href: "/admin/dashboard",
@@ -87,18 +87,6 @@ const NAV_GROUPS: NavGroupDef[] = [
 				badgeVariant: "emerald",
 			},
 			{
-				href: "/admin/analytics",
-				label: "Analytics & Reports",
-				icon: BarChart3,
-				permission: "analytics:view",
-			},
-		],
-	},
-	{
-		id: "sales",
-		title: "Sales & Orders",
-		items: [
-			{
 				href: "/admin/orders",
 				label: "Store Orders",
 				icon: ShoppingCart,
@@ -109,18 +97,6 @@ const NAV_GROUPS: NavGroupDef[] = [
 				label: "Pre-Bookings",
 				icon: Clock,
 				permission: "orders:view",
-			},
-			{
-				href: "/admin/courier",
-				label: "Courier Logistics",
-				icon: Truck,
-				permission: "courier:view",
-			},
-			{
-				href: "/admin/fraud-check",
-				label: "Fraud Check",
-				icon: ShieldAlert,
-				permission: "customers:view",
 			},
 		],
 	},
@@ -179,8 +155,26 @@ const NAV_GROUPS: NavGroupDef[] = [
 		],
 	},
 	{
+		id: "logistics",
+		title: "Logistics & Risk",
+		items: [
+			{
+				href: "/admin/courier",
+				label: "Courier Logistics",
+				icon: Truck,
+				permission: "courier:view",
+			},
+			{
+				href: "/admin/fraud-check",
+				label: "Fraud Check",
+				icon: ShieldAlert,
+				permission: "customers:view",
+			},
+		],
+	},
+	{
 		id: "finance",
-		title: "Finance & Accounts",
+		title: "Customers & Finance",
 		items: [
 			{
 				href: "/admin/customers",
@@ -193,6 +187,12 @@ const NAV_GROUPS: NavGroupDef[] = [
 				label: "Accounting Ledger",
 				icon: BookOpen,
 				permission: "accounting:view",
+			},
+			{
+				href: "/admin/analytics",
+				label: "Analytics & Reports",
+				icon: BarChart3,
+				permission: "analytics:view",
 			},
 		],
 	},
@@ -237,6 +237,12 @@ const NAV_GROUPS: NavGroupDef[] = [
 				permission: "roles:manage",
 			},
 			{
+				href: "/admin/settings",
+				label: "Store Settings",
+				icon: Settings,
+				permission: "settings:manage",
+			},
+			{
 				href: "/admin/meta-pixel",
 				label: "Meta Pixel (CAPI)",
 				icon: Activity,
@@ -246,12 +252,6 @@ const NAV_GROUPS: NavGroupDef[] = [
 				href: "/admin/google-analytics",
 				label: "Google Analytics",
 				icon: LineChart,
-				permission: "settings:manage",
-			},
-			{
-				href: "/admin/settings",
-				label: "Store Settings",
-				icon: Settings,
 				permission: "settings:manage",
 			},
 		],

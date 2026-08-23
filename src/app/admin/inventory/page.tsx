@@ -468,87 +468,146 @@ export default function InventoryPage() {
 						</p>
 					</div>
 				) : (
-					<div className="overflow-x-auto">
-						<table className="w-full">
-							<thead className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
-								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Product
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										SKU
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Quantity
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Reserved
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Available
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Location
-									</th>
-									<th className="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-										Actions
-									</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-								{(inventory || []).map((item) => {
-									const status = getStockStatus(item);
-									return (
-										<tr
-											key={item.id}
-											className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-											<td className="px-6 py-4">
-												<div className="font-medium text-zinc-900 dark:text-white">
-													{item.product_name}
-												</div>
-												{item.variation_name && (
-													<div className="text-sm text-zinc-500">
-														{item.variation_name}
+					<>
+						{/* Desktop Table View */}
+						<div className="hidden md:block overflow-x-auto">
+							<table className="w-full">
+								<thead className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+									<tr>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Product
+										</th>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											SKU
+										</th>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Total Qty
+										</th>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Reserved
+										</th>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Available
+										</th>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Status
+										</th>
+										<th className="px-6 py-3.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Location
+										</th>
+										<th className="px-6 py-3.5 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Actions
+										</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+									{(inventory || []).map((item) => {
+										const status = getStockStatus(item);
+										return (
+											<tr
+												key={item.id}
+												className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+												<td className="px-6 py-4">
+													<div className="font-semibold text-zinc-900 dark:text-white">
+														{item.product_name}
 													</div>
+													{item.variation_name && (
+														<div className="text-xs text-zinc-500 mt-0.5">
+															{item.variation_name}
+														</div>
+													)}
+												</td>
+												<td className="px-6 py-4 text-xs text-zinc-500 font-mono">
+													{item.sku}
+												</td>
+												<td className="px-6 py-4 font-medium text-zinc-900 dark:text-white">
+													{item.quantity}
+												</td>
+												<td className="px-6 py-4 text-zinc-500">
+													{item.reserved_quantity}
+												</td>
+												<td className="px-6 py-4 font-bold text-zinc-900 dark:text-white">
+													{item.available_quantity}
+												</td>
+												<td className="px-6 py-4">
+													<span
+														className={`px-2.5 py-1 text-xs font-semibold rounded-full ${status.color}`}>
+														{status.label}
+													</span>
+												</td>
+												<td className="px-6 py-4 text-zinc-500 text-xs">
+													{item.location || "Default Warehouse"}
+												</td>
+												<td className="px-6 py-4 text-right">
+													<button
+														onClick={() => openAdjustModal(item)}
+														className="px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-xs font-semibold rounded-lg transition-colors">
+														Adjust Stock
+													</button>
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						</div>
+
+						{/* Mobile Card View */}
+						<div className="md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+							{(inventory || []).map((item) => {
+								const status = getStockStatus(item);
+								return (
+									<div key={item.id} className="p-4 space-y-3">
+										<div className="flex items-start justify-between">
+											<div>
+												<p className="font-semibold text-sm text-zinc-900 dark:text-white">
+													{item.product_name}
+												</p>
+												{item.variation_name && (
+													<p className="text-xs text-zinc-500 mt-0.5">
+														{item.variation_name}
+													</p>
 												)}
-											</td>
-											<td className="px-6 py-4 text-sm text-zinc-900 dark:text-white font-mono">
-												{item.sku}
-											</td>
-											<td className="px-6 py-4 text-sm text-zinc-900 dark:text-white font-semibold">
-												{item.quantity}
-											</td>
-											<td className="px-6 py-4 text-sm text-zinc-500">
-												{item.reserved_quantity}
-											</td>
-											<td className="px-6 py-4 text-sm font-semibold text-zinc-900 dark:text-white">
-												{item.available_quantity}
-											</td>
-											<td className="px-6 py-4">
-												<span
-													className={`px-2 py-1 text-xs font-medium rounded-full ${status.color}`}>
-													{status.label}
-												</span>
-											</td>
-											<td className="px-6 py-4 text-sm text-zinc-500">
-												{item.location || "-"}
-											</td>
-											<td className="px-6 py-4 text-right text-sm font-medium">
-												<button
-													onClick={() => openAdjustModal(item)}
-													className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-													Adjust Stock
-												</button>
-											</td>
-										</tr>
-									);
-								})}
-							</tbody>
-						</table>
-					</div>
+												<p className="text-xs text-zinc-400 font-mono mt-0.5">
+													{item.sku}
+												</p>
+											</div>
+											<span
+												className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full ${status.color}`}>
+												{status.label}
+											</span>
+										</div>
+
+										<div className="grid grid-cols-3 gap-2 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-3 text-center">
+											<div>
+												<p className="text-[10px] text-zinc-500 uppercase font-semibold">Total</p>
+												<p className="text-sm font-bold text-zinc-900 dark:text-white mt-0.5">{item.quantity}</p>
+											</div>
+											<div>
+												<p className="text-[10px] text-zinc-500 uppercase font-semibold">Reserved</p>
+												<p className="text-sm font-medium text-zinc-500 mt-0.5">{item.reserved_quantity}</p>
+											</div>
+											<div>
+												<p className="text-[10px] text-zinc-500 uppercase font-semibold">Available</p>
+												<p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{item.available_quantity}</p>
+											</div>
+										</div>
+
+										<div className="flex items-center justify-between pt-1">
+											<span className="text-xs text-zinc-500">
+												📍 {item.location || "Default Warehouse"}
+											</span>
+											<button
+												onClick={() => openAdjustModal(item)}
+												className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-xs">
+												Adjust Stock
+											</button>
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					</>
 				)}
 			</div>
 			)}

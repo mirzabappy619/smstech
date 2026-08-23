@@ -56,12 +56,21 @@ export function normalizeProduct(p: any): Product {
   }
 
   const basePrice = Number(p.base_price ?? p.price ?? 0)
-  const comparePrice = Number(p.compare_at_price ?? p.originalPrice ?? basePrice)
+  const comparePrice = Number(p.compare_at_price ?? p.original_price ?? p.originalPrice ?? basePrice)
+
+  // Derive variants from product_variations if available
+  let variants = p.variants || []
+  if (variants.length === 0 && Array.isArray(p.product_variations)) {
+    variants = p.product_variations.map((v: any) => ({
+      label: v.name || v.sku || 'Default Variant',
+      price: Number(v.price ?? basePrice),
+    }))
+  }
 
   return {
     id: String(p.id),
     slug: p.slug || String(p.id),
-    brand: p.brand || 'Brand',
+    brand: p.brand || p.attributes?.brand || 'Brand',
     name: p.name || 'Product',
     category: (p.category === 'smartphone' || p.category?.slug === 'smartphones') ? 'smartphone' : 'laptop',
     subcategory: p.subcategory || 'general',
@@ -79,7 +88,7 @@ export function normalizeProduct(p: any): Product {
     badges: parsedBadges,
     warranty: p.warranty || '1 Year Official Warranty',
     colors: parsedColors,
-    variants: p.variants || [],
+    variants,
     isNew: Boolean(p.is_new ?? p.isNew ?? false),
   }
 }

@@ -430,8 +430,8 @@ export default function AdminOrdersPage() {
 				</select>
 			</div>
 
-			{/* Orders Table */}
-			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+			{/* Orders Table Container */}
+			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-xs">
 				{loading ? (
 					<div className="p-12 text-center">
 						<div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto" />
@@ -445,131 +445,204 @@ export default function AdminOrdersPage() {
 						No orders found matching search criteria
 					</div>
 				) : (
-					<div className="overflow-x-auto">
-						<table className="w-full">
-							<thead className="bg-zinc-50 dark:bg-zinc-800/50 text-left border-b border-zinc-200 dark:border-zinc-800">
-								<tr>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Order Number
-									</th>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Customer Details
-									</th>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Items & Quantity
-									</th>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Payment
-									</th>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Total Amount
-									</th>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Status
-									</th>
-									<th className="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Date
-									</th>
-									<th className="px-4 py-3 text-right text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-										Actions
-									</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-								{(orders || []).map((order) => (
-									<tr
-										key={order.id}
-										className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-										<td className="px-4 py-4">
-											<Link
-												href={`/admin/orders/${order.id}`}
-												className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
-												{order.order_number || "N/A"}
-											</Link>
-										</td>
-										<td className="px-4 py-4">
-											<div>
-												<p className="font-semibold text-zinc-900 dark:text-white">
-													{order.customer_name || "Guest Customer"}
-												</p>
-												{order.customer_phone && (
-													<div className="flex items-center gap-1.5 mt-0.5">
-														<span className="text-xs text-zinc-600 dark:text-zinc-400 font-medium font-mono">
-															📱 {order.customer_phone}
-														</span>
-														<Link
-															href={`/admin/fraud-check?phone=${encodeURIComponent(order.customer_phone)}`}
-															title="Check Delivery & Fraud History"
-															className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors">
-															🛡️ Risk
-														</Link>
-													</div>
-												)}
-												<p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
-													{order.customer_email || "No Email"}
-												</p>
-											</div>
-										</td>
-										<td className="px-4 py-4">
-											<div className="space-y-1">
-												{(order.items || []).slice(0, 2).map((item, idx) => (
-													<p key={item.id || idx} className="text-xs text-zinc-700 dark:text-zinc-300 truncate max-w-xs">
-														<span className="font-semibold">{item.quantity || 1}x</span> {item.product_name || "Product"}
-														{item.variation_name ? ` (${item.variation_name})` : ""}
+					<>
+						{/* Desktop Table View */}
+						<div className="hidden md:block overflow-x-auto">
+							<table className="w-full">
+								<thead className="bg-zinc-50 dark:bg-zinc-800/50 text-left border-b border-zinc-200 dark:border-zinc-800">
+									<tr>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Order Number
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Customer Details
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Items & Quantity
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Payment
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Total Amount
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Status
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Date
+										</th>
+										<th className="px-4 py-3.5 text-right text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+											Actions
+										</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+									{(orders || []).map((order) => (
+										<tr
+											key={order.id}
+											className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+											<td className="px-4 py-4">
+												<Link
+													href={`/admin/orders/${order.id}`}
+													className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
+													{order.order_number || "N/A"}
+												</Link>
+											</td>
+											<td className="px-4 py-4">
+												<div>
+													<p className="font-semibold text-zinc-900 dark:text-white">
+														{order.customer_name || "Guest Customer"}
 													</p>
-												))}
-												{(order.items || []).length > 2 && (
-													<p className="text-xs text-zinc-400 italic">
-														+ {(order.items || []).length - 2} more item(s)
+													{order.customer_phone && (
+														<div className="flex items-center gap-1.5 mt-0.5">
+															<span className="text-xs text-zinc-600 dark:text-zinc-400 font-medium font-mono">
+																📱 {order.customer_phone}
+															</span>
+															<Link
+																href={`/admin/fraud-check?phone=${encodeURIComponent(order.customer_phone)}`}
+																title="Check Delivery & Fraud History"
+																className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors">
+																🛡️ Risk
+															</Link>
+														</div>
+													)}
+													<p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
+														{order.customer_email || "No Email"}
 													</p>
-												)}
-												{(order.items || []).length === 0 && (
-													<p className="text-xs text-zinc-400 italic">
-														{order.items_count || 0} item(s)
+												</div>
+											</td>
+											<td className="px-4 py-4">
+												<div className="space-y-1">
+													{(order.items || []).slice(0, 2).map((item, idx) => (
+														<p key={item.id || idx} className="text-xs text-zinc-700 dark:text-zinc-300 truncate max-w-xs">
+															<span className="font-semibold">{item.quantity || 1}x</span> {item.product_name || "Product"}
+															{item.variation_name ? ` (${item.variation_name})` : ""}
+														</p>
+													))}
+													{(order.items || []).length > 2 && (
+														<p className="text-xs text-zinc-400 italic">
+															+ {(order.items || []).length - 2} more item(s)
+														</p>
+													)}
+													{(order.items || []).length === 0 && (
+														<p className="text-xs text-zinc-400 italic">
+															{order.items_count || 0} item(s)
+														</p>
+													)}
+												</div>
+											</td>
+											<td className="px-4 py-4">
+												<div>
+													<span className="inline-block px-2 py-0.5 text-xs rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-300 capitalize font-medium">
+														{(order.payment_method || "COD").replace(/_/g, " ")}
+													</span>
+													<p className="text-xs text-zinc-500 mt-0.5 capitalize">
+														{order.payment_status || "pending"}
 													</p>
-												)}
-											</div>
-										</td>
-										<td className="px-4 py-4">
-											<div>
-												<span className="inline-block px-2 py-0.5 text-xs rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-300 capitalize font-medium">
-													{(order.payment_method || "COD").replace(/_/g, " ")}
+												</div>
+											</td>
+											<td className="px-4 py-4 font-bold text-zinc-900 dark:text-white">
+												৳ {Number(order.total || 0).toLocaleString()}
+											</td>
+											<td className="px-4 py-4">
+												<span
+													className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+														statusColors[order.status] || "bg-zinc-100 text-zinc-800"
+													}`}>
+													{order.status || "pending"}
 												</span>
-												<p className="text-xs text-zinc-500 mt-0.5 capitalize">
-													{order.payment_status || "pending"}
+											</td>
+											<td className="px-4 py-4 text-xs text-zinc-500 whitespace-nowrap">
+												{order.created_at ? new Date(order.created_at).toLocaleDateString("en-US", {
+													month: "short",
+													day: "numeric",
+													year: "numeric",
+												}) : "N/A"}
+											</td>
+											<td className="px-4 py-4 text-right">
+												<Link
+													href={`/admin/orders/${order.id}`}
+													className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1">
+													View Order
+												</Link>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						{/* Mobile Card View */}
+						<div className="md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+							{(orders || []).map((order) => (
+								<div key={order.id} className="p-4 space-y-3">
+									<div className="flex items-center justify-between">
+										<Link
+											href={`/admin/orders/${order.id}`}
+											className="font-bold text-sm text-blue-600 dark:text-blue-400 hover:underline">
+											{order.order_number || "Order #" + order.id.slice(0, 8)}
+										</Link>
+										<span
+											className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${
+												statusColors[order.status] || "bg-zinc-100 text-zinc-800"
+											}`}>
+											{order.status || "pending"}
+										</span>
+									</div>
+
+									<div className="flex items-start justify-between text-xs">
+										<div>
+											<p className="font-semibold text-zinc-900 dark:text-white">
+												{order.customer_name || "Guest Customer"}
+											</p>
+											{order.customer_phone && (
+												<p className="text-zinc-500 font-mono mt-0.5">
+													📱 {order.customer_phone}
 												</p>
-											</div>
-										</td>
-										<td className="px-4 py-4 font-bold text-zinc-900 dark:text-white">
-											৳ {Number(order.total || 0).toLocaleString()}
-										</td>
-										<td className="px-4 py-4">
-											<span
-												className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-													statusColors[order.status] || "bg-zinc-100 text-zinc-800"
-												}`}>
-												{order.status || "pending"}
+											)}
+										</div>
+										<div className="text-right">
+											<span className="font-bold text-sm text-zinc-900 dark:text-white">
+												৳ {Number(order.total || 0).toLocaleString()}
 											</span>
-										</td>
-										<td className="px-4 py-4 text-xs text-zinc-500 whitespace-nowrap">
+											<p className="text-zinc-400 text-[10px] capitalize">
+												{(order.payment_method || "COD").replace(/_/g, " ")} • {order.payment_status || "pending"}
+											</p>
+										</div>
+									</div>
+
+									{order.items && order.items.length > 0 && (
+										<div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-2.5 text-xs text-zinc-600 dark:text-zinc-400 space-y-0.5">
+											{order.items.slice(0, 2).map((item, idx) => (
+												<p key={item.id || idx} className="truncate">
+													<span className="font-semibold text-zinc-800 dark:text-zinc-200">{item.quantity || 1}x</span> {item.product_name}
+												</p>
+											))}
+											{order.items.length > 2 && (
+												<p className="text-[10px] text-zinc-400 italic">+ {order.items.length - 2} more items</p>
+											)}
+										</div>
+									)}
+
+									<div className="flex items-center justify-between pt-1 text-xs">
+										<span className="text-zinc-400">
 											{order.created_at ? new Date(order.created_at).toLocaleDateString("en-US", {
 												month: "short",
 												day: "numeric",
 												year: "numeric",
-											}) : "N/A"}
-										</td>
-										<td className="px-4 py-4 text-right">
-											<Link
-												href={`/admin/orders/${order.id}`}
-												className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1">
-												View Order
-											</Link>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
+											}) : ""}
+										</span>
+										<Link
+											href={`/admin/orders/${order.id}`}
+											className="px-3 py-1 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 font-semibold rounded-lg transition-colors">
+											View Order →
+										</Link>
+									</div>
+								</div>
+							))}
+						</div>
+					</>
 				)}
 			</div>
 

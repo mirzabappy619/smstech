@@ -316,163 +316,276 @@ export default function AdminProductsPage() {
 				)}
 			</div>
 
-			{/* Products Table */}
-			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+			{/* Products Container */}
+			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-xs">
 				{loading ? (
-					<div className="p-8 text-center">
-						<div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto" />
+					<div className="p-12 text-center">
+						<div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
+						<p className="text-sm text-zinc-500">Loading product catalog...</p>
 					</div>
 				) : filteredProducts.length === 0 ? (
-					<div className="p-8 text-center text-zinc-500">
-						{search ? "No products match your search" : "No products yet"}
+					<div className="p-12 text-center">
+						<div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-3 text-zinc-400">
+							<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+							</svg>
+						</div>
+						<p className="font-medium text-zinc-900 dark:text-white mb-1">No products found</p>
+						<p className="text-sm text-zinc-500">
+							{search || categoryFilter ? "Try adjusting your search or category filters" : "Start by adding your first product to the catalog"}
+						</p>
 					</div>
 				) : (
-					<table className="w-full">
-						<thead className="bg-zinc-50 dark:bg-zinc-800/50">
-							<tr>
-								<th className="w-12 px-4 py-3">
-									<input
-										type="checkbox"
-										checked={
-											selectedProducts.length === filteredProducts.length
-										}
-										onChange={toggleSelectAll}
-										className="w-4 h-4 rounded text-blue-600"
-									/>
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
-									Product
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
-									SKU
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
-									Price
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
-									Category
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
-									Status
-								</th>
-								<th className="px-4 py-3 text-right text-xs font-medium text-zinc-500 uppercase tracking-wider">
-									Actions
-								</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-							{filteredProducts.map((product) => (
-								<tr
-									key={product.id}
-									className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-									<td className="px-4 py-4">
-										<input
-											type="checkbox"
-											checked={selectedProducts.includes(product.id)}
-											onChange={() => toggleSelect(product.id)}
-											className="w-4 h-4 rounded text-blue-600"
-										/>
-									</td>
-									<td className="px-4 py-4">
-										<div className="flex items-center gap-3">
-											<div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0">
-												{product.images?.[0] ? (
-													<img
-														src={product.images[0]}
-														alt={product.name}
-														className="w-full h-full object-cover"
+					<>
+						{/* Desktop Table View */}
+						<div className="hidden md:block overflow-x-auto">
+							<table className="w-full text-left">
+								<thead className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+									<tr>
+										<th className="w-12 px-4 py-3.5">
+											<input
+												type="checkbox"
+												checked={
+													selectedProducts.length === filteredProducts.length &&
+													filteredProducts.length > 0
+												}
+												onChange={toggleSelectAll}
+												className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+											/>
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Product
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											SKU
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Price
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Category
+										</th>
+										<th className="px-4 py-3.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Status
+										</th>
+										<th className="px-4 py-3.5 text-right text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+											Actions
+										</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+									{filteredProducts.map((product) => (
+										<tr
+											key={product.id}
+											className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors">
+											<td className="px-4 py-3.5">
+												<input
+													type="checkbox"
+													checked={selectedProducts.includes(product.id)}
+													onChange={() => toggleSelect(product.id)}
+													className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+												/>
+											</td>
+											<td className="px-4 py-3.5">
+												<div className="flex items-center gap-3">
+													<div className="w-11 h-11 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-200/60 dark:border-zinc-700">
+														{product.images?.[0] ? (
+															<img
+																src={product.images[0]}
+																alt={product.name}
+																className="w-full h-full object-cover"
+															/>
+														) : (
+															<div className="w-full h-full flex items-center justify-center text-zinc-400">
+																<svg
+																	className="w-5 h-5"
+																	fill="none"
+																	stroke="currentColor"
+																	viewBox="0 0 24 24">
+																	<path
+																		strokeLinecap="round"
+																		strokeLinejoin="round"
+																		strokeWidth={1.5}
+																		d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+																	/>
+																</svg>
+															</div>
+														)}
+													</div>
+													<div className="min-w-0">
+														<div className="flex items-center gap-2">
+															<Link
+																href={`/admin/products/${product.id}`}
+																className="font-medium text-zinc-900 dark:text-white hover:text-blue-600 truncate max-w-xs block">
+																{product.name}
+															</Link>
+															{product.is_featured && (
+																<span className="px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded shrink-0">
+																	Featured
+																</span>
+															)}
+														</div>
+													</div>
+												</div>
+											</td>
+											<td className="px-4 py-3.5 text-xs text-zinc-500 font-mono">
+												{product.sku || "—"}
+											</td>
+											<td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-white">
+												৳{Math.round(product.base_price).toLocaleString("en-BD")}
+											</td>
+											<td className="px-4 py-3.5 text-zinc-600 dark:text-zinc-400">
+												{product.category?.name || "—"}
+											</td>
+											<td className="px-4 py-3.5">
+												<span
+													className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full ${
+														product.is_active
+															? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+															: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+													}`}>
+													<span
+														className={`w-1.5 h-1.5 rounded-full ${
+															product.is_active ? "bg-emerald-500" : "bg-zinc-400"
+														}`}
 													/>
-												) : (
-													<div className="w-full h-full flex items-center justify-center text-zinc-400">
+													{product.is_active ? "Active" : "Draft"}
+												</span>
+											</td>
+											<td className="px-4 py-3.5 text-right">
+												<div className="flex items-center justify-end gap-1">
+													<Link
+														href={`/admin/products/${product.id}`}
+														className="p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+														title="Edit product">
 														<svg
-															className="w-6 h-6"
+															className="w-4 h-4"
 															fill="none"
 															stroke="currentColor"
 															viewBox="0 0 24 24">
 															<path
 																strokeLinecap="round"
 																strokeLinejoin="round"
-																strokeWidth={1.5}
-																d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+																strokeWidth={2}
+																d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
 															/>
 														</svg>
-													</div>
-												)}
-											</div>
-											<div>
+													</Link>
+													<Link
+														href={`/product/${product.slug || product.id}`}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+														title="View on storefront">
+														<svg
+															className="w-4 h-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24">
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																strokeWidth={2}
+																d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+															/>
+														</svg>
+													</Link>
+												</div>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+
+						{/* Mobile Card List View */}
+						<div className="md:hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+							{filteredProducts.map((product) => (
+								<div key={product.id} className="p-4 space-y-3">
+									<div className="flex items-start gap-3">
+										<input
+											type="checkbox"
+											checked={selectedProducts.includes(product.id)}
+											onChange={() => toggleSelect(product.id)}
+											className="w-4 h-4 mt-1 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+										/>
+										<div className="w-14 h-14 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-200 dark:border-zinc-700">
+											{product.images?.[0] ? (
+												<img
+													src={product.images[0]}
+													alt={product.name}
+													className="w-full h-full object-cover"
+												/>
+											) : (
+												<div className="w-full h-full flex items-center justify-center text-zinc-400">
+													<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+													</svg>
+												</div>
+											)}
+										</div>
+										<div className="flex-1 min-w-0">
+											<div className="flex items-center gap-1.5 flex-wrap mb-1">
 												<Link
 													href={`/admin/products/${product.id}`}
-													className="font-medium text-zinc-900 dark:text-white hover:text-blue-600">
+													className="font-medium text-zinc-900 dark:text-white text-sm hover:text-blue-600 line-clamp-1">
 													{product.name}
 												</Link>
 												{product.is_featured && (
-													<span className="ml-2 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 rounded">
+													<span className="px-1.5 py-0.2 text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded">
 														Featured
 													</span>
 												)}
 											</div>
-										</div>
-									</td>
-									<td className="px-4 py-4 text-sm text-zinc-500 font-mono">
-										{product.sku}
-									</td>
-									<td className="px-4 py-4 text-sm text-zinc-900 dark:text-white">৳{Math.round(product.base_price)}</td>
-									<td className="px-4 py-4 text-sm text-zinc-500">
-										{product.category?.name || "-"}
-									</td>
-									<td className="px-4 py-4">
-										<span
-											className={`inline-flex px-2 py-1 text-xs rounded-full ${
-												product.is_active
-													? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-													: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400"
-											}`}>
-											{product.is_active ? "Active" : "Draft"}
-										</span>
-									</td>
-									<td className="px-4 py-4 text-right">
-										<div className="flex items-center justify-end gap-2">
-											<Link
-												href={`/admin/products/${product.id}`}
-												className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-												title="Edit">
-												<svg
-													className="w-5 h-5"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24">
-													<path
-														strokeLinecap="round"
-														strokeLinejoin="round"
-														strokeWidth={2}
-														d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+											<div className="flex items-center gap-2 text-xs text-zinc-500">
+												<span className="font-mono">{product.sku || "No SKU"}</span>
+												<span>•</span>
+												<span>{product.category?.name || "Uncategorized"}</span>
+											</div>
+											<div className="mt-2 flex items-center justify-between">
+												<span className="font-bold text-sm text-zinc-900 dark:text-white">
+													৳{Math.round(product.base_price).toLocaleString("en-BD")}
+												</span>
+												<span
+													className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${
+														product.is_active
+															? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+															: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+													}`}>
+													<span
+														className={`w-1.5 h-1.5 rounded-full ${
+															product.is_active ? "bg-emerald-500" : "bg-zinc-400"
+														}`}
 													/>
-												</svg>
-											</Link>
-											<Link
-												href={`/products/${product.slug}`}
-												target="_blank"
-												className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-												title="View">
-												<svg
-													className="w-5 h-5"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24">
-													<path
-														strokeLinecap="round"
-														strokeLinejoin="round"
-														strokeWidth={2}
-														d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-													/>
-												</svg>
-											</Link>
+													{product.is_active ? "Active" : "Draft"}
+												</span>
+											</div>
 										</div>
-									</td>
-								</tr>
+									</div>
+									<div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/60">
+										<Link
+											href={`/product/${product.slug || product.id}`}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors">
+											<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+											</svg>
+											View Store
+										</Link>
+										<Link
+											href={`/admin/products/${product.id}`}
+											className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+											<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+											</svg>
+											Edit Product
+										</Link>
+									</div>
+								</div>
 							))}
-						</tbody>
-					</table>
+						</div>
+					</>
 				)}
 			</div>
 		</div>
