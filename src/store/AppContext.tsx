@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import type { Product } from '../data/products'
 import { trackMetaAddToCart } from '@/presentation/components/meta-pixel'
 
@@ -41,6 +41,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cartOpen, setCartOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [announcementDismissed, setAnnouncementDismissed] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedCart = localStorage.getItem('smstech_cart')
+      if (savedCart) setCart(JSON.parse(savedCart))
+
+      const savedWishlist = localStorage.getItem('smstech_wishlist')
+      if (savedWishlist) setWishlist(JSON.parse(savedWishlist))
+
+      const savedCompare = localStorage.getItem('smstech_compare')
+      if (savedCompare) setCompareList(JSON.parse(savedCompare))
+    } catch {}
+    setIsLoaded(true)
+  }, [])
+
+  // Save to localStorage whenever states change
+  useEffect(() => {
+    if (!isLoaded) return
+    try {
+      localStorage.setItem('smstech_cart', JSON.stringify(cart))
+    } catch {}
+  }, [cart, isLoaded])
+
+  useEffect(() => {
+    if (!isLoaded) return
+    try {
+      localStorage.setItem('smstech_wishlist', JSON.stringify(wishlist))
+    } catch {}
+  }, [wishlist, isLoaded])
+
+  useEffect(() => {
+    if (!isLoaded) return
+    try {
+      localStorage.setItem('smstech_compare', JSON.stringify(compareList))
+    } catch {}
+  }, [compareList, isLoaded])
 
   const addToCart = useCallback((product: Product, variant?: string) => {
     setCart((prev) => {

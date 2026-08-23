@@ -40,17 +40,42 @@ export default function Home() {
   const [countdown, setCountdown] = useState({ h: 11, m: 43, s: 22 })
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [allDbProducts, setAllDbProducts] = useState<Product[]>([])
+  const [dbCategories, setDbCategories] = useState(categories)
 
   useEffect(() => {
     async function loadDb() {
       try {
-        const res = await fetch('/api/v1/products?show_all=true&limit=100')
-        const json = await res.json()
-        if (json.success && Array.isArray(json.data)) {
-          setAllDbProducts(json.data.map(normalizeProduct))
+        const [prodRes, catRes] = await Promise.all([
+          fetch('/api/v1/products?show_all=true&limit=100').catch(() => null),
+          fetch('/api/v1/categories').catch(() => null),
+        ])
+
+        if (prodRes && prodRes.ok) {
+          const json = await prodRes.json()
+          if (json.success && Array.isArray(json.data)) {
+            setAllDbProducts(json.data.map(normalizeProduct))
+          }
+        }
+
+        if (catRes && catRes.ok) {
+          const catJson = await catRes.json()
+          if (catJson.success && Array.isArray(catJson.data) && catJson.data.length > 0) {
+            const mapped = catJson.data.map((c: any, index: number) => {
+              const fallback = categories[index % categories.length]
+              return {
+                name: c.name,
+                desc: c.description || fallback.desc,
+                count: c.product_count || fallback.count,
+                href: c.slug === 'laptops' ? '/laptops' : c.slug === 'smartphones' ? '/smartphones' : `/search?category=${encodeURIComponent(c.slug)}`,
+                img: c.image_url || fallback.img,
+                color: fallback.color,
+              }
+            })
+            if (mapped.length > 0) setDbCategories(mapped)
+          }
         }
       } catch (e) {
-        console.error('Failed to load homepage products from db:', e)
+        console.error('Failed to load homepage data from db:', e)
       }
     }
     loadDb()
@@ -114,7 +139,7 @@ export default function Home() {
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          {categories.map((cat) => (
+          {dbCategories.map((cat) => (
             <Link
               key={cat.name}
               href={cat.href}

@@ -62,8 +62,9 @@ export default function HeroSlider() {
       try {
         const res = await fetch('/api/v1/admin/sliders')
         const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          const active = data.filter((s: HeroSlide) => s.is_active !== false)
+        const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+        if (list.length > 0) {
+          const active = list.filter((s: HeroSlide) => s.is_active !== false)
           if (active.length > 0) {
             setSlides(active)
           }

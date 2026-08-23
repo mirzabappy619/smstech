@@ -4,33 +4,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createBrowserSupabaseClient } from '@/lib/supabase/client'
+import { useApp } from '@/store/AppContext'
+import ProductCard from '@/components/ProductCard'
 
 const fmt = (n: number) => '৳' + (Number(n) || 0).toLocaleString('en-BD')
-
-const sampleWarranties = [
-  {
-    id: 'W-9921',
-    device: 'Apple MacBook Air M1 (8GB / 256GB)',
-    serial: 'C02G998ZMD6R',
-    imei: '358992019283741',
-    purchaseDate: '2026-01-15',
-    expiresDate: '2027-01-15',
-    status: 'Active (147 Days Remaining)',
-    tier: 'SMSTech 1 Year Pro Warranty',
-    invoiceId: 'POS-892182'
-  },
-  {
-    id: 'W-9922',
-    device: 'iPhone 17 Pro Natural Titanium',
-    serial: 'DN6H9912KL3P',
-    imei: '359001928374821',
-    purchaseDate: '2026-03-10',
-    expiresDate: '2027-03-10',
-    status: 'Active (201 Days Remaining)',
-    tier: 'Apple Official + SMSTech Care',
-    invoiceId: 'POS-892199'
-  }
-]
 
 const sections = [
   'Overview',
@@ -49,12 +26,17 @@ interface UserProfile {
   last_name?: string
   role?: string
   phone?: string
+  address?: string
+  city?: string
 }
 
 export default function Account() {
   const router = useRouter()
+  const { wishlist } = useApp()
   const [activeSection, setActiveSection] = useState('Overview')
   const [preBookings, setPreBookings] = useState<any[]>([])
+  const [orders, setOrders] = useState<any[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
   const [user, setUser] = useState<UserProfile | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -108,22 +90,38 @@ export default function Account() {
     return () => subscription.unsubscribe()
   }, [router])
 
-  // Load pre-bookings after auth is confirmed
+  // Load orders and pre-bookings after auth is confirmed
   useEffect(() => {
     if (!user) return
 
-    async function loadPreBookings() {
+    async function loadUserData() {
       try {
-        const res = await fetch('/api/v1/pre-bookings')
-        const json = await res.json()
-        if (json.success) {
-          setPreBookings(json.data || [])
+        setOrdersLoading(true)
+        const [ordersRes, pbRes] = await Promise.all([
+          fetch('/api/v1/users/me/orders?limit=20').catch(() => null),
+          fetch('/api/v1/pre-bookings').catch(() => null),
+        ])
+
+        if (ordersRes && ordersRes.ok) {
+          const ordJson = await ordersRes.json()
+          if (ordJson.success && Array.isArray(ordJson.data)) {
+            setOrders(ordJson.data)
+          }
+        }
+
+        if (pbRes && pbRes.ok) {
+          const pbJson = await pbRes.json()
+          if (pbJson.success && Array.isArray(pbJson.data)) {
+            setPreBookings(pbJson.data)
+          }
         }
       } catch (err) {
-        console.error(err)
+        console.error('Failed to load user account data:', err)
+      } finally {
+        setOrdersLoading(false)
       }
     }
-    loadPreBookings()
+    loadUserData()
   }, [user])
 
   const handleLogout = async () => {
@@ -225,8 +223,8 @@ export default function Account() {
               <div className="grid sm:grid-cols-3 gap-4">
                 {[
                   ['💳', 'Gold Tier', 'Loyalty Membership'],
-                  ['🛡️', '2 Active', 'Warranty Certificates'],
-                  ['⏳', preBookings.length, 'Active Pre-Bookings'],
+                  ['🛡️', `${orders.length} Orders`, 'Order History'],
+                  ['⏳', `${preBookings.length} Active`, 'Pre-Bookings'],
                 ].map(([icon, val, label]) => (
                   <div key={label as string} className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-5 text-center transition-colors">
                     <p className="text-2xl mb-1">{icon}</p>
@@ -249,6 +247,37 @@ export default function Account() {
                 >
                   View Digital Card →
                 </button>
+              </div>
+
+              {/* Recent Orders Overview */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-extrabold text-base text-slate-900 dark:text-white">Recent Orders</h3>
+                  <button onClick={() => setActiveSection('My Orders')} className="text-xs font-bold text-blue-600 hover:underline">
+                    View All →
+                  </button>
+                </div>
+                {ordersLoading ? (
+                  <div className="py-8 text-center text-xs text-slate-400">Loading recent orders...</div>
+                ) : orders.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    No orders placed yet. <Link href="/laptops" className="text-blue-600 font-bold hover:underline">Start shopping</Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {orders.slice(0, 3).map((ord) => (
+                      <div key={ord.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-xs text-slate-900 dark:text-white">#{ord.order_number || ord.id.slice(0, 8)}</p>
+                          <p className="text-[10px] text-slate-400 capitalize">
+                            Status: {ord.status || 'Pending'} · {fmt(ord.total || 0)}
+                          </p>
+                        </div>
+                        <Link href="/track-order" className="text-xs font-bold text-blue-600 hover:underline">Track →</Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -297,52 +326,58 @@ export default function Account() {
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">Digital Warranty Vault</h3>
-                <p className="text-xs text-slate-500">Live active warranty certificates with countdowns and downloadable legal A4 certificates.</p>
+                <p className="text-xs text-slate-500">Live active warranty certificates and downloadable legal A4 invoices.</p>
               </div>
 
-              <div className="space-y-4">
-                {sampleWarranties.map((w) => (
-                  <div key={w.id} className="p-5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3 bg-slate-50/50 dark:bg-slate-900/50">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">{w.device}</h4>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 font-mono mt-1">
-                          <span className="text-blue-600 font-bold">SN: {w.serial}</span>
-                          <span>IMEI: {w.imei}</span>
+              {orders.length === 0 ? (
+                <div className="text-center py-12 text-zinc-400 text-xs">
+                  No registered warranty devices found. Orders with warranty coverage will appear here.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((ord) => (
+                    <div key={ord.id} className="p-5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3 bg-slate-50/50 dark:bg-slate-900/50">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Order #{ord.order_number || ord.id.slice(0, 8)}</h4>
+                          <div className="flex items-center gap-3 text-xs text-slate-500 font-mono mt-1">
+                            <span className="text-blue-600 font-bold">Total: {fmt(ord.total || 0)}</span>
+                            <span>Items: {ord.items_count || 1}</span>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded-full text-xs font-black self-start sm:self-auto capitalize">
+                          ✓ {ord.status || 'Active'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Order Date</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">{new Date(ord.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Payment Status</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{ord.payment_status || 'Paid'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Coverage Type</span>
+                          <span className="font-bold text-blue-600">SMSTech Official Warranty</span>
                         </div>
                       </div>
-                      <span className="px-3 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded-full text-xs font-black self-start sm:self-auto">
-                        ✓ {w.status}
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">Purchase Date</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{w.purchaseDate}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">Expires Date</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">{w.expiresDate}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">Coverage Type</span>
-                        <span className="font-bold text-blue-600">{w.tier}</span>
+                      <div className="pt-2">
+                        <Link
+                          href={`/api/v1/admin/orders/${ord.id}/invoice`}
+                          target="_blank"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                        >
+                          <span>📄</span> Download Official Invoice / Warranty (A4 PDF)
+                        </Link>
                       </div>
                     </div>
-
-                    <div className="pt-2">
-                      <Link
-                        href={`/api/v1/admin/orders/1/invoice`}
-                        target="_blank"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                      >
-                        <span>📄</span> Download Official Legal Warranty Certificate (A4 PDF)
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -405,12 +440,79 @@ export default function Account() {
           {activeSection === 'My Orders' && (
             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4">
               <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">Order History</h3>
-              <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-xs">#SMST-2026-000098 · ASUS ROG Strix G16</p>
-                  <p className="text-[10px] text-slate-400">Delivered · 189,999 BDT</p>
+              {ordersLoading ? (
+                <div className="text-center py-12 text-zinc-400 text-xs">Loading orders...</div>
+              ) : orders.length === 0 ? (
+                <div className="text-center py-12 text-zinc-400 text-xs">
+                  No orders placed yet. <Link href="/laptops" className="text-blue-600 font-bold hover:underline">Start shopping</Link>
                 </div>
-                <Link href="/track-order" className="text-xs font-bold text-blue-600">Track Order →</Link>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((ord) => (
+                    <div key={ord.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm text-slate-900 dark:text-white">#{ord.order_number || ord.id.slice(0, 8)}</p>
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-bold rounded-full capitalize">
+                            {ord.status || 'Processing'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Placed on {new Date(ord.created_at).toLocaleDateString()} · Total: <span className="font-bold text-slate-900 dark:text-white">{fmt(ord.total || 0)}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/api/v1/admin/orders/${ord.id}/invoice`}
+                          target="_blank"
+                          className="text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600"
+                        >
+                          Invoice ↗
+                        </Link>
+                        <Link
+                          href="/track-order"
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
+                        >
+                          Track Order
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SECTION 6: Wishlist */}
+          {activeSection === 'Wishlist' && (
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4">
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">Saved Wishlist ({wishlist.length})</h3>
+              {wishlist.length === 0 ? (
+                <div className="text-center py-12 text-zinc-400 text-xs">
+                  Your wishlist is empty. Tap the heart icon on any product to save it here.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {wishlist.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SECTION 7: Saved Addresses */}
+          {activeSection === 'Saved Addresses' && (
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4">
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">Saved Delivery Addresses</h3>
+              <div className="p-5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-blue-600">Default Delivery Address</span>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded text-[10px] font-bold">Primary</span>
+                </div>
+                <p className="font-bold text-sm text-slate-900 dark:text-white">{displayName}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{user.phone || 'Phone not set'}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{user.address || 'Dhaka, Bangladesh'}</p>
               </div>
             </div>
           )}
