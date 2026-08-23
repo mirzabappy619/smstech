@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE } from "@/lib/bd-phone-validator";
+import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE, normalizeBDPhone } from "@/lib/bd-phone-validator";
+import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
 
 interface CourierSettings {
 	id?: string;
@@ -138,6 +139,65 @@ export default function CourierSettingsPage() {
 	const [calculatingPrice, setCalculatingPrice] = useState(false);
 	const [submittingOrder, setSubmittingOrder] = useState(false);
 
+	// Fraud check in Direct Delivery Form
+	const [courierFormFraudResult, setCourierFormFraudResult] = useState<FraudCheckResult | null>(null);
+	const [courierFormFraudLoading, setCourierFormFraudLoading] = useState(false);
+
+	const checkCourierPhoneFraud = async (targetPhone?: string) => {
+		const rawPhone = targetPhone || createRecipientPhone;
+		const normalized = normalizeBDPhone(rawPhone);
+		if (!normalized || !isValidBDPhone(normalized)) {
+			setCourierFormFraudResult(null);
+			return;
+		}
+		setCourierFormFraudLoading(true);
+		try {
+			const res = await fetch(`/api/v1/fraud-check?phone=${encodeURIComponent(normalized)}`);
+			const data = await res.json();
+			if (data.success) {
+				setCourierFormFraudResult(data);
+			} else {
+				setCourierFormFraudResult(null);
+			}
+		} catch {
+			setCourierFormFraudResult(null);
+		} finally {
+			setCourierFormFraudLoading(false);
+		}
+	};
+
+	// Standalone Fraud Check tab state
+	const [tabFraudPhone, setTabFraudPhone] = useState("01712345678");
+	const [tabFraudResult, setTabFraudResult] = useState<FraudCheckResult | null>(null);
+	const [tabFraudLoading, setTabFraudLoading] = useState(false);
+	const [tabFraudError, setTabFraudError] = useState<string | null>(null);
+
+	const runTabFraudCheck = async (targetPhone?: string) => {
+		const searchPhone = targetPhone || tabFraudPhone;
+		const normalized = normalizeBDPhone(searchPhone);
+		if (!normalized || !isValidBDPhone(normalized)) {
+			setTabFraudError(BD_PHONE_ERROR_MESSAGE);
+			return;
+		}
+		setTabFraudError(null);
+		setTabFraudLoading(true);
+		try {
+			const res = await fetch(`/api/v1/fraud-check?phone=${encodeURIComponent(normalized)}`);
+			const data = await res.json();
+			if (data.success) {
+				setTabFraudResult(data);
+			} else {
+				setTabFraudError(data.error || "Failed to fetch fraud check data");
+				setTabFraudResult(null);
+			}
+		} catch (err: any) {
+			setTabFraudError(err.message || "Failed to connect to fraud check service");
+			setTabFraudResult(null);
+		} finally {
+			setTabFraudLoading(false);
+		}
+	};
+
 	const fetchSettings = useCallback(async () => {
 		setLoading(true);
 		setError(null);
@@ -219,7 +279,7 @@ export default function CourierSettingsPage() {
 			if (storesJson.success && storesJson.data) {
 				const storeList = Array.isArray(storesJson.data.data) ? storesJson.data.data : Array.isArray(storesJson.data) ? storesJson.data : [];
 				setPathaoStores(storeList);
-				const targetStore = storeList.find((s: any) => s.store_id === 388178) || storeList.find((s: any) => s.store_name?.toLowerCase().includes("gizmo")) || storeList[0];
+				const targetStore = storeList.find((s: any) => s.store_id === 388178) || storeList.find((s: any) => s.store_name?.toLowerCase().includes("sms") || s.store_name?.toLowerCase().includes("gizmo")) || storeList[0];
 				const selectedId = targetStore ? targetStore.store_id : 388178;
 				setCreateStoreId(selectedId);
 				setSettings(prev => ({ ...prev, pathao_default_store_id: selectedId }));
@@ -406,7 +466,7 @@ export default function CourierSettingsPage() {
 			setPathaoStores(stores);
 			setPathaoConnected(true);
 
-			const targetStore = stores.find(s => s.store_id === 388178) || stores.find(s => s.store_name?.toLowerCase().includes("gizmo")) || stores[0];
+			const targetStore = stores.find(s => s.store_id === 388178) || stores.find(s => s.store_name?.toLowerCase().includes("sms") || s.store_name?.toLowerCase().includes("gizmo")) || stores[0];
 			const selectedId = targetStore ? targetStore.store_id : 388178;
 			setCreateStoreId(selectedId);
 			setSettings(prev => ({ ...prev, pathao_default_store_id: selectedId }));
@@ -612,6 +672,11 @@ export default function CourierSettingsPage() {
 			id: "create_delivery",
 			label: "Create Pathao Delivery",
 			icon: "M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z",
+		},
+		{
+			id: "fraud_check",
+			label: "Phone Fraud Check",
+			icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
 		},
 		{
 			id: "pathao",
@@ -983,18 +1048,55 @@ export default function CourierSettingsPage() {
 
 										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 											<div>
-												<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-													Recipient's Phone <span className="text-red-500">*</span>
-												</label>
+												<div className="flex items-center justify-between mb-1.5">
+													<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+														Recipient's Phone <span className="text-red-500">*</span>
+													</label>
+													{createRecipientPhone.trim().length >= 11 && (
+														<button
+															type="button"
+															onClick={() => checkCourierPhoneFraud()}
+															disabled={courierFormFraudLoading}
+															className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
+															{courierFormFraudLoading ? "Checking..." : "🛡️ Check Risk"}
+														</button>
+													)}
+												</div>
 												<input
 													type="text"
 													maxLength={11}
 													placeholder="017XXXXXXXX"
 													value={createRecipientPhone}
-													onChange={(e) => setCreateRecipientPhone(e.target.value)}
+													onBlur={() => {
+														if (createRecipientPhone.trim().length >= 11) checkCourierPhoneFraud();
+													}}
+													onChange={(e) => {
+														setCreateRecipientPhone(e.target.value);
+														if (courierFormFraudResult) setCourierFormFraudResult(null);
+													}}
 													required
-													className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400"
+													className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 font-mono"
 												/>
+												{courierFormFraudResult && (
+													(() => {
+														const cfg = getRiskLevelConfig(courierFormFraudResult.risk_level);
+														return (
+															<div className={`mt-2 p-2.5 rounded-lg border ${cfg.border} ${cfg.bg} text-xs space-y-1`}>
+																<div className="flex items-center justify-between">
+																	<span className={`font-bold inline-flex items-center gap-1 ${cfg.color}`}>
+																		<span>{cfg.icon}</span> {courierFormFraudResult.risk_level}
+																	</span>
+																	<span className="font-extrabold text-zinc-800 dark:text-zinc-200">
+																		{courierFormFraudResult.delivery_rate}% Delivery Rate
+																	</span>
+																</div>
+																<p className="text-[11px] text-zinc-600 dark:text-zinc-400">
+																	{courierFormFraudResult.risk_message_bn}
+																</p>
+															</div>
+														);
+													})()
+												)}
 											</div>
 
 											<div>
@@ -1606,8 +1708,126 @@ export default function CourierSettingsPage() {
 						</div>
 					)}
 
+					{/* ================= Phone Fraud Check Tab ================= */}
+					{activeTab === "fraud_check" && (
+						<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<h2 className="text-lg font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
+										<span>🛡️</span> Customer Phone Fraud & Return History Check
+									</h2>
+									<p className="text-xs text-zinc-500 mt-0.5">
+										Check customer delivery success rate across SteadFast, Pathao, RedX & Paperfly before dispatching parcels
+									</p>
+								</div>
+								<Link
+									href="/admin/fraud-check"
+									className="text-xs font-semibold text-blue-600 hover:underline">
+									Open Full Fraud Tool →
+								</Link>
+							</div>
+
+							<div className="flex gap-3">
+								<input
+									type="tel"
+									value={tabFraudPhone}
+									onChange={(e) => setTabFraudPhone(e.target.value)}
+									placeholder="Enter 11-digit BD mobile number (e.g. 01712345678)"
+									className="flex-1 px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-white font-mono"
+								/>
+								<button
+									type="button"
+									onClick={() => runTabFraudCheck()}
+									disabled={tabFraudLoading}
+									className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
+									{tabFraudLoading ? "Checking..." : "Check History"}
+								</button>
+							</div>
+
+							{tabFraudError && (
+								<div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
+									⚠️ {tabFraudError}
+								</div>
+							)}
+
+							{tabFraudResult && (
+								(() => {
+									const cfg = getRiskLevelConfig(tabFraudResult.risk_level);
+									return (
+										<div className="space-y-4">
+											<div className={`p-4 rounded-xl border ${cfg.border} ${cfg.bg} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
+												<div className="space-y-1">
+													<div className="flex items-center gap-2">
+														<span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${cfg.badge}`}>
+															<span>{cfg.icon}</span> {tabFraudResult.risk_level}
+														</span>
+														<span className="font-mono text-sm font-bold text-zinc-800 dark:text-zinc-200">
+															{tabFraudResult.phone}
+														</span>
+													</div>
+													<p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+														{tabFraudResult.risk_message_bn}
+													</p>
+													<p className="text-xs text-zinc-600 dark:text-zinc-400">
+														{tabFraudResult.risk_message_en}
+													</p>
+												</div>
+
+												<div className="text-right shrink-0">
+													<span className="text-xs text-zinc-400 block uppercase font-bold">Delivery Rate</span>
+													<span className={`text-3xl font-extrabold ${cfg.color}`}>
+														{tabFraudResult.delivery_rate}%
+													</span>
+												</div>
+											</div>
+
+											{/* Courier grid */}
+											<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+												<div className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+													<p className="text-[10px] text-zinc-400 uppercase font-bold">Total Orders</p>
+													<p className="text-xl font-bold text-zinc-900 dark:text-white">{tabFraudResult.total_orders}</p>
+												</div>
+												<div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60">
+													<p className="text-[10px] text-emerald-600 uppercase font-bold">Delivered</p>
+													<p className="text-xl font-bold text-emerald-600">{tabFraudResult.total_delivered}</p>
+												</div>
+												<div className="p-3 bg-red-50/50 dark:bg-red-950/20 rounded-lg border border-red-200/60 dark:border-red-800/60">
+													<p className="text-[10px] text-red-600 uppercase font-bold">Cancelled</p>
+													<p className="text-xl font-bold text-red-600">{tabFraudResult.total_cancelled}</p>
+												</div>
+												<div className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+													<p className="text-[10px] text-zinc-400 uppercase font-bold">Recommendation</p>
+													<p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 mt-1">{cfg.actionLabel}</p>
+												</div>
+											</div>
+
+											{tabFraudResult.couriers && tabFraudResult.couriers.length > 0 && (
+												<div className="space-y-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+													<h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+														Courier Breakdown
+													</h4>
+													<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+														{tabFraudResult.couriers.map((c) => (
+															<div key={c.name} className="flex items-center justify-between p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg text-xs">
+																<span className="font-semibold text-zinc-800 dark:text-zinc-200">{c.name}</span>
+																<div className="flex items-center gap-2">
+																	<span className="text-zinc-400 text-[11px]">{c.delivered}/{c.orders} delivered</span>
+																	<span className="font-bold text-zinc-900 dark:text-white">{c.orders > 0 ? `${c.rate}%` : "-"}</span>
+																</div>
+															</div>
+														))}
+													</div>
+												</div>
+											)}
+										</div>
+									);
+								})()
+							)}
+						</div>
+					)}
+
 					{/* General Global Settings (always shown at bottom of settings tabs) */}
-					{activeTab !== "deliveries" && activeTab !== "create_delivery" && (
+					{activeTab !== "deliveries" && activeTab !== "create_delivery" && activeTab !== "fraud_check" && (
 						<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-6">
 							<h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
 								Default Settings

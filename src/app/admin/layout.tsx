@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import { getUserPermissionsAndBranches } from "@/lib/rbac/rbac-service";
+import { RBACProvider } from "@/lib/rbac/rbac-context";
 import { AdminLayoutClient } from "./admin-layout-client";
 import { getStoreName } from "@/lib/get-store-name";
 
@@ -31,25 +33,23 @@ async function AdminAuthGuard() {
 		redirect("/login?redirectTo=/admin");
 	}
 
-	// Get user role from database
-	const { data: userData, error: userError } = await supabase
-		.from("users")
-		.select("role, first_name, last_name, email")
-		.eq("auth_id", user.id)
-		.single();
+	// Resolve full RBAC, permissions and branch context
+	const userRBAC = await getUserPermissionsAndBranches(user.id);
 
-	// If user not found in users table, redirect to login (account setup incomplete)
-	if (userError || !userData) {
+	if (!userRBAC) {
 		redirect("/login?redirectTo=/admin&error=account_setup_required");
 	}
 
-	// If user doesn't have admin/owner role, redirect to login with forbidden message
-	if (!["admin", "owner"].includes(userData.role)) {
+	// Check if user has staff/admin privileges (not a basic storefront customer with no permissions)
+	const allowedRoles = ["owner", "admin", "branch_manager", "cashier", "inventory_manager", "accountant", "delivery_agent", "staff"];
+	const hasAccess = allowedRoles.includes(userRBAC.role) || userRBAC.permissions.length > 0 || userRBAC.isOwner;
+
+	if (!hasAccess) {
 		redirect("/login?redirectTo=/admin&error=forbidden");
 	}
 
 	return {
-		profile: userData,
+		userRBAC,
 	};
 }
 
@@ -58,25 +58,27 @@ export default async function AdminLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	const { profile } = await AdminAuthGuard();
+	const { userRBAC } = await AdminAuthGuard();
 
-	const userInitials =
-		profile.first_name && profile.last_name
-			? `${profile.first_name[0]}${profile.last_name[0]}`
-			: profile.email[0].toUpperCase();
-
-	const userName =
-		profile.first_name && profile.last_name
-			? `${profile.first_name} ${profile.last_name}`
-			: profile.email;
+	const userInitials = userRBAC.fullName
+		? userRBAC.fullName
+				.split(" ")
+				.filter(Boolean)
+				.map((n: string) => n[0])
+				.join("")
+				.slice(0, 2)
+				.toUpperCase()
+		: (userRBAC.email?.[0] || "A").toUpperCase();
 
 	return (
-		<AdminLayoutClient
-			userName={userName}
-			userEmail={profile.email}
-			userRole={profile.role}
-			userInitials={userInitials}>
-			{children}
-		</AdminLayoutClient>
+		<RBACProvider initialRBAC={userRBAC}>
+			<AdminLayoutClient
+				userName={userRBAC.fullName}
+				userEmail={userRBAC.email}
+				userRole={userRBAC.roleName}
+				userInitials={userInitials}>
+				{children}
+			</AdminLayoutClient>
+		</RBACProvider>
 	);
 }

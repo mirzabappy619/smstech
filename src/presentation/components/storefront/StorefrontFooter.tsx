@@ -11,7 +11,7 @@ import {
 import type { StoreSettings } from "@/lib/get-store-name";
 
 const defaultSettings: StoreSettings = {
-	store_name: "Gizmo Gadgets",
+	store_name: "SMSTech BD",
 	store_email: "",
 	store_phone: "",
 	store_address: "",

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
 
 interface OrderItem {
 	id: string;
@@ -118,6 +119,11 @@ export default function OrderDetailPage() {
 	const [courierError, setCourierError] = useState<string | null>(null);
 	const [courierSuccess, setCourierSuccess] = useState<string | null>(null);
 
+	// Phone Fraud Check state
+	const [fraudResult, setFraudResult] = useState<FraudCheckResult | null>(null);
+	const [fraudLoading, setFraudLoading] = useState(false);
+	const [fraudError, setFraudError] = useState<string | null>(null);
+
 	useEffect(() => {
 		fetchOrder();
 		fetchStoreCurrency();
@@ -208,12 +214,40 @@ export default function OrderDetailPage() {
 			setOrder(orderData);
 			setNewStatus(orderData.status);
 			setTrackingNumber(orderData.tracking_number || "");
+
+			// Auto-run Fraud Check for customer phone
+			const customerPhone = orderData.customer?.phone || orderData.shipping_address?.phone;
+			if (customerPhone) {
+				runFraudCheck(customerPhone);
+			}
 		} catch (error) {
 			console.error("Error fetching order:", error);
 			setError(error instanceof Error ? error.message : "Failed to load order");
 			setOrder(null);
 		} finally {
 			setIsLoading(false);
+		}
+	};
+
+	const runFraudCheck = async (phoneNumber?: string) => {
+		const targetPhone = phoneNumber || order?.customer?.phone || order?.shipping_address?.phone;
+		if (!targetPhone) return;
+
+		setFraudLoading(true);
+		setFraudError(null);
+		try {
+			const res = await fetch(`/api/v1/fraud-check?phone=${encodeURIComponent(targetPhone)}`);
+			const data = await res.json();
+			if (data.success) {
+				setFraudResult(data);
+			} else {
+				setFraudError(data.error || "Could not complete fraud check");
+			}
+		} catch (err) {
+			console.error("Fraud check failed:", err);
+			setFraudError(err instanceof Error ? err.message : "Failed to connect to fraud check service");
+		} finally {
+			setFraudLoading(false);
 		}
 	};
 
@@ -872,6 +906,150 @@ export default function OrderDetailPage() {
 						})()}
 					</div>
 
+					{/* Customer Delivery Risk & Fraud Check */}
+					<div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-gray-200 dark:border-zinc-700 p-6">
+						<div className="flex items-center justify-between mb-4">
+							<h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+								<span>🛡️</span> Fraud & Risk Check
+							</h2>
+							<button
+								onClick={() => runFraudCheck()}
+								disabled={fraudLoading}
+								className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1 disabled:opacity-50">
+								{fraudLoading ? "Checking..." : "↻ Re-check"}
+							</button>
+						</div>
+
+						{fraudLoading ? (
+							<div className="py-6 text-center text-xs text-zinc-500 dark:text-zinc-400 flex flex-col items-center gap-2">
+								<div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+								<span>Checking 12oClock Courier Database...</span>
+							</div>
+						) : fraudResult ? (
+							(() => {
+								const config = getRiskLevelConfig(fraudResult.risk_level);
+								const isCodHighRisk =
+									order.payment_method === "cash_on_delivery" &&
+									["High Risk", "Medium Risk"].includes(fraudResult.risk_level);
+
+								return (
+									<div className="space-y-4">
+										{/* Risk Badge & Rate */}
+										<div className={`p-3.5 rounded-xl border ${config.border} ${config.bg}`}>
+											<div className="flex items-center justify-between mb-1.5">
+												<span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${config.badge}`}>
+													<span>{config.icon}</span> {fraudResult.risk_level}
+												</span>
+												<span className={`text-base font-extrabold ${config.color}`}>
+													{fraudResult.delivery_rate}% Success
+												</span>
+											</div>
+
+											{/* Progress Bar */}
+											<div className="w-full bg-zinc-200 dark:bg-zinc-700 h-2 rounded-full overflow-hidden my-2">
+												<div
+													className={`h-full rounded-full transition-all duration-500 ${
+														fraudResult.delivery_rate >= 75
+															? "bg-emerald-500"
+															: fraudResult.delivery_rate >= 50
+															? "bg-blue-500"
+															: fraudResult.delivery_rate >= 25
+															? "bg-amber-500"
+															: "bg-red-500"
+													}`}
+													style={{ width: `${Math.min(fraudResult.delivery_rate, 100)}%` }}
+												/>
+											</div>
+
+											{/* Stats Row */}
+											<div className="grid grid-cols-3 gap-2 text-center text-xs mt-2.5 pt-2 border-t border-zinc-200/60 dark:border-zinc-700/60">
+												<div>
+													<p className="text-[10px] text-zinc-400">Total Orders</p>
+													<p className="font-bold text-zinc-800 dark:text-zinc-200">{fraudResult.total_orders}</p>
+												</div>
+												<div>
+													<p className="text-[10px] text-emerald-600 dark:text-emerald-400">Delivered</p>
+													<p className="font-bold text-emerald-700 dark:text-emerald-300">{fraudResult.total_delivered}</p>
+												</div>
+												<div>
+													<p className="text-[10px] text-red-600 dark:text-red-400">Cancelled</p>
+													<p className="font-bold text-red-700 dark:text-red-300">{fraudResult.total_cancelled}</p>
+												</div>
+											</div>
+										</div>
+
+										{/* High Risk Callout for COD orders */}
+										{isCodHighRisk && (
+											<div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-xs space-y-1">
+												<p className="font-bold text-red-800 dark:text-red-200 flex items-center gap-1">
+													<span>⚠️</span> High Cancellation Risk on COD
+												</p>
+												<p className="text-red-700 dark:text-red-300">
+													Customer has low delivery rate ({fraudResult.delivery_rate}%). Collect advance delivery charge (e.g. ৳120 via bKash) before parcel dispatch.
+												</p>
+											</div>
+										)}
+
+										{/* Courier Breakdown */}
+										{fraudResult.couriers && fraudResult.couriers.length > 0 && (
+											<div className="space-y-1.5">
+												<p className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+													Courier Breakdown
+												</p>
+												<div className="space-y-1">
+													{fraudResult.couriers.map((c) => (
+														<div
+															key={c.name}
+															className="flex items-center justify-between text-xs py-1 px-2 bg-zinc-50 dark:bg-zinc-900 rounded-md">
+															<span className="text-zinc-700 dark:text-zinc-300 font-medium">{c.name}</span>
+															<div className="flex items-center gap-2">
+																<span className="text-zinc-400 text-[10px]">{c.delivered}/{c.orders} dlvd</span>
+																<span
+																	className={`font-bold text-[11px] ${
+																		c.rate >= 75
+																			? "text-emerald-600 dark:text-emerald-400"
+																			: c.rate >= 50
+																			? "text-blue-600 dark:text-blue-400"
+																			: c.orders > 0
+																			? "text-red-600 dark:text-red-400"
+																			: "text-zinc-400"
+																	}`}>
+																	{c.orders > 0 ? `${c.rate}%` : "-"}
+																</span>
+															</div>
+														</div>
+													))}
+												</div>
+											</div>
+										)}
+
+										{/* Message */}
+										<div className="text-[11px] text-zinc-500 dark:text-zinc-400 italic bg-zinc-50 dark:bg-zinc-900/50 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800">
+											&ldquo;{fraudResult.risk_message_bn}&rdquo;
+										</div>
+									</div>
+								);
+							})()
+						) : fraudError ? (
+							<div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 space-y-2">
+								<p>⚠️ {fraudError}</p>
+								<button
+									onClick={() => runFraudCheck()}
+									className="text-xs font-semibold text-blue-600 dark:text-blue-400 underline">
+									Try again
+								</button>
+							</div>
+						) : (
+							<div className="text-center py-4">
+								<button
+									onClick={() => runFraudCheck()}
+									className="px-3 py-1.5 text-xs font-semibold bg-zinc-100 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors">
+									Check Phone Fraud History
+								</button>
+							</div>
+						)}
+					</div>
+
 					{/* Shipping Address */}
 					<div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-gray-200 dark:border-zinc-700 p-6">
 						<h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-4">
@@ -1087,7 +1265,7 @@ export default function OrderDetailPage() {
 													<option key={store.store_id} value={store.store_id}>{store.store_name} ({store.store_id})</option>
 												))
 											) : (
-												<option value={388178}>Gizmo Gadgets (388178)</option>
+												<option value={388178}>SMS Tech BD (388178)</option>
 											)}
 										</select>
 									</div>

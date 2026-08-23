@@ -79,12 +79,17 @@ export default function InventoryPage() {
 			if (logDateTo) params.append("date_to", new Date(logDateTo + 'T23:59:59').toISOString());
 			const res = await fetch(`/api/v1/admin/inventory/logs?${params}`);
 			const data = await res.json();
-			if (data.success) {
-				setLogs(data.data);
+			if (data && data.success && Array.isArray(data.data)) {
+				setLogs(data.data || []);
 				setLogTotal(data.meta?.total || 0);
+			} else {
+				setLogs([]);
+				setLogTotal(0);
 			}
 		} catch (err) {
 			console.error("Failed to fetch logs:", err);
+			setLogs([]);
+			setLogTotal(0);
 		} finally {
 			setLogLoading(false);
 		}
@@ -101,11 +106,14 @@ export default function InventoryPage() {
 			const response = await fetch(`/api/v1/admin/inventory?${params}`);
 			const data = await response.json();
 
-			if (data.success) {
-				setInventory(data.data);
+			if (data && data.success && Array.isArray(data.data)) {
+				setInventory(data.data || []);
+			} else {
+				setInventory([]);
 			}
 		} catch (err) {
 			console.error("Failed to fetch inventory:", err);
+			setInventory([]);
 		} finally {
 			setLoading(false);
 		}
@@ -491,7 +499,7 @@ export default function InventoryPage() {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-								{inventory.map((item) => {
+								{(inventory || []).map((item) => {
 									const status = getStockStatus(item);
 									return (
 										<tr
@@ -620,7 +628,7 @@ export default function InventoryPage() {
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-zinc-100 dark:divide-zinc-700">
-									{logs.map((log) => (
+									{(logs || []).map((log) => (
 										<tr key={log.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
 											<td className="px-4 py-3 text-zinc-500">
 												{new Date(log.created_at).toLocaleDateString()}<br/>

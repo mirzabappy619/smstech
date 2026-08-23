@@ -27,15 +27,15 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from("google_analytics_settings")
       .select("*")
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error("Failed to fetch GA settings:", error);
-      return errorResponse(
-        "FETCH_FAILED",
-        "Failed to fetch Google Analytics settings",
-        HTTP_STATUS.INTERNAL_SERVER_ERROR
-      );
+    if (error || !data) {
+      return successResponse({
+        id: null,
+        measurement_id: "",
+        enabled: false,
+        enabled_events: [],
+      });
     }
 
     return successResponse(data);

@@ -136,10 +136,10 @@ export default function PrintInvoicePage() {
 			{/* Printable Invoice Header */}
 			<div className="flex justify-between items-start border-b border-zinc-300 pb-6 mb-6">
 				<div>
-					<h2 className="text-2xl font-black tracking-tight text-zinc-900">GIZMO GADGETS</h2>
+					<h2 className="text-2xl font-black tracking-tight text-zinc-900">SMSTECH BD</h2>
 					<p className="text-xs text-zinc-600 mt-1">Premier Electronics & Tech Store</p>
 					<p className="text-xs text-zinc-500">Dhaka, Bangladesh</p>
-					<p className="text-xs text-zinc-500">Support: gizmogadgets.ltd@gmail.com</p>
+					<p className="text-xs text-zinc-500">Support: info@smstech.bd</p>
 				</div>
 				<div className="text-right">
 					<h3 className="text-3xl font-black text-zinc-900 uppercase tracking-widest">INVOICE</h3>
@@ -238,7 +238,7 @@ export default function PrintInvoicePage() {
 
 			{/* Footer Notes */}
 			<div className="border-t border-zinc-200 pt-6 text-center text-xs text-zinc-500 space-y-1">
-				<p className="font-semibold text-zinc-700">Thank you for shopping with Gizmo Gadgets!</p>
+				<p className="font-semibold text-zinc-700">Thank you for shopping with SMSTech BD!</p>
 				<p>This is a computer generated invoice and requires no physical signature.</p>
 			</div>
 		</div>

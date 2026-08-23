@@ -80,7 +80,7 @@ export async function GET(
 				currency: 'BDT',
 			},
 			{
-				store_name: settings?.store_name || 'Gizmo Gadgets',
+				store_name: settings?.store_name || 'SMSTech BD',
 				store_address: settings?.store_address || '',
 				store_email: settings?.store_email || '',
 				store_phone: settings?.store_phone || '',

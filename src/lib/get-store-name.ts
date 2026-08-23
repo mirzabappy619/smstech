@@ -12,9 +12,9 @@ export interface StoreSettings {
 
 export async function getStoreSettings(): Promise<StoreSettings> {
 	const defaults: StoreSettings = {
-		store_name: "Gizmo Gadgets",
-		store_email: "",
-		store_phone: "",
+		store_name: "SMS Tech BD",
+		store_email: "info@smstech.bd",
+		store_phone: "01781485588",
 		store_address: "",
 		social_facebook: "",
 		social_instagram: "",
@@ -27,8 +27,14 @@ export async function getStoreSettings(): Promise<StoreSettings> {
 			.select("store_name, store_email, store_phone, store_address, social_facebook, social_instagram, social_twitter")
 			.single();
 		if (!data) return defaults;
+
+		let storeName = (data.store_name || "").trim();
+		if (!storeName || storeName.toLowerCase().includes("gizmo")) {
+			storeName = "SMS Tech BD";
+		}
+
 		return {
-			store_name: data.store_name || defaults.store_name,
+			store_name: storeName,
 			store_email: data.store_email || defaults.store_email,
 			store_phone: data.store_phone || defaults.store_phone,
 			store_address: data.store_address || defaults.store_address,

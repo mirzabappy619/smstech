@@ -29,7 +29,7 @@ interface SuggestionProduct {
 	images: string[];
 }
 
-export default function StorefrontHeader({ storeName = "Gizmo Gadgets" }: { storeName?: string }) {
+export default function StorefrontHeader({ storeName = "SMSTech BD" }: { storeName?: string }) {
 	const pathname = usePathname();
 	const router = useRouter();
 	const { format: formatPrice } = useCurrency();

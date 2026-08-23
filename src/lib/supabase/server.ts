@@ -38,3 +38,6 @@ export async function createAdminClient() {
     }
   );
 }
+
+export const getSupabaseServerClient = createAdminClient;
+

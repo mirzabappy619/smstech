@@ -11,6 +11,12 @@ interface CustomerDetail {
 	email: string;
 	phone: string | null;
 	role: string;
+	customer_code?: string;
+	nfc_card_uid?: string | null;
+	loyalty_tier?: string;
+	advance_balance?: number;
+	outstanding_due?: number;
+	credit_limit?: number;
 	created_at: string;
 	is_disabled: boolean;
 	disabled_reason?: string;
@@ -30,7 +36,19 @@ interface CustomerDetail {
 		payment_method: string;
 		payment_status: string;
 	}>;
+	ledgers?: Array<{
+		id: string;
+		entry_type: "debit" | "credit";
+		amount: number;
+		balance_after: number;
+		reference_type: string;
+		reference_id: string;
+		notes: string;
+		created_at: string;
+	}>;
 }
+
+const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
 
 export default function CustomerDetailPage() {
 	const params = useParams();
@@ -41,19 +59,20 @@ export default function CustomerDetailPage() {
 	const [error, setError] = useState<string | null>(null);
 
 	// Modals
-	const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
-	const [showResetLinkModal, setShowResetLinkModal] = useState(false);
 	const [showDisableModal, setShowDisableModal] = useState(false);
 	const [showFraudModal, setShowFraudModal] = useState(false);
+	const [showNfcModal, setShowNfcModal] = useState(false);
+	const [showWalletModal, setShowWalletModal] = useState(false);
 
 	// Inputs
-	const [newPassword, setNewPassword] = useState("");
-	const [generatedResetLink, setGeneratedResetLink] = useState("");
-	const [copiedLink, setCopiedLink] = useState(false);
 	const [disableReasonInput, setDisableReasonInput] = useState("");
 	const [selectedFraudStatus, setSelectedFraudStatus] = useState<CustomerDetail["fraud_status"]>("clean");
 	const [fraudReasonInput, setFraudReasonInput] = useState("");
 	const [adminNotesInput, setAdminNotesInput] = useState("");
+	const [nfcUidInput, setNfcUidInput] = useState("");
+	const [tierInput, setTierInput] = useState("Silver");
+	const [walletAmountInput, setWalletAmountInput] = useState("");
+	const [walletTypeInput, setWalletTypeInput] = useState<"advance_topup" | "due_collection">("advance_topup");
 	const [actionLoading, setActionLoading] = useState(false);
 
 	useEffect(() => {
@@ -71,6 +90,8 @@ export default function CustomerDetailPage() {
 				setFraudReasonInput(json.data.fraud_reason || "");
 				setDisableReasonInput(json.data.disabled_reason || "");
 				setAdminNotesInput(json.data.admin_notes || "");
+				setNfcUidInput(json.data.nfc_card_uid || "");
+				setTierInput(json.data.loyalty_tier || "Silver");
 			} else {
 				throw new Error(json.error?.message || "Customer not found");
 			}
@@ -81,51 +102,72 @@ export default function CustomerDetailPage() {
 		}
 	};
 
-	const handleSetPassword = async () => {
-		if (!customer || newPassword.length < 6) {
-			alert("Password must be at least 6 characters");
-			return;
-		}
+	const handleSaveNfcAndTier = async () => {
+		if (!customer) return;
 		setActionLoading(true);
 		try {
-			const res = await fetch(`/api/v1/admin/customers/${customer.id}/set-password`, {
+			const res = await fetch(`/api/v1/admin/customers/${customer.id}/nfc-wallet`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ password: newPassword }),
+				body: JSON.stringify({
+					nfc_card_uid: nfcUidInput.trim(),
+					loyalty_tier: tierInput
+				}),
 			});
 			const json = await res.json();
-			if (res.ok && json.success) {
-				alert(`Password updated for ${customer.email}!`);
-				setShowSetPasswordModal(false);
-				setNewPassword("");
+			if (json.success) {
+				alert(json.message);
+				setShowNfcModal(false);
+				fetchCustomerDetail();
 			} else {
-				alert(json.error?.message || "Failed to set password.");
+				alert(json.error || "Failed to update NFC credentials");
 			}
 		} catch (err: any) {
-			alert(err.message || "Failed to set password.");
+			alert(err.message);
 		} finally {
 			setActionLoading(false);
 		}
 	};
 
-	const handleGenerateResetLink = async () => {
-		if (!customer) return;
+	const handleWalletOperation = async () => {
+		if (!customer || !walletAmountInput) return;
 		setActionLoading(true);
-		setGeneratedResetLink("");
-		setCopiedLink(false);
 		try {
-			const res = await fetch(`/api/v1/admin/customers/${customer.id}/reset-password`, {
-				method: "POST",
-			});
-			const json = await res.json();
-			if (res.ok && json.success) {
-				setGeneratedResetLink(json.data?.reset_link || "");
-				setShowResetLinkModal(true);
+			if (walletTypeInput === "advance_topup") {
+				const res = await fetch(`/api/v1/admin/customers/${customer.id}/nfc-wallet`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						topup_amount: Number(walletAmountInput)
+					}),
+				});
+				const json = await res.json();
+				if (json.success) {
+					alert(json.message);
+					setShowWalletModal(false);
+					setWalletAmountInput("");
+					fetchCustomerDetail();
+				}
 			} else {
-				alert(json.error?.message || "Failed to generate password reset link.");
+				const res = await fetch(`/api/v1/admin/accounting/due-collection`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						customer_id: customer.id,
+						amount_received: Number(walletAmountInput),
+						payment_method: "cash"
+					}),
+				});
+				const json = await res.json();
+				if (json.success) {
+					alert(json.message);
+					setShowWalletModal(false);
+					setWalletAmountInput("");
+					fetchCustomerDetail();
+				}
 			}
 		} catch (err: any) {
-			alert(err.message || "Failed to generate reset link.");
+			alert(err.message);
 		} finally {
 			setActionLoading(false);
 		}
@@ -148,12 +190,7 @@ export default function CustomerDetailPage() {
 			if (res.ok && json.success) {
 				setShowDisableModal(false);
 				fetchCustomerDetail();
-				alert(`Account login ${nextDisabled ? "DISABLED" : "ENABLED"} successfully.`);
-			} else {
-				alert(json.error?.message || "Failed to update account status.");
 			}
-		} catch (err: any) {
-			alert(err.message || "Failed to update status.");
 		} finally {
 			setActionLoading(false);
 		}
@@ -176,38 +213,10 @@ export default function CustomerDetailPage() {
 			if (res.ok && json.success) {
 				setShowFraudModal(false);
 				fetchCustomerDetail();
-				alert("Risk classification and internal notes saved successfully.");
-			} else {
-				alert(json.error?.message || "Failed to save risk details.");
+				alert("Risk classification and notes saved.");
 			}
-		} catch (err: any) {
-			alert(err.message || "Failed to save details.");
 		} finally {
 			setActionLoading(false);
-		}
-	};
-
-	const getRoleBadge = (role: string) => {
-		const colors: Record<string, string> = {
-			customer: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-			admin: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-			owner: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
-		};
-		return colors[role] || colors.customer;
-	};
-
-	const getFraudBadge = (status: CustomerDetail["fraud_status"]) => {
-		switch (status) {
-			case "fraud":
-				return <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-300">🚨 FRAUDULENT</span>;
-			case "blacklisted":
-				return <span className="px-3 py-1 text-xs font-bold rounded-full bg-zinc-900 text-white dark:bg-zinc-700">⛔ BLACKLISTED</span>;
-			case "spam":
-				return <span className="px-3 py-1 text-xs font-bold rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-300">⚠️ SPAMMER</span>;
-			case "suspicious":
-				return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border border-yellow-300">🟡 SUSPICIOUS</span>;
-			default:
-				return <span className="px-3 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300">✓ TRUSTED / NORMAL</span>;
 		}
 	};
 
@@ -215,7 +224,7 @@ export default function CustomerDetailPage() {
 		return (
 			<div className="p-12 text-center text-zinc-500">
 				<div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
-				<p className="text-sm font-medium">Loading customer profile...</p>
+				<p className="text-xs font-bold">Loading customer profile & party ledger...</p>
 			</div>
 		);
 	}
@@ -224,8 +233,8 @@ export default function CustomerDetailPage() {
 		return (
 			<div className="p-12 text-center text-red-600 space-y-3">
 				<p className="text-lg font-bold">⚠️ Customer Profile Error</p>
-				<p className="text-sm text-zinc-600">{error || "Customer not found"}</p>
-				<Link href="/admin/customers" className="text-blue-600 hover:underline text-sm inline-block">
+				<p className="text-xs text-zinc-500">{error || "Customer not found"}</p>
+				<Link href="/admin/customers" className="text-blue-600 font-bold text-xs">
 					← Return to Customers List
 				</Link>
 			</div>
@@ -234,7 +243,6 @@ export default function CustomerDetailPage() {
 
 	return (
 		<div className="space-y-6 max-w-6xl mx-auto">
-			{/* Back Link */}
 			<div>
 				<Link href="/admin/customers" className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1">
 					← Back to Customers Management
@@ -242,296 +250,334 @@ export default function CustomerDetailPage() {
 			</div>
 
 			{/* Top Banner Card */}
-			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+			<div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
 				<div className="flex items-center gap-4">
-					<div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-md">
+					<div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md">
 						{customer.first_name?.[0] || "C"}{customer.last_name?.[0] || ""}
 					</div>
 					<div className="space-y-1">
 						<div className="flex items-center gap-3">
-							<h1 className="text-2xl font-black text-zinc-900 dark:text-white">{customer.first_name} {customer.last_name}</h1>
-							<span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${getRoleBadge(customer.role)} uppercase tracking-wider`}>
-								{customer.role}
+							<h1 className="text-2xl font-black text-zinc-900 dark:text-white">
+								{customer.first_name} {customer.last_name}
+							</h1>
+							<span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-mono">
+								{customer.customer_code}
+							</span>
+							<span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+								⭐ {customer.loyalty_tier || "Silver"}
 							</span>
 						</div>
 						<p className="text-xs text-zinc-500 font-medium">✉️ {customer.email} {customer.phone ? `• 📱 ${customer.phone}` : ""}</p>
-						<p className="text-[11px] text-zinc-400">Member since: {new Date(customer.created_at).toLocaleDateString()}</p>
+						<p className="text-[11px] text-zinc-400">NFC UID: <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">{customer.nfc_card_uid || "Not Assigned"}</span></p>
 					</div>
 				</div>
 
-				{/* Badges & Stats */}
-				<div className="flex flex-wrap md:flex-col items-start md:items-end gap-2">
-					<div className="flex items-center gap-2">
-						{customer.is_disabled ? (
-							<span className="px-3 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-300">
-								🚫 Login Disabled
-							</span>
-						) : (
-							<span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300">
-								🟢 Login Active
-							</span>
-						)}
-						{getFraudBadge(customer.fraud_status)}
+				{/* Financial Position Cards */}
+				<div className="flex gap-3">
+					<div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center min-w-28">
+						<p className="text-[10px] text-emerald-800 dark:text-emerald-300 font-bold">Advance Wallet</p>
+						<p className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-0.5">{fmt(customer.advance_balance || 0)}</p>
 					</div>
-					<div className="text-right text-xs mt-1">
-						<span className="font-extrabold text-zinc-900 dark:text-white text-base">৳{Math.round(customer.total_spent || 0).toLocaleString()}</span>
-						<span className="text-zinc-500 ml-1">({customer.total_orders} Orders)</span>
+					<div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-center min-w-28">
+						<p className="text-[10px] text-rose-800 dark:text-rose-300 font-bold">Outstanding Due</p>
+						<p className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5">{fmt(customer.outstanding_due || 0)}</p>
 					</div>
 				</div>
 			</div>
 
 			{/* Management Action Bar */}
-			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-4">
-				<h2 className="text-sm font-extrabold uppercase tracking-wider text-zinc-500">Security & Account Management Controls</h2>
+			<div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-4">
+				<h2 className="text-xs font-black uppercase tracking-wider text-zinc-500">Party Account & Hardware Controls</h2>
 				
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-					{/* 🔑 Set Password */}
 					<button
-						onClick={() => { setNewPassword(""); setShowSetPasswordModal(true); }}
-						className="p-3 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-left transition-colors flex items-center gap-3">
-						<span className="text-xl">🔑</span>
+						onClick={() => setShowNfcModal(true)}
+						className="p-3 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl text-left flex items-center gap-3"
+					>
+						<span className="text-xl">💳</span>
 						<div>
-							<p className="text-xs font-bold text-zinc-900 dark:text-white">Set Password</p>
-							<p className="text-[10px] text-zinc-500">Directly set a new password</p>
+							<p className="text-xs font-bold text-zinc-900 dark:text-white">Bind NFC Card & Tier</p>
+							<p className="text-[10px] text-zinc-500">Tap physical card / set loyalty</p>
 						</div>
 					</button>
 
-					{/* 📩 Reset Link */}
 					<button
-						onClick={handleGenerateResetLink}
-						className="p-3 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-xl text-left transition-colors flex items-center gap-3">
-						<span className="text-xl">📩</span>
+						onClick={() => setShowWalletModal(true)}
+						className="p-3 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl text-left flex items-center gap-3"
+					>
+						<span className="text-xl">💰</span>
 						<div>
-							<p className="text-xs font-bold text-blue-900 dark:text-blue-300">Reset Link</p>
-							<p className="text-[10px] text-blue-600 dark:text-blue-400">Generate password recovery link</p>
+							<p className="text-xs font-bold text-zinc-900 dark:text-white">Deposit / Due Collect</p>
+							<p className="text-[10px] text-zinc-500">Adjust wallet / settle due</p>
 						</div>
 					</button>
 
-					{/* 🚫 Disable / Enable Login */}
 					<button
-						onClick={() => { setDisableReasonInput(customer.disabled_reason || ""); setShowDisableModal(true); }}
-						className={`p-3 border rounded-xl text-left transition-colors flex items-center gap-3 ${
-							customer.is_disabled
-								? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100"
-								: "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700 hover:bg-red-100"
-						}`}>
-						<span className="text-xl">{customer.is_disabled ? "🟢" : "🚫"}</span>
+						onClick={() => setShowFraudModal(true)}
+						className="p-3 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl text-left flex items-center gap-3"
+					>
+						<span className="text-xl">🛡️</span>
 						<div>
-							<p className={`text-xs font-bold ${customer.is_disabled ? "text-emerald-900 dark:text-emerald-300" : "text-red-900 dark:text-red-300"}`}>
-								{customer.is_disabled ? "Enable Login Access" : "Disable Login Access"}
-							</p>
-							<p className="text-[10px] text-zinc-500">{customer.is_disabled ? "Allow user to sign in" : "Block user from logging in"}</p>
+							<p className="text-xs font-bold text-zinc-900 dark:text-white">Risk & Notes</p>
+							<p className="text-[10px] text-zinc-500">Fraud check status & flags</p>
 						</div>
 					</button>
 
-					{/* 🚨 Fraud / Spam Flag */}
 					<button
-						onClick={() => {
-							setSelectedFraudStatus(customer.fraud_status || "clean");
-							setFraudReasonInput(customer.fraud_reason || "");
-							setAdminNotesInput(customer.admin_notes || "");
-							setShowFraudModal(true);
-						}}
-						className="p-3 bg-orange-50 dark:bg-orange-950/40 hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-200 dark:border-orange-800 rounded-xl text-left transition-colors flex items-center gap-3">
-						<span className="text-xl">🚨</span>
+						onClick={() => setShowDisableModal(true)}
+						className="p-3 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl text-left flex items-center gap-3"
+					>
+						<span className="text-xl">🚫</span>
 						<div>
-							<p className="text-xs font-bold text-orange-900 dark:text-orange-300">Fraud / Risk Flag</p>
-							<p className="text-[10px] text-orange-600 dark:text-orange-400">Classify fraud or spam risk</p>
+							<p className="text-xs font-bold text-zinc-900 dark:text-white">{customer.is_disabled ? "Enable Account" : "Disable Login"}</p>
+							<p className="text-[10px] text-zinc-500">Block storefront checkout</p>
 						</div>
 					</button>
 				</div>
 			</div>
 
-			{/* Account Status Notes (If disabled or flagged) */}
-			{(customer.disabled_reason || customer.fraud_reason || customer.admin_notes) && (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-					{customer.is_disabled && customer.disabled_reason && (
-						<div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl space-y-1 text-xs">
-							<p className="font-bold text-red-900 dark:text-red-300 uppercase tracking-wider">🚫 Account Disable Reason</p>
-							<p className="text-red-700 dark:text-red-400">{customer.disabled_reason}</p>
-						</div>
-					)}
-					{customer.fraud_reason && (
-						<div className="p-4 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl space-y-1 text-xs">
-							<p className="font-bold text-orange-900 dark:text-orange-300 uppercase tracking-wider">🚨 Risk & Fraud Notes</p>
-							<p className="text-orange-800 dark:text-orange-300">{customer.fraud_reason}</p>
-						</div>
-					)}
-				</div>
-			)}
-
-			{/* Order History */}
-			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-				<div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
-					<h3 className="font-bold text-sm text-zinc-900 dark:text-white">Customer Order History</h3>
-					<span className="text-xs text-zinc-500">{customer.total_orders} total orders placed</span>
+			{/* Double-Entry Ledger Audit Trail */}
+			<div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-4">
+				<div className="flex justify-between items-center">
+					<h2 className="text-sm font-extrabold text-zinc-900 dark:text-white">Party Accounting Ledger History</h2>
+					<Link href="/admin/accounting/ledger" className="text-xs font-bold text-blue-600 hover:underline">Full General Ledger →</Link>
 				</div>
 
-				{customer.orders.length === 0 ? (
-					<div className="p-8 text-center text-xs text-zinc-500">No orders placed by this customer yet.</div>
+				{!customer.ledgers || customer.ledgers.length === 0 ? (
+					<p className="text-xs text-zinc-400 py-6 text-center">No ledger transaction entries yet.</p>
 				) : (
-					<table className="w-full text-left text-xs">
-						<thead className="bg-zinc-50 dark:bg-zinc-800/60 text-zinc-500 uppercase font-semibold border-b border-zinc-200 dark:border-zinc-800">
-							<tr>
-								<th className="p-3 px-6">Order #</th>
-								<th className="p-3 px-6">Date</th>
-								<th className="p-3 px-6">Payment Method</th>
-								<th className="p-3 px-6">Status</th>
-								<th className="p-3 px-6 text-right">Total</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-							{customer.orders.map((ord) => (
-								<tr key={ord.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-									<td className="p-3 px-6 font-bold text-blue-600">
-										<Link href={`/admin/orders/${ord.id}`} className="hover:underline">
-											#{ord.order_number}
-										</Link>
-									</td>
-									<td className="p-3 px-6 text-zinc-500">{new Date(ord.created_at).toLocaleDateString()}</td>
-									<td className="p-3 px-6 uppercase font-semibold text-zinc-700 dark:text-zinc-300">{(ord.payment_method || "COD").replace(/_/g, " ")}</td>
-									<td className="p-3 px-6 capitalize">
-										<span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200">
-											{ord.status}
-										</span>
-									</td>
-									<td className="p-3 px-6 text-right font-bold text-zinc-900 dark:text-white">৳{Math.round(ord.total || 0).toLocaleString()}</td>
+					<div className="overflow-x-auto">
+						<table className="w-full text-left text-xs">
+							<thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 font-bold uppercase text-[10px]">
+								<tr>
+									<th className="px-4 py-3">Date</th>
+									<th className="px-4 py-3">Type</th>
+									<th className="px-4 py-3">Reference</th>
+									<th className="px-4 py-3">Notes</th>
+									<th className="px-4 py-3">Amount</th>
+									<th className="px-4 py-3 text-right">Balance After</th>
 								</tr>
-							))}
-						</tbody>
-					</table>
+							</thead>
+							<tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+								{customer.ledgers.map((l) => (
+									<tr key={l.id}>
+										<td className="px-4 py-3 text-zinc-500">{new Date(l.created_at).toLocaleDateString()}</td>
+										<td className="px-4 py-3">
+											<span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+												l.entry_type === "credit" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+											}`}>
+												{l.entry_type}
+											</span>
+										</td>
+										<td className="px-4 py-3 font-mono font-bold">{l.reference_id || l.reference_type}</td>
+										<td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{l.notes}</td>
+										<td className={`px-4 py-3 font-black ${l.entry_type === "credit" ? "text-emerald-600" : "text-rose-600"}`}>
+											{fmt(l.amount)}
+										</td>
+										<td className="px-4 py-3 font-black text-right">{fmt(l.balance_after)}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
 				)}
 			</div>
 
-			{/* ── MODALS ───────────────────────────────────────────────────────── */}
-
-			{/* 🔑 Set Password Modal */}
-			{showSetPasswordModal && (
-				<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-					<div className="bg-white dark:bg-zinc-900 rounded-xl max-w-md w-full p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-						<h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-							<span>🔑</span> Set Password for {customer.first_name}
-						</h3>
-						<p className="text-xs text-zinc-500">
-							Set a new login password directly for <strong className="text-zinc-800 dark:text-zinc-200">{customer.email}</strong>.
-						</p>
-
-						<div>
-							<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">New Password (Min 6 characters)</label>
-							<input
-								type="password"
-								placeholder="Enter new password"
-								value={newPassword}
-								onChange={(e) => setNewPassword(e.target.value)}
-								className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-							/>
+			{/* NFC Card Binding Modal */}
+			{showNfcModal && (
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+					<div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+						<div className="flex justify-between items-center border-b border-zinc-200 dark:border-zinc-800 pb-3">
+							<h3 className="font-extrabold text-base text-zinc-900 dark:text-white">NFC Membership & Loyalty Tier</h3>
+							<button onClick={() => setShowNfcModal(false)} className="text-zinc-400 font-bold">✕</button>
 						</div>
 
-						<div className="flex justify-end gap-3 pt-2">
-							<button onClick={() => setShowSetPasswordModal(false)} className="px-4 py-2 text-xs font-semibold border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
-								Cancel
-							</button>
-							<button onClick={handleSetPassword} disabled={actionLoading || newPassword.length < 6} className="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
-								{actionLoading ? "Updating..." : "Set Password"}
-							</button>
+						<div className="space-y-3 text-xs">
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">NFC Card UID (Tap Card on Reader) *</label>
+								<input
+									type="text"
+									value={nfcUidInput}
+									onChange={e => setNfcUidInput(e.target.value)}
+									placeholder="e.g. 04A1B2C3D4E5F6"
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-mono uppercase font-bold"
+								/>
+							</div>
+
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Loyalty Tier</label>
+								<select
+									value={tierInput}
+									onChange={e => setTierInput(e.target.value)}
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold"
+								>
+									<option value="Silver">Silver Tier (Default)</option>
+									<option value="Gold">Gold Tier (5% Discount)</option>
+									<option value="Platinum">Platinum VIP (10% Discount)</option>
+								</select>
+							</div>
 						</div>
+
+						<button
+							onClick={handleSaveNfcAndTier}
+							disabled={actionLoading}
+							className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/30"
+						>
+							{actionLoading ? "Saving..." : "Save NFC Card Credentials"}
+						</button>
 					</div>
 				</div>
 			)}
 
-			{/* 📩 Reset Link Modal */}
-			{showResetLinkModal && (
-				<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-					<div className="bg-white dark:bg-zinc-900 rounded-xl max-w-lg w-full p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-						<h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-							<span>📩</span> Password Reset Link
-						</h3>
-						<p className="text-xs text-zinc-500">
-							Generated recovery URL for <strong className="text-zinc-800 dark:text-zinc-200">{customer.email}</strong>.
-						</p>
-
-						<div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-							<label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Recovery Link</label>
-							<textarea readOnly rows={3} value={generatedResetLink} className="w-full text-xs font-mono bg-transparent text-blue-600 dark:text-blue-400 border-0 focus:ring-0 select-all resize-none"></textarea>
+			{/* Wallet & Due Modal */}
+			{showWalletModal && (
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+					<div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+						<div className="flex justify-between items-center border-b border-zinc-200 dark:border-zinc-800 pb-3">
+							<h3 className="font-extrabold text-base text-zinc-900 dark:text-white">Customer Financial Adjustment</h3>
+							<button onClick={() => setShowWalletModal(false)} className="text-zinc-400 font-bold">✕</button>
 						</div>
 
-						<div className="flex justify-between items-center pt-2">
-							<button onClick={() => { navigator.clipboard.writeText(generatedResetLink); setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000); }} className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5">
-								{copiedLink ? "✓ Copied!" : "📋 Copy Link"}
-							</button>
-							<button onClick={() => setShowResetLinkModal(false)} className="px-4 py-2 text-xs font-semibold border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
-								Close
-							</button>
+						<div className="space-y-3 text-xs">
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Operation Type</label>
+								<div className="grid grid-cols-2 gap-2">
+									<button
+										type="button"
+										onClick={() => setWalletTypeInput("advance_topup")}
+										className={`py-2 px-3 rounded-xl font-bold text-center border-2 ${
+											walletTypeInput === "advance_topup" ? "border-emerald-600 bg-emerald-50 text-emerald-800 font-black" : "border-zinc-200"
+										}`}
+									>
+										Top-Up Advance
+									</button>
+									<button
+										type="button"
+										onClick={() => setWalletTypeInput("due_collection")}
+										className={`py-2 px-3 rounded-xl font-bold text-center border-2 ${
+											walletTypeInput === "due_collection" ? "border-rose-600 bg-rose-50 text-rose-800 font-black" : "border-zinc-200"
+										}`}
+									>
+										Collect Due
+									</button>
+								</div>
+							</div>
+
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Amount (BDT) *</label>
+								<input
+									type="number"
+									value={walletAmountInput}
+									onChange={e => setWalletAmountInput(e.target.value)}
+									placeholder="e.g. 5000"
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-black text-sm"
+								/>
+							</div>
 						</div>
+
+						<button
+							onClick={handleWalletOperation}
+							disabled={actionLoading}
+							className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/30"
+						>
+							{actionLoading ? "Processing..." : "Confirm & Post Ledger Entry"}
+						</button>
 					</div>
 				</div>
 			)}
 
-			{/* 🚫 Disable / Enable Login Modal */}
+			{/* Risk & Fraud Classification Modal */}
+			{showFraudModal && (
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+					<div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+						<div className="flex justify-between items-center border-b border-zinc-200 dark:border-zinc-800 pb-3">
+							<h3 className="font-extrabold text-base text-zinc-900 dark:text-white">Fraud Risk & Internal Notes</h3>
+							<button onClick={() => setShowFraudModal(false)} className="text-zinc-400 font-bold">✕</button>
+						</div>
+
+						<div className="space-y-3 text-xs">
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Risk Status</label>
+								<select
+									value={selectedFraudStatus}
+									onChange={e => setSelectedFraudStatus(e.target.value as any)}
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold"
+								>
+									<option value="clean">Clean (Trusted)</option>
+									<option value="suspicious">Suspicious</option>
+									<option value="spam">Spam</option>
+									<option value="fraud">Fraudulent</option>
+									<option value="blacklisted">Blacklisted</option>
+								</select>
+							</div>
+
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Risk / Flag Reason</label>
+								<input
+									type="text"
+									value={fraudReasonInput}
+									onChange={e => setFraudReasonInput(e.target.value)}
+									placeholder="Reason for risk status..."
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl"
+								/>
+							</div>
+
+							<div>
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Internal Admin Notes</label>
+								<textarea
+									value={adminNotesInput}
+									onChange={e => setAdminNotesInput(e.target.value)}
+									placeholder="Notes visible only to admins..."
+									rows={3}
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl"
+								/>
+							</div>
+						</div>
+
+						<button
+							onClick={handleSaveRiskAndNotes}
+							disabled={actionLoading}
+							className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/30"
+						>
+							{actionLoading ? "Saving..." : "Save Risk Settings"}
+						</button>
+					</div>
+				</div>
+			)}
+
+			{/* Account Disable Modal */}
 			{showDisableModal && (
-				<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-					<div className="bg-white dark:bg-zinc-900 rounded-xl max-w-md w-full p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-						<h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-							<span>{customer.is_disabled ? "🟢 Enable Account Login" : "🚫 Disable Account Login"}</span>
-						</h3>
-						<p className="text-xs text-zinc-500">
-							{customer.is_disabled ? `Allow ${customer.email} to sign into their account?` : `Block ${customer.email} from logging into the storefront?`}
-						</p>
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+					<div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+						<div className="flex justify-between items-center border-b border-zinc-200 dark:border-zinc-800 pb-3">
+							<h3 className="font-extrabold text-base text-zinc-900 dark:text-white">
+								{customer.is_disabled ? "Enable Customer Account" : "Disable Customer Login"}
+							</h3>
+							<button onClick={() => setShowDisableModal(false)} className="text-zinc-400 font-bold">✕</button>
+						</div>
 
 						{!customer.is_disabled && (
-							<div>
-								<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Reason for Disabling (Optional)</label>
-								<textarea rows={2} placeholder="Reason for blocking user access" value={disableReasonInput} onChange={(e) => setDisableReasonInput(e.target.value)} className="w-full px-3 py-2 text-xs border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:ring-2 focus:ring-red-500" />
+							<div className="space-y-1 text-xs">
+								<label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Reason for Disabling Account</label>
+								<input
+									type="text"
+									value={disableReasonInput}
+									onChange={e => setDisableReasonInput(e.target.value)}
+									placeholder="e.g. Non-payment of dues, abusive conduct"
+									className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl"
+								/>
 							</div>
 						)}
 
-						<div className="flex justify-end gap-3 pt-2">
-							<button onClick={() => setShowDisableModal(false)} className="px-4 py-2 text-xs font-semibold border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
-								Cancel
-							</button>
-							<button onClick={handleToggleDisable} disabled={actionLoading} className={`px-4 py-2 text-xs font-bold text-white rounded-lg disabled:opacity-50 ${customer.is_disabled ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}`}>
-								{actionLoading ? "Updating..." : customer.is_disabled ? "Enable Login" : "Disable Login"}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* 🚨 Fraud / Spam Flag Modal */}
-			{showFraudModal && (
-				<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-					<div className="bg-white dark:bg-zinc-900 rounded-xl max-w-md w-full p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-						<h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-							<span>🚨</span> Risk & Fraud Prevention Flag
-						</h3>
-						<p className="text-xs text-zinc-500">
-							Update risk classification and notes for <strong className="text-zinc-800 dark:text-zinc-200">{customer.first_name} {customer.last_name}</strong>.
-						</p>
-
-						<div>
-							<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Risk Level</label>
-							<select value={selectedFraudStatus} onChange={(e) => setSelectedFraudStatus(e.target.value as any)} className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:ring-2 focus:ring-orange-500">
-								<option value="clean">✓ Normal / Trusted Customer</option>
-								<option value="suspicious">🟡 Suspicious</option>
-								<option value="spam">⚠️ Spammer</option>
-								<option value="fraud">🚨 Fraudulent</option>
-								<option value="blacklisted">⛔ Blacklisted</option>
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Reason & Risk Notes</label>
-							<textarea rows={3} placeholder="Details about suspicious orders or behavior" value={fraudReasonInput} onChange={(e) => setFraudReasonInput(e.target.value)} className="w-full px-3 py-2 text-xs border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white focus:ring-2 focus:ring-orange-500" />
-						</div>
-
-						<div className="flex justify-end gap-3 pt-2">
-							<button onClick={() => setShowFraudModal(false)} className="px-4 py-2 text-xs font-semibold border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
-								Cancel
-							</button>
-							<button onClick={handleSaveRiskAndNotes} disabled={actionLoading} className="px-4 py-2 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-lg disabled:opacity-50">
-								{actionLoading ? "Saving..." : "Save Risk Flag"}
-							</button>
-						</div>
+						<button
+							onClick={handleToggleDisable}
+							disabled={actionLoading}
+							className={`w-full py-3 rounded-xl font-bold text-xs text-white shadow-md ${
+								customer.is_disabled ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+							}`}
+						>
+							{actionLoading ? "Updating..." : customer.is_disabled ? "Re-Enable Account" : "Confirm Disable Account"}
+						</button>
 					</div>
 				</div>
 			)}

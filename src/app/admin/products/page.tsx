@@ -88,18 +88,19 @@ export default function AdminProductsPage() {
 		}
 	};
 
-	const filteredProducts = products.filter((p) => {
+	const filteredProducts = (products || []).filter((p) => {
+		const searchLower = (search || "").toLowerCase();
 		const matchesSearch =
-			p.name.toLowerCase().includes(search.toLowerCase()) ||
-			p.sku.toLowerCase().includes(search.toLowerCase());
+			(p?.name || "").toLowerCase().includes(searchLower) ||
+			(p?.sku || "").toLowerCase().includes(searchLower);
 		return matchesSearch;
 	});
 
 	const toggleSelectAll = () => {
-		if (selectedProducts.length === filteredProducts.length) {
+		if (selectedProducts.length === filteredProducts.length && filteredProducts.length > 0) {
 			setSelectedProducts([]);
 		} else {
-			setSelectedProducts(filteredProducts.map((p) => p.id));
+			setSelectedProducts(filteredProducts.map((p) => p.id).filter(Boolean));
 		}
 	};
 

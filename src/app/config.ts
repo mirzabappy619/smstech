@@ -29,7 +29,7 @@ if (isProduction) {
 // APPLICATION CONFIG
 // ==============================================
 export const appConfig = {
-  name: process.env.NEXT_PUBLIC_APP_NAME || 'Gizmo Gadgets',
+  name: process.env.NEXT_PUBLIC_APP_NAME || 'SMSTech BD',
   url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   description: 'Enterprise-grade e-commerce platform',
   version: '1.0.0',

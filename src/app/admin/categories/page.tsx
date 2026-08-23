@@ -96,11 +96,12 @@ export default function AdminCategoriesPage() {
 		}
 	};
 
-	const filteredCategories = categories.filter((c) => {
+	const filteredCategories = (categories || []).filter((c) => {
+		const searchLower = (search || "").toLowerCase();
 		const matchesSearch =
-			c.name.toLowerCase().includes(search.toLowerCase()) ||
-			c.slug.toLowerCase().includes(search.toLowerCase());
-		const matchesStatus = !statusFilter || c.status === statusFilter;
+			(c?.name || "").toLowerCase().includes(searchLower) ||
+			(c?.slug || "").toLowerCase().includes(searchLower);
+		const matchesStatus = !statusFilter || c?.status === statusFilter;
 		return matchesSearch && matchesStatus;
 	});
 

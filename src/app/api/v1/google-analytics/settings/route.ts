@@ -1,18 +1,17 @@
 import { NextRequest } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { successResponse } from "@/lib/api-utils";
 
 export async function GET(_request: NextRequest) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createAdminClient();
 
     const { data, error } = await supabase
       .from("google_analytics_settings")
       .select("measurement_id, enabled, enabled_events")
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error("Failed to fetch GA settings:", error);
+    if (error || !data) {
       return successResponse({
         enabled: false,
         measurementId: "",
@@ -21,12 +20,11 @@ export async function GET(_request: NextRequest) {
     }
 
     return successResponse({
-      enabled: data?.enabled ?? false,
-      measurementId: data?.measurement_id ?? "",
-      enabledEvents: data?.enabled_events ?? [],
+      enabled: data.enabled ?? false,
+      measurementId: data.measurement_id ?? "",
+      enabledEvents: data.enabled_events ?? [],
     });
-  } catch (err) {
-    console.error("GA settings fetch error:", err);
+  } catch {
     return successResponse({
       enabled: false,
       measurementId: "",

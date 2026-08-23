@@ -79,16 +79,19 @@ export default function CustomersPage() {
 			const response = await fetch(`/api/v1/admin/customers?${params}`);
 			const data = await response.json();
 
-			if (data.success) {
-				setCustomers(data.data);
+			if (data && data.success && Array.isArray(data.data)) {
+				setCustomers(data.data || []);
 				setPagination((prev) => ({
 					...prev,
-					total: data.meta?.total || data.data.length,
-					totalPages: data.meta?.totalPages || 1,
+					total: data.meta?.total ?? data.data?.length ?? 0,
+					totalPages: data.meta?.totalPages ?? 1,
 				}));
+			} else {
+				setCustomers([]);
 			}
 		} catch (err) {
 			console.error("Failed to fetch customers:", err);
+			setCustomers([]);
 		} finally {
 			setLoading(false);
 		}

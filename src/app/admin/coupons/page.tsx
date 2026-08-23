@@ -46,11 +46,14 @@ export default function CouponsPage() {
 			const response = await fetch("/api/v1/admin/coupons");
 			const data = await response.json();
 
-			if (data.success) {
-				setCoupons(data.data);
+			if (data && data.success && Array.isArray(data.data)) {
+				setCoupons(data.data || []);
+			} else {
+				setCoupons([]);
 			}
 		} catch (err) {
 			console.error("Failed to fetch coupons:", err);
+			setCoupons([]);
 		} finally {
 			setLoading(false);
 		}
@@ -391,7 +394,7 @@ export default function CouponsPage() {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-								{coupons.map((coupon) => (
+								{(coupons || []).map((coupon) => (
 									<tr
 										key={coupon.id}
 										className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">

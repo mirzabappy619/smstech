@@ -1,5 +1,5 @@
 // Next.js Middleware for Authentication and Protection
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Routes that require authentication
@@ -25,8 +25,8 @@ const adminApiRoutes = [
 	"/api/v1/analytics",
 ];
 
-export async function middleware(request: NextRequest) {
-	const response = NextResponse.next({
+export async function proxy(request: NextRequest) {
+	let response = NextResponse.next({
 		request: {
 			headers: request.headers,
 		},
@@ -47,16 +47,19 @@ export async function middleware(request: NextRequest) {
 		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 		{
 			cookies: {
-				get(name: string) {
-					return request.cookies.get(name)?.value;
+				getAll() {
+					return request.cookies.getAll();
 				},
-				set(name: string, value: string, options: CookieOptions) {
-					request.cookies.set({ name, value, ...options });
-					response.cookies.set({ name, value, ...options });
-				},
-				remove(name: string, options: CookieOptions) {
-					request.cookies.set({ name, value: "", ...options });
-					response.cookies.set({ name, value: "", ...options });
+				setAll(cookiesToSet) {
+					cookiesToSet.forEach(({ name, value }) =>
+						request.cookies.set(name, value)
+					);
+					response = NextResponse.next({
+						request,
+					});
+					cookiesToSet.forEach(({ name, value, options }) =>
+						response.cookies.set(name, value, options)
+					);
 				},
 			},
 		},
@@ -111,14 +114,33 @@ export async function middleware(request: NextRequest) {
 
 	// Check admin/owner access
 	if ((isAdminRoute || isOwnerRoute || isAdminApiRoute) && user) {
-		// Get user role from database
-		const { data: dbUser } = await supabase
-			.from("users")
-			.select("role")
-			.eq("auth_id", user.id)
-			.single();
+		// Get user role from database using service role client or fallback
+		let userRole = "customer";
+		try {
+			const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+			const clientForRole = adminKey
+				? createServerClient(
+						process.env.NEXT_PUBLIC_SUPABASE_URL!,
+						adminKey,
+						{
+							cookies: {
+								getAll() { return []; },
+								setAll() {},
+							},
+						},
+				  )
+				: supabase;
 
-		const userRole = dbUser?.role || "customer";
+			const { data: dbUser } = await clientForRole
+				.from("users")
+				.select("role")
+				.or(`auth_id.eq.${user.id},id.eq.${user.id}`)
+				.maybeSingle();
+
+			userRole = dbUser?.role || (user.user_metadata?.role as string) || "customer";
+		} catch (err) {
+			console.error("[Middleware] Role lookup error:", err);
+		}
 
 		// Admin routes require admin or owner role
 		if (isAdminRoute || isAdminApiRoute) {
@@ -129,7 +151,7 @@ export async function middleware(request: NextRequest) {
 						{ status: 403 },
 					);
 				}
-				return NextResponse.redirect(new URL("/", request.url));
+				return NextResponse.redirect(new URL(`/login?redirectTo=${encodeURIComponent(pathname)}&error=forbidden`, request.url));
 			}
 		}
 

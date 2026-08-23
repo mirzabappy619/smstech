@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE } from "@/lib/bd-phone-validator";
+import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE, normalizeBDPhone } from "@/lib/bd-phone-validator";
+import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
 
 interface OrderItem {
 	id: string;
@@ -99,6 +100,33 @@ export default function AdminOrdersPage() {
 	const [customPrice, setCustomPrice] = useState<number | "">("");
 	const [draftItems, setDraftItems] = useState<DraftOrderItem[]>([]);
 
+	// Modal live fraud check state
+	const [modalFraudResult, setModalFraudResult] = useState<FraudCheckResult | null>(null);
+	const [modalFraudLoading, setModalFraudLoading] = useState(false);
+
+	const checkModalPhoneFraud = async (targetPhone?: string) => {
+		const rawPhone = targetPhone || custPhone;
+		const normalized = normalizeBDPhone(rawPhone);
+		if (!normalized || !isValidBDPhone(normalized)) {
+			setModalFraudResult(null);
+			return;
+		}
+		setModalFraudLoading(true);
+		try {
+			const res = await fetch(`/api/v1/fraud-check?phone=${encodeURIComponent(normalized)}`);
+			const data = await res.json();
+			if (data.success) {
+				setModalFraudResult(data);
+			} else {
+				setModalFraudResult(null);
+			}
+		} catch {
+			setModalFraudResult(null);
+		} finally {
+			setModalFraudLoading(false);
+		}
+	};
+
 	const fetchOrders = async () => {
 		try {
 			setLoading(true);
@@ -121,19 +149,23 @@ export default function AdminOrdersPage() {
 			if (!response.ok) {
 				const errorText = await response.text();
 				console.error("API Error:", response.status, errorText);
-				throw new Error("Failed to fetch orders");
+				setOrders([]);
+				setTotalOrders(0);
+				return;
 			}
 
 			const result = await response.json();
-			if (result.success) {
+			if (result && result.success && Array.isArray(result.data)) {
 				setOrders(result.data || []);
-				setTotalOrders(result.pagination?.total || result.data?.length || 0);
+				setTotalOrders(result.pagination?.total ?? result.data?.length ?? 0);
 			} else {
-				console.error("API returned success=false:", result);
+				setOrders([]);
+				setTotalOrders(0);
 			}
 		} catch (error) {
 			console.error("Error fetching orders:", error);
 			setOrders([]);
+			setTotalOrders(0);
 		} finally {
 			setLoading(false);
 		}
@@ -144,16 +176,23 @@ export default function AdminOrdersPage() {
 	}, [statusFilter, search]);
 
 	const loadProducts = async () => {
-		if (availableProducts.length > 0) return;
+		if (availableProducts && availableProducts.length > 0) return;
 		setLoadingProducts(true);
 		try {
 			const res = await fetch("/api/v1/products?show_all=true&limit=100", { credentials: "include" });
-			const json = await res.json();
-			if (json.success && json.data) {
-				setAvailableProducts(json.data);
+			if (res.ok) {
+				const json = await res.json();
+				if (json && json.success && Array.isArray(json.data)) {
+					setAvailableProducts(json.data || []);
+				} else {
+					setAvailableProducts([]);
+				}
+			} else {
+				setAvailableProducts([]);
 			}
 		} catch (err) {
 			console.error("Failed to load products for order creation:", err);
+			setAvailableProducts([]);
 		} finally {
 			setLoadingProducts(false);
 		}
@@ -298,11 +337,11 @@ export default function AdminOrdersPage() {
 	};
 
 	const stats = {
-		total: orders.length,
-		pending: orders.filter((o) => o.status === "pending").length,
-		processing: orders.filter((o) => o.status === "processing").length,
-		shipped: orders.filter((o) => o.status === "shipped").length,
-		delivered: orders.filter((o) => o.status === "delivered").length,
+		total: orders?.length || 0,
+		pending: (orders || []).filter((o) => o?.status === "pending").length,
+		processing: (orders || []).filter((o) => o?.status === "processing").length,
+		shipped: (orders || []).filter((o) => o?.status === "shipped").length,
+		delivered: (orders || []).filter((o) => o?.status === "delivered").length,
 	};
 
 	return (
@@ -313,7 +352,7 @@ export default function AdminOrdersPage() {
 					<h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
 						Orders
 					</h1>
-					<p className="text-zinc-500 text-sm mt-1">{totalOrders} total orders in system</p>
+					<p className="text-zinc-500 text-sm mt-1">{totalOrders || 0} total orders in system</p>
 				</div>
 				<div className="flex items-center gap-3">
 					<button
@@ -349,7 +388,7 @@ export default function AdminOrdersPage() {
 						className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
 						<p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{stat.label}</p>
 						<p className="text-2xl font-bold text-zinc-900 dark:text-white mt-1">
-							{stat.value}
+							{stat.value || 0}
 						</p>
 					</div>
 				))}
@@ -398,7 +437,7 @@ export default function AdminOrdersPage() {
 						<div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto" />
 						<p className="text-sm text-zinc-500 mt-3 font-medium">Loading orders...</p>
 					</div>
-				) : orders.length === 0 ? (
+				) : (orders || []).length === 0 ? (
 					<div className="p-12 text-center text-zinc-500">
 						<svg className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -437,7 +476,7 @@ export default function AdminOrdersPage() {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-								{orders.map((order) => (
+								{(orders || []).map((order) => (
 									<tr
 										key={order.id}
 										className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
@@ -445,35 +484,48 @@ export default function AdminOrdersPage() {
 											<Link
 												href={`/admin/orders/${order.id}`}
 												className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
-												{order.order_number}
+												{order.order_number || "N/A"}
 											</Link>
 										</td>
 										<td className="px-4 py-4">
 											<div>
 												<p className="font-semibold text-zinc-900 dark:text-white">
-													{order.customer_name}
+													{order.customer_name || "Guest Customer"}
 												</p>
 												{order.customer_phone && (
-													<p className="text-xs text-zinc-600 dark:text-zinc-400 flex items-center gap-1 mt-0.5 font-medium">
-														<span className="text-zinc-400">📱</span> {order.customer_phone}
-													</p>
+													<div className="flex items-center gap-1.5 mt-0.5">
+														<span className="text-xs text-zinc-600 dark:text-zinc-400 font-medium font-mono">
+															📱 {order.customer_phone}
+														</span>
+														<Link
+															href={`/admin/fraud-check?phone=${encodeURIComponent(order.customer_phone)}`}
+															title="Check Delivery & Fraud History"
+															className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors">
+															🛡️ Risk
+														</Link>
+													</div>
 												)}
 												<p className="text-xs text-zinc-500 dark:text-zinc-500 mt-0.5">
-													{order.customer_email}
+													{order.customer_email || "No Email"}
 												</p>
 											</div>
 										</td>
 										<td className="px-4 py-4">
 											<div className="space-y-1">
 												{(order.items || []).slice(0, 2).map((item, idx) => (
-													<p key={idx} className="text-xs text-zinc-700 dark:text-zinc-300 truncate max-w-xs">
-														<span className="font-semibold">{item.quantity}x</span> {item.product_name}
+													<p key={item.id || idx} className="text-xs text-zinc-700 dark:text-zinc-300 truncate max-w-xs">
+														<span className="font-semibold">{item.quantity || 1}x</span> {item.product_name || "Product"}
 														{item.variation_name ? ` (${item.variation_name})` : ""}
 													</p>
 												))}
 												{(order.items || []).length > 2 && (
 													<p className="text-xs text-zinc-400 italic">
 														+ {(order.items || []).length - 2} more item(s)
+													</p>
+												)}
+												{(order.items || []).length === 0 && (
+													<p className="text-xs text-zinc-400 italic">
+														{order.items_count || 0} item(s)
 													</p>
 												)}
 											</div>
@@ -496,15 +548,15 @@ export default function AdminOrdersPage() {
 												className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
 													statusColors[order.status] || "bg-zinc-100 text-zinc-800"
 												}`}>
-												{order.status}
+												{order.status || "pending"}
 											</span>
 										</td>
 										<td className="px-4 py-4 text-xs text-zinc-500 whitespace-nowrap">
-											{new Date(order.created_at).toLocaleDateString("en-US", {
+											{order.created_at ? new Date(order.created_at).toLocaleDateString("en-US", {
 												month: "short",
 												day: "numeric",
 												year: "numeric",
-											})}
+											}) : "N/A"}
 										</td>
 										<td className="px-4 py-4 text-right">
 											<Link
@@ -573,17 +625,54 @@ export default function AdminOrdersPage() {
 
 									<div className="grid grid-cols-2 gap-3">
 										<div>
-											<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-												BD Phone Number <span className="text-red-500">*</span>
-											</label>
+											<div className="flex items-center justify-between mb-1">
+												<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+													BD Phone Number <span className="text-red-500">*</span>
+												</label>
+												{custPhone.trim().length >= 11 && (
+													<button
+														type="button"
+														onClick={() => checkModalPhoneFraud()}
+														disabled={modalFraudLoading}
+														className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline">
+														{modalFraudLoading ? "Checking..." : "🛡️ Check Risk"}
+													</button>
+												)}
+											</div>
 											<input
 												type="tel"
 												required
 												placeholder="017XXXXXXXX"
 												value={custPhone}
-												onChange={(e) => setCustPhone(e.target.value)}
-												className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
+												onBlur={() => {
+													if (custPhone.trim().length >= 11) checkModalPhoneFraud();
+												}}
+												onChange={(e) => {
+													setCustPhone(e.target.value);
+													if (modalFraudResult) setModalFraudResult(null);
+												}}
+												className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white font-mono"
 											/>
+											{modalFraudResult && (
+												(() => {
+													const cfg = getRiskLevelConfig(modalFraudResult.risk_level);
+													return (
+														<div className={`mt-1.5 p-2 rounded-lg border ${cfg.border} ${cfg.bg} text-[11px] space-y-1`}>
+															<div className="flex items-center justify-between">
+																<span className={`font-bold inline-flex items-center gap-1 ${cfg.color}`}>
+																	<span>{cfg.icon}</span> {modalFraudResult.risk_level}
+																</span>
+																<span className="font-extrabold text-zinc-800 dark:text-zinc-200">
+																	{modalFraudResult.delivery_rate}% dlvd
+																</span>
+															</div>
+															<p className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-tight">
+																{modalFraudResult.risk_message_bn}
+															</p>
+														</div>
+													);
+												})()
+											)}
 										</div>
 										<div>
 											<label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">

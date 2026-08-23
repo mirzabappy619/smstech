@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export default function LoginFormContent() {
-	const router = useRouter();
 	const searchParams = useSearchParams();
 	const redirectTo = searchParams.get("redirectTo") || "/";
 	const errorParam = searchParams.get("error");
@@ -32,6 +32,18 @@ export default function LoginFormContent() {
 		setError("");
 
 		try {
+			// Sign in with browser Supabase client to store session cookies in browser
+			const supabase = createBrowserSupabaseClient();
+			const { error: authError } = await supabase.auth.signInWithPassword({
+				email,
+				password,
+			});
+
+			if (authError) {
+				throw new Error(authError.message || "Invalid login credentials");
+			}
+
+			// Validate with backend API for status & role resolution
 			const response = await fetch("/api/v1/auth/login", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -44,9 +56,15 @@ export default function LoginFormContent() {
 				throw new Error(data.error?.message || "Login failed");
 			}
 
-			// Redirect to the intended page or home
-			router.push(redirectTo);
-			router.refresh();
+			// Intelligently redirect admin/owner users to /admin if no specific destination was requested
+			const userRole = data.data?.user?.role || data.user?.role;
+			let destination = redirectTo;
+			if ((!redirectTo || redirectTo === "/") && (userRole === "admin" || userRole === "owner")) {
+				destination = "/admin";
+			}
+
+			// Full page transition to ensure all auth session cookies are loaded cleanly
+			window.location.href = destination;
 		} catch (err: any) {
 			setError(err.message || "An error occurred during login");
 		} finally {

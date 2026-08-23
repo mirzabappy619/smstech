@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 	return {
 		title: {
 			template: `%s | ${storeName}`,
-			default: `${storeName} — Tech, Trust & Service | Electronics Store`,
+			default: storeName,
 		},
 		description: "Bangladesh's trusted electronics retailer for laptops, smartphones, and tech accessories.",
 	};

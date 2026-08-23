@@ -93,15 +93,35 @@ export class MetaPixelService {
 			const { data, error } = await supabase
 				.from("meta_pixel_settings")
 				.select("*")
-				.eq("enabled", true)
-				.single();
+				.maybeSingle();
 
-			if (error) {
-				logger.error("Failed to fetch Meta Pixel settings", { error });
+			if (error || !data) {
 				return null;
 			}
 
-			return data as MetaPixelSettings;
+			const isEnabled = Boolean(data.is_enabled ?? data.enabled ?? false);
+
+			return {
+				id: data.id,
+				pixel_id: data.pixel_id || "",
+				access_token: data.access_token || "",
+				enabled: isEnabled,
+				is_enabled: isEnabled,
+				test_event_code: data.test_event_code,
+				test_mode: Boolean(data.test_mode || data.test_event_code),
+				enabled_events: data.enabled_events || [
+					"PageView",
+					"ViewContent",
+					"AddToCart",
+					"InitiateCheckout",
+					"Purchase",
+				],
+				fire_purchase_on_confirmed: Boolean(data.fire_purchase_on_confirmed ?? true),
+				dataset_id: data.dataset_id,
+				api_version: data.api_version,
+				created_at: data.created_at,
+				updated_at: data.updated_at,
+			} as MetaPixelSettings;
 		} catch (error) {
 			logger.error("Error in getSettings", { error });
 			return null;

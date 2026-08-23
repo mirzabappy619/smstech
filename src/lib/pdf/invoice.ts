@@ -2,43 +2,55 @@ const PDFDocument = require('pdfkit');
 
 interface InvoiceOrderItem {
 	name: string;
-	variation_name: string | null;
-	sku: string;
+	variation_name?: string | null;
+	sku?: string;
 	quantity: number;
 	unit_price: number;
-	total_price: number;
+	total_price?: number;
+	total?: number;
+	serial_number?: string | null;
+	imei_1?: string | null;
+	mac_address?: string | null;
+	battery_health_pct?: number | null;
+	cosmetic_grade?: string | null;
+	warranty_period?: string | null;
 }
 
 interface InvoiceOrder {
 	order_number: string;
 	created_at: string;
 	payment_method: string | null;
-	customer: {
-		first_name: string;
-		last_name: string;
-		email: string;
+	payment_breakdown?: Array<{ method: string; amount: number; reference?: string }>;
+	customer?: {
+		first_name?: string;
+		last_name?: string;
+		name?: string;
+		email?: string;
 		phone?: string;
 	} | null;
-	shipping_address: {
+	shipping_address?: {
 		name?: string;
-		first_name: string;
-		last_name: string;
-		address_line1: string;
+		first_name?: string;
+		last_name?: string;
+		address_line1?: string;
 		address_line2?: string | null;
-		city: string;
-		state: string;
-		postal_code: string;
-		country: string;
+		city?: string;
+		state?: string;
+		postal_code?: string;
+		country?: string;
 		phone?: string;
 		email?: string;
 	} | null;
 	items: InvoiceOrderItem[];
 	subtotal: number;
-	tax_amount: number;
-	shipping_amount: number;
-	discount_amount: number;
-	total_amount: number;
-	currency: string;
+	tax_amount?: number;
+	shipping_amount?: number;
+	discount_amount?: number;
+	advance_deducted?: number;
+	due_amount?: number;
+	total_amount?: number;
+	total?: number;
+	currency?: string;
 }
 
 interface StoreInfo {
@@ -48,9 +60,6 @@ interface StoreInfo {
 	store_phone: string;
 }
 
-/**
- * Sanitizes and cleans text so PDFKit Helvetica font never crashes or renders broken box glyphs.
- */
 function cleanPdfText(text: string | null | undefined): string {
 	if (!text) return '';
 	return String(text)
@@ -73,191 +82,160 @@ export function generateInvoicePdf(
 	store: StoreInfo
 ): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
-		const doc = new PDFDocument({ margin: 50, size: 'A4' });
+		const doc = new PDFDocument({ margin: 40, size: 'A4' });
 		const chunks: Buffer[] = [];
 
 		doc.on('data', (chunk: Buffer) => chunks.push(chunk));
 		doc.on('end', () => resolve(Buffer.concat(chunks)));
 		doc.on('error', reject);
 
-		// Format currency explicitly in BDT (Bangladeshi Taka)
 		const fmt = (amount: number) => {
 			const val = Math.round(Number(amount || 0));
 			return `BDT ${val.toLocaleString('en-US')}`;
 		};
 
-		// ── HEADER ──────────────────────────────────────────────────────────
-		doc.fontSize(22).font('Helvetica-Bold').text(cleanPdfText(store.store_name || 'Gizmo Gadgets'), 50, 50);
-		doc.fontSize(9)
+		// ── HEADER & COMPANY BRAND ──────────────────────────────────────────
+		doc.fontSize(22).font('Helvetica-Bold').fillColor('#0f172a').text(cleanPdfText(store.store_name || 'SMSTech Bangladesh'), 40, 40);
+		doc.fontSize(8)
 			.font('Helvetica')
-			.fillColor('#666')
-			.text(cleanPdfText(store.store_address || 'Dhaka, Bangladesh'), 50, 78)
-			.text(cleanPdfText(store.store_email || 'support@gizmogadgets.com'), 50, 90)
-			.text(cleanPdfText(store.store_phone || ''), 50, 102);
+			.fillColor('#475569')
+			.text(cleanPdfText(store.store_address || 'Computer City Center (Multiplan), Level-3, Shop 309, Elephant Road, Dhaka'), 40, 68)
+			.text(`Helpline: ${cleanPdfText(store.store_phone || '01781485588')} | Email: ${cleanPdfText(store.store_email || 'support@smstech.bd')}`, 40, 80)
+			.text('Web: www.smstech.bd | BIN/Trade: 0029182910-01', 40, 92);
 
-		// Invoice title block (right-aligned)
-		doc.fontSize(26)
-			.font('Helvetica-Bold')
-			.fillColor('#111')
-			.text('INVOICE', 380, 50, { width: 165, align: 'right' });
-
-		doc.fontSize(9)
-			.font('Helvetica')
-			.fillColor('#666')
-			.text(`Invoice #: ${cleanPdfText(order.order_number)}`, 380, 84, { width: 165, align: 'right' })
-			.text(
-				`Date: ${new Date(order.created_at).toLocaleDateString('en-US', {
-					year: 'numeric',
-					month: 'short',
-					day: 'numeric',
-				})}`,
-				380,
-				96,
-				{ width: 165, align: 'right' }
-			);
-
-		// Horizontal rule
-		doc.moveTo(50, 120).lineTo(545, 120).strokeColor('#e5e7eb').lineWidth(1).stroke();
-
-		// ── BILL TO ─────────────────────────────────────────────────────────
-		doc.fontSize(9).font('Helvetica-Bold').fillColor('#111').text('BILL TO', 50, 135);
-
-		const addr = order.shipping_address;
-		const customer = order.customer;
-
-		const customerName = cleanPdfText(
-			customer
-				? `${customer.first_name || ''} ${customer.last_name || ''}`
-				: addr?.name || `${addr?.first_name || ''} ${addr?.last_name || ''}` || 'Customer'
+		// Invoice & Certificate Title Box
+		doc.rect(360, 40, 195, 65).fill('#f8fafc').strokeColor('#cbd5e1').lineWidth(1).stroke();
+		doc.fontSize(14).font('Helvetica-Bold').fillColor('#1e293b').text('TAX INVOICE & WARRANTY', 365, 48, { width: 185, align: 'center' });
+		doc.fontSize(8).font('Helvetica-Bold').fillColor('#2563eb').text(`INVOICE: ${cleanPdfText(order.order_number)}`, 365, 66, { width: 185, align: 'center' });
+		doc.fontSize(7.5).font('Helvetica').fillColor('#64748b').text(
+			`Issued: ${new Date(order.created_at || Date.now()).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`,
+			365, 80, { width: 185, align: 'center' }
 		);
-		const customerEmail = cleanPdfText(customer?.email || addr?.email || '');
-		const customerPhone = cleanPdfText(customer?.phone || addr?.phone || '');
 
-		doc.font('Helvetica').fillColor('#333');
-		let yPos = 148;
+		// ── BILL TO SECTION ──────────────────────────────────────────────────
+		doc.moveTo(40, 115).lineTo(555, 115).strokeColor('#e2e8f0').lineWidth(1).stroke();
 
-		if (customerName) {
-			doc.font('Helvetica-Bold').text(customerName, 50, yPos);
-			yPos += 12;
+		doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#0f172a').text('CUSTOMER / BILL TO:', 40, 125);
+		const customerName = cleanPdfText(order.customer?.name || `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}` || order.shipping_address?.name || 'Valued Customer');
+		const customerPhone = cleanPdfText(order.customer?.phone || order.shipping_address?.phone || 'N/A');
+		const customerAddress = cleanPdfText(order.shipping_address?.address_line1 || 'In-Store Counter Delivery');
+
+		doc.fontSize(8).font('Helvetica').fillColor('#334155');
+		doc.text(`Name: ${customerName}`, 40, 138);
+		doc.text(`Contact: ${customerPhone}`, 40, 149);
+		doc.text(`Address: ${customerAddress}`, 40, 160);
+
+		// Payment & Channel Summary
+		doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#0f172a').text('PAYMENT SUMMARY:', 360, 125);
+		doc.fontSize(8).font('Helvetica').fillColor('#334155');
+		doc.text(`Payment Tender: ${(order.payment_method || 'Cash / POS Split').toUpperCase().replace(/_/g, ' ')}`, 360, 138);
+		if (order.due_amount && order.due_amount > 0) {
+			doc.font('Helvetica-Bold').fillColor('#dc2626').text(`Due Balance: ${fmt(order.due_amount)}`, 360, 149);
+		} else {
+			doc.font('Helvetica-Bold').fillColor('#16a34a').text('Payment Status: FULLY PAID', 360, 149);
 		}
 
-		doc.font('Helvetica');
-		if (addr) {
-			if (addr.address_line1) {
-				doc.text(cleanPdfText(addr.address_line1), 50, yPos);
-				yPos += 11;
-			}
-			if (addr.address_line2) {
-				doc.text(cleanPdfText(addr.address_line2), 50, yPos);
-				yPos += 11;
-			}
-			const locStr = [addr.city, addr.state, addr.postal_code].filter(Boolean).join(', ');
-			if (locStr) {
-				doc.text(cleanPdfText(locStr), 50, yPos);
-				yPos += 11;
-			}
-		}
+		// ── ITEMISED TABLE WITH SERIAL/IMEI & HARDWARE METRICS ────────────────
+		const tableTop = 180;
+		doc.rect(40, tableTop, 515, 18).fill('#0f172a');
+		doc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff');
+		doc.text('ITEM DESCRIPTION & SPECIFICATIONS', 48, tableTop + 5);
+		doc.text('SERIAL / IMEI / MAC', 270, tableTop + 5);
+		doc.text('QTY', 400, tableTop + 5);
+		doc.text('UNIT PRICE', 440, tableTop + 5);
+		doc.text('TOTAL', 500, tableTop + 5, { width: 50, align: 'right' });
 
-		if (customerPhone) {
-			doc.text(`Phone: ${customerPhone}`, 50, yPos);
-			yPos += 11;
-		}
-		if (customerEmail) {
-			doc.text(`Email: ${customerEmail}`, 50, yPos);
-			yPos += 11;
-		}
-
-		doc.font('Helvetica-Bold').text('PAYMENT METHOD', 380, 135, { width: 165, align: 'right' });
-		doc.font('Helvetica')
-			.fillColor('#555')
-			.text((order.payment_method || 'Cash on Delivery').toUpperCase().replace(/_/g, ' '), 380, 148, {
-				width: 165,
-				align: 'right',
-			});
-
-		// ── ITEMS TABLE ──────────────────────────────────────────────────────
-		const tableTop = Math.max(yPos + 15, 230);
-		const col = { item: 50, qty: 310, unit: 370, total: 460 };
-
-		// Table header background
-		doc.rect(50, tableTop, 495, 20).fill('#f3f4f6');
-		doc.fontSize(9)
-			.font('Helvetica-Bold')
-			.fillColor('#111')
-			.text('ITEM', col.item, tableTop + 5)
-			.text('QTY', col.qty, tableTop + 5)
-			.text('UNIT PRICE', col.unit, tableTop + 5)
-			.text('TOTAL', col.total, tableTop + 5, { width: 85, align: 'right' });
-
-		let y = tableTop + 25;
-		doc.font('Helvetica').fillColor('#333');
+		let y = tableTop + 24;
+		const finalTotal = order.total || order.total_amount || 0;
 
 		(order.items || []).forEach((item, i) => {
-			const itemHeight = item.variation_name ? 28 : 20;
-			if (i % 2 === 0) doc.rect(50, y - 3, 495, itemHeight).fill('#fafafa');
+			const hasSerial = Boolean(item.serial_number || item.imei_1 || item.battery_health_pct);
+			const rowHeight = hasSerial ? 34 : 22;
 
-			doc.fillColor('#333')
-				.text(cleanPdfText(item.name || 'Product Item'), col.item, y, { width: 250 })
-				.fontSize(8)
-				.fillColor('#666');
+			if (i % 2 === 0) doc.rect(40, y - 3, 515, rowHeight).fill('#f8fafc');
 
-			if (item.variation_name) {
-				doc.text(cleanPdfText(item.variation_name), col.item, y + 11, { width: 250 });
+			// Item Title & Specs
+			doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a').text(cleanPdfText(item.name), 48, y, { width: 215 });
+			doc.font('Helvetica').fontSize(7).fillColor('#64748b');
+			if (item.warranty_period) {
+				doc.text(`Warranty Coverage: ${cleanPdfText(item.warranty_period)}`, 48, y + 10, { width: 215 });
 			}
 
-			doc.fontSize(9)
-				.fillColor('#333')
-				.text(String(item.quantity || 1), col.qty, y)
-				.text(fmt(item.unit_price || 0), col.unit, y)
-				.text(fmt(item.total_price || 0), col.total, y, { width: 85, align: 'right' });
+			// Serial & IMEI
+			doc.font('Helvetica-Bold').fontSize(7).fillColor('#2563eb');
+			if (item.serial_number) doc.text(`SN: ${cleanPdfText(item.serial_number)}`, 270, y);
+			if (item.imei_1) doc.text(`IMEI: ${cleanPdfText(item.imei_1)}`, 270, y + 9);
+			if (item.battery_health_pct) {
+				doc.font('Helvetica').fontSize(6.5).fillColor('#16a34a').text(`Battery Health: ${item.battery_health_pct}% | Grade: ${cleanPdfText(item.cosmetic_grade || 'A+')}`, 270, y + 18);
+			}
 
-			y += itemHeight;
+			// Qty & Price
+			doc.font('Helvetica').fontSize(8).fillColor('#0f172a');
+			doc.text(String(item.quantity || 1), 400, y);
+			doc.text(fmt(item.unit_price || 0), 440, y);
+			doc.font('Helvetica-Bold').text(fmt(item.total_price || item.total || (item.unit_price * item.quantity)), 500, y, { width: 50, align: 'right' });
+
+			y += rowHeight;
 		});
 
-		// ── TOTALS ───────────────────────────────────────────────────────────
-		y += 10;
-		doc.moveTo(50, y)
-			.lineTo(545, y)
-			.strokeColor('#e5e7eb')
-			.lineWidth(0.5)
-			.stroke();
+		// ── TOTALS BLOCK ─────────────────────────────────────────────────────
+		doc.moveTo(40, y + 4).lineTo(555, y + 4).strokeColor('#cbd5e1').lineWidth(0.5).stroke();
 		y += 10;
 
-		const addTotalLine = (label: string, value: string, bold = false) => {
-			doc.fontSize(9)
-				.font(bold ? 'Helvetica-Bold' : 'Helvetica')
-				.fillColor('#333')
-				.text(label, 330, y, { width: 130, align: 'right' })
-				.text(value, col.total, y, { width: 85, align: 'right' });
-			y += 16;
+		const printTotal = (lbl: string, val: string, isBold = false, color = '#0f172a') => {
+			doc.fontSize(8).font(isBold ? 'Helvetica-Bold' : 'Helvetica').fillColor(color);
+			doc.text(lbl, 350, y, { width: 110, align: 'right' });
+			doc.text(val, 470, y, { width: 80, align: 'right' });
+			y += 12;
 		};
 
-		addTotalLine('Subtotal', fmt(order.subtotal || 0));
-		addTotalLine('Shipping', fmt(order.shipping_amount || 0));
-		if (order.tax_amount && order.tax_amount > 0) {
-			addTotalLine('Tax', fmt(order.tax_amount));
-		}
+		printTotal('Subtotal:', fmt(order.subtotal || finalTotal));
 		if (order.discount_amount && order.discount_amount > 0) {
-			addTotalLine('Discount', `-${fmt(order.discount_amount)}`);
+			printTotal('Discount:', `-${fmt(order.discount_amount)}`, false, '#16a34a');
+		}
+		if (order.advance_deducted && order.advance_deducted > 0) {
+			printTotal('Advance Wallet Deducted:', `-${fmt(order.advance_deducted)}`, false, '#2563eb');
+		}
+		printTotal('NET PAYABLE TOTAL:', fmt(finalTotal), true, '#0f172a');
+
+		if (order.due_amount && order.due_amount > 0) {
+			printTotal('OUTSTANDING DUE:', fmt(order.due_amount), true, '#dc2626');
 		}
 
-		y += 4;
-		doc.moveTo(330, y)
-			.lineTo(545, y)
-			.strokeColor('#111')
-			.lineWidth(0.5)
-			.stroke();
-		y += 8;
-		addTotalLine('TOTAL (BDT)', fmt(order.total_amount || 0), true);
+		// ── FORMAL WARRANTY CLAUSES & TERMS CERTIFICATE ──────────────────────
+		const warrantyTop = Math.max(y + 10, 490);
+		doc.rect(40, warrantyTop, 515, 140).fill('#f1f5f9').strokeColor('#cbd5e1').lineWidth(1).stroke();
+		doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#0f172a').text('OFFICIAL SMSTECH WARRANTY & REPLACEMENT POLICY', 50, warrantyTop + 8);
 
-		// ── FOOTER ───────────────────────────────────────────────────────────
-		doc.fontSize(9)
-			.font('Helvetica')
-			.fillColor('#888')
-			.text('Thank you for shopping with Gizmo Gadgets!', 50, 750, {
-				align: 'center',
-				width: 495,
-			});
+		const terms = [
+			'1. Warranty Coverage: Certified replacement / service warranty applies strictly to the hardware device serialized above.',
+			'2. Battery & Pre-Owned Metrics: Battery health and condition grading disclosed at purchase are guaranteed authentic at intake.',
+			'3. Exclusions: Physical damage, liquid ingress, burnt components, screen crack, unauthorized repair, or broken warranty seal sticker void warranty.',
+			'4. Warranty Claim: Present this original invoice / certificate and device with unbroken SMSTech seal to any official branch.',
+			'5. Dues Settlement: Invoices with unpaid due balance remain collateral of SMSTech BD until full clearance.'
+		];
+
+		let termY = warrantyTop + 24;
+		doc.font('Helvetica').fontSize(6.8).fillColor('#334155');
+		terms.forEach((t) => {
+			doc.text(t, 50, termY, { width: 495 });
+			termY += 13;
+		});
+
+		// ── SIGNATURES & OFFICIAL SEAL ───────────────────────────────────────
+		const sigY = 665;
+		doc.moveTo(60, sigY).lineTo(200, sigY).strokeColor('#64748b').lineWidth(1).stroke();
+		doc.fontSize(7.5).font('Helvetica').fillColor('#475569').text('Customer Signature & Acceptance', 60, sigY + 5, { width: 140, align: 'center' });
+
+		// Official Stamp Graphic Placeholder
+		doc.circle(300, sigY - 10, 22).strokeColor('#2563eb').lineWidth(1.5).stroke();
+		doc.fontSize(6).font('Helvetica-Bold').fillColor('#2563eb').text('SMSTECH BD\nVERIFIED SEAL', 275, sigY - 16, { width: 50, align: 'center' });
+
+		doc.moveTo(395, sigY).lineTo(535, sigY).strokeColor('#64748b').lineWidth(1).stroke();
+		doc.fontSize(7.5).font('Helvetica').fillColor('#475569').text('Authorised Signatory / Branch Manager', 395, sigY + 5, { width: 140, align: 'center' });
+
+		// Document Footer
+		doc.fontSize(6.5).font('Helvetica').fillColor('#94a3b8').text('This computer-generated tax invoice & warranty certificate is authenticated by SMSTech Enterprise Engine.', 40, 780, { align: 'center', width: 515 });
 
 		doc.end();
 	});

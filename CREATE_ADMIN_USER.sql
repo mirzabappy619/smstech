@@ -1,53 +1,105 @@
 -- ============================================
--- CREATE ADMIN USER IN SUPABASE
+-- CREATE SUPERADMIN / OWNER USER IN SUPABASE
 -- ============================================
--- This script creates a new admin user account
--- Run this in Supabase SQL Editor
+-- Run this in your Supabase SQL Editor:
+-- Dashboard -> SQL Editor -> New Query -> Run
 -- ============================================
 
--- STEP 1: Create auth user (this will send verification email)
--- Replace the email and password with your desired credentials
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Note: You need to run this in Supabase dashboard under Authentication > Users
--- Click "Add user" and select "Email" and enter:
--- Email: admin@ggadgets.com
--- Password: YourSecurePassword123!
--- Then come back here and continue with STEP 2
+DO $$
+DECLARE
+  new_auth_id uuid := gen_random_uuid();
+  user_email text := 'admin@smstech.bd';
+  user_password text := 'AdminPassword123!';
+  existing_auth_id uuid;
+BEGIN
+  -- Check if user already exists in auth.users
+  SELECT id INTO existing_auth_id FROM auth.users WHERE email = user_email;
+  
+  IF existing_auth_id IS NULL THEN
+    -- 1. Insert into auth.users (auto-confirmed)
+    INSERT INTO auth.users (
+      instance_id,
+      id,
+      aud,
+      role,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at,
+      confirmation_token,
+      recovery_token
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000000',
+      new_auth_id,
+      'authenticated',
+      'authenticated',
+      user_email,
+      crypt(user_password, gen_salt('bf')),
+      NOW(),
+      '{"provider":"email","providers":["email"]}',
+      '{"first_name":"Super","last_name":"Admin"}',
+      NOW(),
+      NOW(),
+      '',
+      ''
+    );
+    
+    -- 2. Insert into public.users with 'owner' (Superadmin) role
+    INSERT INTO users (
+      auth_id,
+      email,
+      role,
+      first_name,
+      last_name,
+      created_at,
+      updated_at
+    ) VALUES (
+      new_auth_id,
+      user_email,
+      'owner',
+      'Super',
+      'Admin',
+      NOW(),
+      NOW()
+    );
+  ELSE
+    -- If auth user exists, update password and set owner role
+    UPDATE auth.users 
+    SET encrypted_password = crypt(user_password, gen_salt('bf')),
+        email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+        updated_at = NOW()
+    WHERE id = existing_auth_id;
 
--- STEP 2: Find the auth_id of the user you just created
-SELECT id as auth_id, email, created_at 
-FROM auth.users 
-WHERE email = 'admin@ggadgets.com';
--- Copy the 'auth_id' from the result
+    INSERT INTO users (
+      auth_id,
+      email,
+      role,
+      first_name,
+      last_name,
+      created_at,
+      updated_at
+    ) VALUES (
+      existing_auth_id,
+      user_email,
+      'owner',
+      'Super',
+      'Admin',
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (auth_id)
+    DO UPDATE SET role = 'owner', updated_at = NOW();
+  END IF;
+END $$;
 
--- STEP 3: Create user profile with admin role
--- Replace YOUR_AUTH_ID_HERE with the auth_id from STEP 2
-INSERT INTO users (
-    auth_id,
-    email,
-    role,
-    first_name,
-    last_name,
-    created_at,
-    updated_at
-)
-VALUES (
-    '6278f1f3-4dd4-4408-a572-531a8df461d4',  -- Replace with actual auth_id from STEP 2
-    'admin@ggadgets.com',  -- Match the email from STEP 1
-    'admin',              -- Role: admin or owner
-    'Admin',              -- First name
-    'User',               -- Last name
-    NOW(),
-    NOW()
-)
-ON CONFLICT (auth_id) 
-DO UPDATE SET 
-    role = 'admin',
-    updated_at = NOW();
-
--- STEP 4: Verify the admin user was created
+-- Verify the superadmin user
 SELECT 
-    u.id,
+    u.id as user_id,
     u.auth_id,
     u.email,
     u.role,
@@ -56,7 +108,7 @@ SELECT
     au.email_confirmed_at
 FROM users u
 JOIN auth.users au ON u.auth_id = au.id
-WHERE u.email = 'admin@ggadgets.com';
+WHERE u.email = 'admin@smstech.bd';
 
 -- ============================================
 -- ALTERNATIVE: Promote existing user to admin

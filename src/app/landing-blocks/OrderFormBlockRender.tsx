@@ -2,6 +2,7 @@
 
 import { OrderFormBlockData } from "../landing-page-types";
 import { useState } from "react";
+import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE } from "@/lib/bd-phone-validator";
 
 interface OrderFormBlockRenderProps {
 	data: OrderFormBlockData;
@@ -74,6 +75,12 @@ export default function OrderFormBlockRender({
 			return;
 		}
 
+		if (formState.phone && !isValidBDPhone(formState.phone)) {
+			setErrorMessage(BD_PHONE_ERROR_MESSAGE);
+			setIsSubmitting(false);
+			return;
+		}
+
 		try {
 			// Step 1: Add product to cart
 			const cartResponse = await fetch("/api/v1/cart", {
@@ -107,10 +114,10 @@ export default function OrderFormBlockRender({
 					first_name: formState.firstName,
 					last_name: formState.lastName,
 					address_line1: formState.address,
-					city: "N/A",
-					state: "N/A",
-					postal_code: "00000",
-					country: "US",
+					city: "Dhaka",
+					state: "Dhaka",
+					postal_code: "1205",
+					country: "BD",
 					phone: formState.phone,
 					...(formState.email && { email: formState.email }),
 				},

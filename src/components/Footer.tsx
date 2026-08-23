@@ -16,7 +16,7 @@ type Settings = {
 
 export default function Footer() {
   const [settings, setSettings] = useState<Settings>({
-    store_name: 'SMSTech',
+    store_name: 'SMSTech BD',
     store_address: 'Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205',
     store_phone: '01781485588, 01723249598',
     social_facebook: 'https://facebook.com',
@@ -50,7 +50,7 @@ export default function Footer() {
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-800 text-sm">S</span>
             </div>
-            <span className="font-800 text-white text-xl">SMS<span className="text-blue-400">Tech</span></span>
+            <span className="font-800 text-white text-xl">SMS<span className="text-blue-400">Tech</span> <span className="text-blue-400 font-700 text-lg">BD</span></span>
           </div>
           <p className="text-sm text-slate-400 leading-relaxed mb-4">Technology. Trust. Service.</p>
           <p className="text-xs text-slate-500">

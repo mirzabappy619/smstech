@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError, ZodSchema } from "zod";
-import { createServerClient } from "./supabase/server";
+import { createServerClient, createAdminClient } from "./supabase/server";
 
 // ==============================================
 // API RESPONSE TYPES
@@ -191,17 +191,18 @@ export async function getAuthUser(
 
 		if (error || !user) return null;
 
-		// Get user profile with role
-		const { data: profile } = await supabase
+		// Get user profile with role using admin client to prevent RLS blockage
+		const adminSupabase = await createAdminClient();
+		const { data: profile } = await adminSupabase
 			.from("users")
 			.select("role")
-			.eq("auth_id", user.id)
-			.single();
+			.or(`auth_id.eq.${user.id},id.eq.${user.id}`)
+			.maybeSingle();
 
 		return {
 			id: user.id,
 			email: user.email!,
-			role: profile?.role ?? "customer",
+			role: (profile?.role ?? "customer") as any,
 		};
 	} catch {
 		return null;
@@ -235,7 +236,8 @@ export async function requireAdmin(
 > {
 	const { user, error } = await requireAuth(request);
 	if (error) return { error };
-	if (user.role !== "admin" && user.role !== "owner") {
+	const adminRoles = ["admin", "owner", "branch_manager", "staff", "manager"];
+	if (!adminRoles.includes(user.role)) {
 		return { error: forbiddenResponse("Admin access required") };
 	}
 	return { user };

@@ -342,7 +342,7 @@ export class EmailService {
     const { to, subject, attachments } = options;
 
     // Check if email is configured
-    if (!config.email?.smtp.host) {
+    if (!config.email?.smtp?.host) {
       console.warn('Email not configured. Logging email instead.');
       console.log('Email to:', to);
       console.log('Subject:', subject);

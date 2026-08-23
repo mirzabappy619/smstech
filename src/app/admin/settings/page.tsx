@@ -59,7 +59,7 @@ interface StoreSettings {
 }
 
 const defaultSettings: StoreSettings = {
-	store_name: "SMSTech",
+	store_name: "SMSTech BD",
 	store_email: "info@smstech.bd",
 	store_phone: "01781485588, 01723249598",
 	store_address: "Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205",
