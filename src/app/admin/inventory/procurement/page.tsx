@@ -28,6 +28,7 @@ export default function ProcurementPage() {
   const [supplierName, setSupplierName] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [unitCost, setUnitCost] = useState("");
+  const [sellingPrice, setSellingPrice] = useState("");
   const [serialInputText, setSerialInputText] = useState(""); // Multi-line serial input
   const [buyNotes, setBuyNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,9 +63,16 @@ export default function ProcurementPage() {
 
   const handleBatchBuySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProductId || !warehouseId || !unitCost) {
-      alert("Please fill in Product, Destination Branch, and Unit Cost.");
+    if (!selectedProductId || !warehouseId || !unitCost || !sellingPrice) {
+      alert("Fill in Product, Destination Branch, Cost Price and Selling Price.");
       return;
+    }
+    if (Number(sellingPrice) <= Number(unitCost)) {
+      if (!confirm(
+        `Selling price ${fmt(Number(sellingPrice))} is not above the ${fmt(Number(unitCost))} cost. Continue anyway?`
+      )) {
+        return;
+      }
     }
 
     const serials = serialInputText
@@ -83,12 +91,12 @@ export default function ProcurementPage() {
         type: "batch_buy",
         supplier_name: supplierName || "Direct Supplier Intake",
         warehouse_id: warehouseId,
-        total_amount: Number(unitCost) * serials.length,
         notes: buyNotes,
         items: [
           {
             product_id: selectedProductId,
             unit_cost: Number(unitCost),
+            selling_price: Number(sellingPrice),
             serial_numbers: serials.map(s => ({
               serial: s,
               grade: "Like New A+",
@@ -110,6 +118,7 @@ export default function ProcurementPage() {
         alert(`Success: ${json.message}`);
         setSerialInputText("");
         setUnitCost("");
+        setSellingPrice("");
       } else {
         alert(json.error || "Batch intake failed");
       }
@@ -134,12 +143,12 @@ export default function ProcurementPage() {
         customer_name: clientName,
         customer_phone: clientPhone || "01700000000",
         warehouse_id: warehouseId,
-        total_amount: Number(sellUnitPrice) * Number(sellQty),
         payment_status: "paid",
         notes: sellNotes,
         items: [
           {
             product_id: sellProductId,
+            product_name: products.find(x => x.id === sellProductId)?.name || "Wholesale item",
             quantity: Number(sellQty),
             unit_price: Number(sellUnitPrice)
           }
@@ -239,7 +248,10 @@ export default function ProcurementPage() {
                 onChange={e => {
                   setSelectedProductId(e.target.value);
                   const p = products.find(x => x.id === e.target.value);
-                  if (p) setUnitCost(String(Math.round(p.base_price * 0.85)));
+                  if (p) {
+                    setUnitCost(String(Math.round(p.base_price * 0.85)));
+                    setSellingPrice(String(Math.round(p.base_price)));
+                  }
                 }}
                 className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold"
                 required
@@ -261,6 +273,27 @@ export default function ProcurementPage() {
                 className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold text-blue-600"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Selling Price Per Unit (BDT) *</label>
+              {/* Required now. Intake used to invent one at cost × 1.15 when
+                  this was left out, quietly setting every shelf price. */}
+              <input
+                type="number"
+                value={sellingPrice}
+                onChange={e => setSellingPrice(e.target.value)}
+                placeholder="e.g. 56000"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold text-emerald-600"
+                required
+              />
+              {Number(unitCost) > 0 && Number(sellingPrice) > 0 && (
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  Margin {fmt(Number(sellingPrice) - Number(unitCost))} per unit
+                  {" · "}
+                  {Math.round(((Number(sellingPrice) - Number(unitCost)) / Number(sellingPrice)) * 100)}%
+                </p>
+              )}
             </div>
           </div>
 

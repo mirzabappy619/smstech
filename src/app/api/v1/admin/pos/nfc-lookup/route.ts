@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { buildIlikeOr } from "@/lib/supabase/filters";
 
 export async function GET(request: Request) {
   try {
@@ -13,7 +14,8 @@ export async function GET(request: Request) {
     if (nfcUid) {
       dbQuery = dbQuery.eq("nfc_card_uid", nfcUid);
     } else if (query) {
-      dbQuery = dbQuery.or(`phone.ilike.%${query}%,name.ilike.%${query}%,customer_code.ilike.%${query}%`);
+      const filter = buildIlikeOr(["phone", "name", "customer_code"], query);
+      if (filter) dbQuery = dbQuery.or(filter);
     } else {
       const { data: recentCustomers } = await supabase
         .from("customers")
@@ -23,12 +25,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: recentCustomers || [] });
     }
 
-    const { data: customer, error } = await dbQuery.maybeSingle();
+    // A name or partial phone can legitimately match several people.
+    // maybeSingle() turned that into an error; return the candidates instead
+    // so the cashier can pick.
+    const { data: matches, error } = await dbQuery
+      .order("created_at", { ascending: false })
+      .limit(10);
 
     if (error) throw error;
-    if (!customer) {
+
+    if (!matches || matches.length === 0) {
       return NextResponse.json({ success: false, message: "Customer not found" }, { status: 404 });
     }
+
+    if (matches.length > 1) {
+      return NextResponse.json({
+        success: true,
+        data: { customer: null, matches, recentOrders: [], preBookings: [] }
+      });
+    }
+
+    const customer = matches[0];
 
     // Also fetch last 5 purchase orders and active pre-bookings
     const { data: recentOrders } = await supabase
@@ -48,6 +65,7 @@ export async function GET(request: Request) {
       success: true,
       data: {
         customer,
+        matches: [customer],
         recentOrders: recentOrders || [],
         preBookings: preBookings || []
       }

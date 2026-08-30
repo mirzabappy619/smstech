@@ -8,6 +8,23 @@ const protectedRoutes = ["/account", "/wishlist"];
 // Routes that require admin role
 const adminRoutes = ["/admin"];
 
+// Roles allowed into the admin panel. This must stay in step with the
+// allow-list in src/app/admin/layout.tsx and requireAdmin() in lib/api-utils —
+// the proxy runs first, so anything missing here can never reach either.
+// Restricting this to admin/owner previously locked cashiers, branch managers,
+// inventory managers and accountants out of the screens built for them.
+const ADMIN_PANEL_ROLES = [
+	"owner",
+	"admin",
+	"branch_manager",
+	"cashier",
+	"inventory_manager",
+	"accountant",
+	"delivery_agent",
+	"staff",
+	"manager",
+];
+
 // Routes that require owner role
 const ownerRoutes = ["/owner"];
 
@@ -142,9 +159,10 @@ export async function proxy(request: NextRequest) {
 			console.error("[Middleware] Role lookup error:", err);
 		}
 
-		// Admin routes require admin or owner role
+		// Admin routes require a staff role. Finer-grained permission checks
+		// happen per-route; this gate only keeps storefront customers out.
 		if (isAdminRoute || isAdminApiRoute) {
-			if (!["admin", "owner"].includes(userRole)) {
+			if (!ADMIN_PANEL_ROLES.includes(userRole)) {
 				if (pathname.startsWith("/api/")) {
 					return NextResponse.json(
 						{ success: false, error: "Forbidden" },

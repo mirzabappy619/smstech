@@ -13,7 +13,10 @@ export async function POST(request: Request) {
       .from("pre_bookings")
       .select("*")
       .eq("status", "queued")
-      .order("queue_priority", { ascending: true });
+      .order("queue_priority", { ascending: true })
+      // Bookings sharing a priority are served in the order they were taken,
+      // rather than whatever order the database happened to return.
+      .order("created_at", { ascending: true });
 
     if (product_id) bookingQuery = bookingQuery.eq("product_id", product_id);
 
@@ -32,6 +35,9 @@ export async function POST(request: Request) {
     if (product_id) unitQuery = unitQuery.eq("product_id", product_id);
     if (warehouse_id) unitQuery = unitQuery.eq("warehouse_id", warehouse_id);
 
+    // Oldest stock first, so units do not sit on the shelf indefinitely.
+    unitQuery = unitQuery.order("created_at", { ascending: true });
+
     const { data: availableUnits } = await unitQuery;
 
     if (!availableUnits || availableUnits.length === 0) {
@@ -46,18 +52,38 @@ export async function POST(request: Request) {
       if (matchIndex !== -1) {
         const unit = availablePool.splice(matchIndex, 1)[0];
 
-        // Update device unit to reserved
-        await supabase.from("device_units").update({ status: "reserved" }).eq("id", unit.id);
+        // Reserve the unit. The status guard makes this a no-op if another
+        // allocation run claimed the same unit a moment earlier.
+        const { data: claimed } = await supabase
+          .from("device_units")
+          .update({ status: "reserved" })
+          .eq("id", unit.id)
+          .eq("status", "in_stock")
+          .select("id")
+          .maybeSingle();
 
-        // Update pre-booking to allocated
-        await supabase
+        if (!claimed) continue;
+
+        const { data: allocated } = await supabase
           .from("pre_bookings")
           .update({
             allocated_unit_id: unit.id,
             allocated_at: new Date().toISOString(),
             status: "allocated"
           })
-          .eq("id", booking.id);
+          .eq("id", booking.id)
+          .eq("status", "queued")
+          .select("id")
+          .maybeSingle();
+
+        if (!allocated) {
+          // Booking was taken by another run — release the unit again.
+          await supabase
+            .from("device_units")
+            .update({ status: "in_stock" })
+            .eq("id", unit.id);
+          continue;
+        }
 
         allocations.push({
           bookingNumber: booking.booking_number,

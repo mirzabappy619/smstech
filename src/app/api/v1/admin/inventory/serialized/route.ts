@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { buildIlikeOr } from "@/lib/supabase/filters";
 
 export async function GET(request: Request) {
   try {
@@ -39,8 +40,12 @@ export async function GET(request: Request) {
     if (grade !== "all") {
       dbQuery = dbQuery.eq("cosmetic_grade", grade);
     }
-    if (query) {
-      dbQuery = dbQuery.or(`serial_number.ilike.%${query}%,imei_1.ilike.%${query}%,imei_2.ilike.%${query}%`);
+    const searchFilter = buildIlikeOr(
+      ["serial_number", "imei_1", "imei_2"],
+      query,
+    );
+    if (searchFilter) {
+      dbQuery = dbQuery.or(searchFilter);
     }
 
     const { data: units, error } = await dbQuery.limit(100);
@@ -75,9 +80,38 @@ export async function POST(request: Request) {
 
     if (!product_id || !warehouse_id || !serial_number || !selling_price) {
       return NextResponse.json(
-        { success: false, error: "product_id, warehouse_id, serial_number, and selling_price are required." },
+        { success: false, error: "Product, branch, serial number and selling price are all required." },
         { status: 400 }
       );
+    }
+
+    const price = Number(selling_price);
+    if (!Number.isFinite(price) || price <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Selling price must be greater than zero." },
+        { status: 400 }
+      );
+    }
+
+    const cost = cost_price === undefined || cost_price === null || cost_price === ""
+      ? 0
+      : Number(cost_price);
+    if (!Number.isFinite(cost) || cost < 0) {
+      return NextResponse.json(
+        { success: false, error: "Cost price must be zero or more." },
+        { status: 400 }
+      );
+    }
+
+    let batteryHealth: number | null = null;
+    if (battery_health_pct !== undefined && battery_health_pct !== null && battery_health_pct !== "") {
+      batteryHealth = Number(battery_health_pct);
+      if (!Number.isFinite(batteryHealth) || batteryHealth < 0 || batteryHealth > 100) {
+        return NextResponse.json(
+          { success: false, error: "Battery health must be between 0 and 100." },
+          { status: 400 }
+        );
+      }
     }
 
     const supabase = await getSupabaseServerClient();
@@ -91,22 +125,33 @@ export async function POST(request: Request) {
         imei_1: imei_1 || null,
         imei_2: imei_2 || null,
         mac_address: mac_address || null,
-        battery_health_pct: battery_health_pct ? Number(battery_health_pct) : null,
+        battery_health_pct: batteryHealth,
         battery_cycles: Number(battery_cycles) || 0,
         cosmetic_grade: cosmetic_grade || "Brand New",
         regional_variant: regional_variant || "Official",
         specs_summary: specs_summary || {},
-        cost_price: Number(cost_price) || 0,
-        selling_price: Number(selling_price),
+        cost_price: cost,
+        selling_price: price,
         status: "in_stock",
         notes: notes || null
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // serial_number is UNIQUE — report the clash plainly instead of leaking
+      // a raw constraint violation to the intake screen.
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { success: false, error: `Serial "${serial_number}" is already in stock.` },
+          { status: 409 }
+        );
+      }
+      throw error;
+    }
     return NextResponse.json({ success: true, data: newUnit });
   } catch (error: any) {
+    console.error("Serialized intake failed:", error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

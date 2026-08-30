@@ -9,30 +9,42 @@ import {
 	requireAdmin,
 } from "@/lib/api-utils";
 
+// Every reason the adjustment modal offers, mapped onto the stored movement
+// type. "correction" and "other" used to be rejected outright even though the
+// UI presented them.
+const ADJUSTMENT_TYPE_BY_REASON = {
+	restock: "purchase",
+	purchase: "purchase",
+	sale: "sale",
+	return: "return",
+	damage: "damage",
+	correction: "adjustment",
+	adjustment: "adjustment",
+	other: "adjustment",
+} as const;
+
+export const ADJUSTMENT_REASONS = Object.keys(
+	ADJUSTMENT_TYPE_BY_REASON,
+) as (keyof typeof ADJUSTMENT_TYPE_BY_REASON)[];
+
 const adjustSchema = z.object({
 	quantity: z
 		.number()
-		.int()
+		.int({ message: "Quantity must be a whole number" })
 		.refine((n) => n !== 0, { message: "Quantity must be non-zero" }),
-	reason: z.enum(["restock", "sale", "return", "adjustment", "damage"]),
+	reason: z.enum(
+		Object.keys(ADJUSTMENT_TYPE_BY_REASON) as [string, ...string[]],
+	),
 	notes: z.string().optional(),
 });
-
-const adjustmentTypeMap: Record<string, string> = {
-	restock: "purchase",
-	sale: "sale",
-	return: "return",
-	adjustment: "adjustment",
-	damage: "damage",
-};
 
 export async function POST(
 	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
 	try {
-		const { error: authError } = await requireAdmin(request);
-		if (authError) return authError;
+		const authResult = await requireAdmin(request);
+		if (authResult.error) return authResult.error;
 
 		const { id } = await params;
 
@@ -51,7 +63,7 @@ export async function POST(
 		if (!validation.success) {
 			return errorResponse(
 				"VALIDATION_ERROR",
-				"Invalid request data",
+				validation.error.errors[0]?.message || "Invalid request data",
 				HTTP_STATUS.BAD_REQUEST,
 			);
 		}
@@ -61,7 +73,7 @@ export async function POST(
 
 		const { data: inv, error: fetchError } = await supabase
 			.from("inventory")
-			.select("id, quantity")
+			.select("id, product_id, variation_id, warehouse_id, quantity, reserved_quantity")
 			.eq("id", id)
 			.single();
 
@@ -69,27 +81,39 @@ export async function POST(
 			return notFoundResponse("Inventory item");
 		}
 
-		const newQuantity = (inv.quantity as number) + quantity;
-		if (newQuantity < 0) {
-			return errorResponse(
-				"INSUFFICIENT_STOCK",
-				"Cannot reduce stock below zero",
-				HTTP_STATUS.BAD_REQUEST,
-			);
-		}
+		// The atomic helper enforces both floors: on-hand cannot go below zero,
+		// and cannot drop under what is already reserved for orders. The old
+		// read-modify-write here checked only the first and could be raced.
+		const { data: result, error: rpcError } = await supabase.rpc(
+			"apply_stock_movement",
+			{
+				p_product_id: inv.product_id,
+				p_variation_id: inv.variation_id,
+				p_warehouse_id: inv.warehouse_id,
+				p_delta: quantity,
+				p_adjustment_type:
+					ADJUSTMENT_TYPE_BY_REASON[
+						reason as keyof typeof ADJUSTMENT_TYPE_BY_REASON
+					],
+				p_reason: notes || reason,
+				p_order_id: null,
+				p_user_id: authResult.user?.id ?? null,
+				p_allow_negative: false,
+			},
+		);
 
-		const { data: updated, error: updateError } = await supabase
-			.from("inventory")
-			.update({
-				quantity: newQuantity,
-				last_counted_at: new Date().toISOString(),
-				updated_at: new Date().toISOString(),
-			})
-			.eq("id", id)
-			.select()
-			.single();
-
-		if (updateError) {
+		if (rpcError) {
+			if (rpcError.message?.includes("INSUFFICIENT_STOCK")) {
+				const reserved = inv.reserved_quantity ?? 0;
+				return errorResponse(
+					"INSUFFICIENT_STOCK",
+					reserved > 0
+						? `Only ${inv.quantity - reserved} unit(s) are free to remove — ${reserved} are reserved for open orders.`
+						: `Only ${inv.quantity} unit(s) on hand.`,
+					HTTP_STATUS.BAD_REQUEST,
+				);
+			}
+			console.error("Stock adjustment failed:", rpcError);
 			return errorResponse(
 				"UPDATE_FAILED",
 				"Failed to update inventory",
@@ -97,18 +121,24 @@ export async function POST(
 			);
 		}
 
-		// Log the stock adjustment
-		await supabase.from("inventory_logs").insert({
-			inventory_id: id,
-			adjustment_type: adjustmentTypeMap[reason] || "adjustment",
-			quantity_change: quantity,
-			quantity_before: inv.quantity,
-			quantity_after: newQuantity,
-			reason: notes || reason,
-		});
+		await supabase
+			.from("inventory")
+			.update({ last_counted_at: new Date().toISOString() })
+			.eq("id", id);
 
-		return jsonResponse(updated);
-	} catch {
+		const { data: updated } = await supabase
+			.from("inventory")
+			.select("id, quantity, reserved_quantity, available_quantity")
+			.eq("id", id)
+			.single();
+
+		return jsonResponse({
+			...updated,
+			quantity_before: result?.[0]?.quantity_before ?? inv.quantity,
+			quantity_after: result?.[0]?.quantity_after ?? inv.quantity + quantity,
+		});
+	} catch (error) {
+		console.error("Stock adjustment error:", error);
 		return errorResponse(
 			"INTERNAL_ERROR",
 			"Internal server error",

@@ -178,6 +178,6 @@ export async function PATCH(
 
 		return jsonResponse({ success: true, message: "Customer profile and enterprise credentials updated" });
 	} catch (err: any) {
-		return errorResponse(err.message || "Failed to update customer", "INTERNAL_ERROR", 500);
+		return errorResponse("INTERNAL_ERROR", err.message || "Failed to update customer", 500);
 	}
 }

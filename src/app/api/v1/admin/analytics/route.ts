@@ -42,25 +42,29 @@ export async function GET(request: NextRequest) {
 		const supabase = await createAdminClient();
 		const { start, end } = getDateRange(range);
 
-		// Revenue data within range
-		const { data: ordersInRange } = await supabase
+		// Revenue data within range.
+		//
+		// These run as SQL aggregates. Reducing an unbounded `.select()` in
+		// JavaScript silently stopped at PostgREST's 1000-row ceiling, so every
+		// figure below froze once a range held more than 1000 orders.
+		//
+		// admin_order_totals excludes cancelled and refunded orders, which is
+		// the same definition of revenue the dashboard now uses.
+		const { data: rangeTotals } = await supabase.rpc("admin_order_totals", {
+			p_warehouse_id: null,
+			p_from: start.toISOString(),
+			p_to: end.toISOString(),
+		});
+
+		const { count: rawOrderCount } = await supabase
 			.from("orders")
-			.select("id, total, status, created_at")
+			.select("*", { count: "exact", head: true })
 			.gte("created_at", start.toISOString())
-			.lte("created_at", end.toISOString());
+			.lt("created_at", end.toISOString());
 
-		const completedOrders =
-			ordersInRange?.filter((o) =>
-				["delivered", "completed", "confirmed", "shipped"].includes(o.status),
-			) || [];
-
-		const totalRevenue = completedOrders.reduce(
-			(sum, order) => sum + (parseFloat(order.total) || 0),
-			0,
-		);
-
-		const totalOrders = ordersInRange?.length || 0;
-		const completedOrdersCount = completedOrders.length;
+		const totalRevenue = Number(rangeTotals?.[0]?.revenue) || 0;
+		const completedOrdersCount = Number(rangeTotals?.[0]?.order_count) || 0;
+		const totalOrders = rawOrderCount || 0;
 		const averageOrderValue =
 			completedOrdersCount > 0 ? totalRevenue / completedOrdersCount : 0;
 
@@ -70,21 +74,19 @@ export async function GET(request: NextRequest) {
 			previousStart.getTime() - (end.getTime() - start.getTime()),
 		);
 
-		const { data: previousOrdersInRange } = await supabase
+		const { data: previousTotals } = await supabase.rpc("admin_order_totals", {
+			p_warehouse_id: null,
+			p_from: previousStart.toISOString(),
+			p_to: start.toISOString(),
+		});
+
+		const { count: previousOrderCount } = await supabase
 			.from("orders")
-			.select("id, total, status, created_at")
+			.select("*", { count: "exact", head: true })
 			.gte("created_at", previousStart.toISOString())
 			.lt("created_at", start.toISOString());
 
-		const previousCompletedOrders =
-			previousOrdersInRange?.filter((o) =>
-				["delivered", "completed", "confirmed", "shipped"].includes(o.status),
-			) || [];
-
-		const previousRevenue = previousCompletedOrders.reduce(
-			(sum, order) => sum + (parseFloat(order.total) || 0),
-			0,
-		);
+		const previousRevenue = Number(previousTotals?.[0]?.revenue) || 0;
 
 		const revenueChange =
 			previousRevenue > 0
@@ -93,10 +95,8 @@ export async function GET(request: NextRequest) {
 					? 100
 					: 0;
 
-		const ordersChange = previousOrdersInRange?.length
-			? ((totalOrders - previousOrdersInRange.length) /
-					previousOrdersInRange.length) *
-				100
+		const ordersChange = previousOrderCount
+			? ((totalOrders - previousOrderCount) / previousOrderCount) * 100
 			: totalOrders > 0
 				? 100
 				: 0;
@@ -126,33 +126,37 @@ export async function GET(request: NextRequest) {
 					: 0;
 
 		// Order status breakdown
-		const orderStatusCounts =
-			ordersInRange?.reduce(
-				(acc, order) => {
-					acc[order.status] = (acc[order.status] || 0) + 1;
-					return acc;
-				},
-				{} as Record<string, number>,
-			) || {};
+		const { data: statusRows } = await supabase.rpc("admin_orders_by_status", {
+			p_warehouse_id: null,
+			p_from: start.toISOString(),
+			p_to: end.toISOString(),
+		});
 
-		// Daily revenue breakdown
+		const orderStatusCounts: Record<string, number> = {};
+		for (const row of (statusRows || []) as { status: string; count: number }[]) {
+			orderStatusCounts[row.status] = Number(row.count) || 0;
+		}
+
+		// Daily revenue breakdown, bucketed in SQL by store-local date.
+		const { data: dailyRows } = await supabase.rpc("admin_daily_revenue", {
+			p_from: start.toISOString(),
+			p_to: end.toISOString(),
+		});
+
 		const dailyRevenue: { date: string; revenue: number; orders: number }[] =
 			[];
 		const dayMap = new Map<string, { revenue: number; orders: number }>();
 
-		ordersInRange?.forEach((order) => {
-			const date = new Date(order.created_at).toISOString().split("T")[0];
-			const current = dayMap.get(date) || { revenue: 0, orders: 0 };
-			if (
-				["delivered", "completed", "confirmed", "shipped"].includes(
-					order.status,
-				)
-			) {
-				current.revenue += parseFloat(order.total) || 0;
-			}
-			current.orders += 1;
-			dayMap.set(date, current);
-		});
+		for (const row of (dailyRows || []) as {
+			day: string;
+			revenue: number;
+			orders: number;
+		}[]) {
+			dayMap.set(row.day, {
+				revenue: Number(row.revenue) || 0,
+				orders: Number(row.orders) || 0,
+			});
+		}
 
 		// Fill in missing dates
 		const currentDate = new Date(start);

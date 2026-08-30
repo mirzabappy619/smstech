@@ -41,8 +41,33 @@ interface LogEntry {
 	} | null;
 }
 
+interface InventorySummary {
+	total_items: number;
+	low_stock: number;
+	out_of_stock: number;
+	total_stock: number;
+}
+
+const EMPTY_SUMMARY: InventorySummary = {
+	total_items: 0,
+	low_stock: 0,
+	out_of_stock: 0,
+	total_stock: 0,
+};
+
+/** Pull a readable message out of the API's { code, message } error shape. */
+function errorMessage(payload: unknown, fallback: string): string {
+	const err = (payload as { error?: unknown })?.error;
+	if (typeof err === "string") return err;
+	if (err && typeof err === "object" && "message" in err) {
+		return String((err as { message: unknown }).message);
+	}
+	return fallback;
+}
+
 export default function InventoryPage() {
 	const [inventory, setInventory] = useState<InventoryItem[]>([]);
+	const [summary, setSummary] = useState<InventorySummary>(EMPTY_SUMMARY);
 	const [loading, setLoading] = useState(true);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [stockFilter, setStockFilter] = useState<string>("all");
@@ -70,10 +95,10 @@ export default function InventoryPage() {
 		}
 	}, [stockFilter, activeTab]);
 
-	const fetchLogs = async () => {
+	const fetchLogs = async (page = logPage) => {
 		setLogLoading(true);
 		try {
-			const params = new URLSearchParams({ page: String(logPage), limit: "25" });
+			const params = new URLSearchParams({ page: String(page), limit: "25" });
 			if (logTypeFilter) params.append("adjustment_type", logTypeFilter);
 			if (logDateFrom) params.append("date_from", new Date(logDateFrom).toISOString());
 			if (logDateTo) params.append("date_to", new Date(logDateTo + 'T23:59:59').toISOString());
@@ -106,14 +131,19 @@ export default function InventoryPage() {
 			const response = await fetch(`/api/v1/admin/inventory?${params}`);
 			const data = await response.json();
 
-			if (data && data.success && Array.isArray(data.data)) {
-				setInventory(data.data || []);
+			if (data?.success && Array.isArray(data.data?.items)) {
+				setInventory(data.data.items);
+				// Totals are computed server-side over the whole branch, so the
+				// KPI cards keep meaning something when a filter is applied.
+				setSummary(data.data.summary || EMPTY_SUMMARY);
 			} else {
 				setInventory([]);
+				setSummary(EMPTY_SUMMARY);
 			}
 		} catch (err) {
 			console.error("Failed to fetch inventory:", err);
 			setInventory([]);
+			setSummary(EMPTY_SUMMARY);
 		} finally {
 			setLoading(false);
 		}
@@ -150,21 +180,26 @@ export default function InventoryPage() {
 				},
 			);
 
+			const data = await response.json();
+
 			if (response.ok) {
-				alert("Stock adjusted successfully");
 				setShowAdjustModal(false);
 				fetchInventory();
 			} else {
-				const data = await response.json();
-				alert(data.error || "Failed to adjust stock");
+				// The API returns { error: { code, message } }; alerting the
+				// object printed "[object Object]".
+				alert(errorMessage(data, "Failed to adjust stock"));
 			}
 		} catch (err) {
-			alert("Failed to adjust stock");
+			console.error("Stock adjustment failed:", err);
+			alert("Could not reach the server. Check your connection and try again.");
 		}
 	};
 
 	const getStockStatus = (item: InventoryItem) => {
-		if (item.available_quantity === 0) {
+		// <= 0, not === 0: available_quantity is quantity - reserved and can go
+		// negative if stock is removed while units are reserved.
+		if (item.available_quantity <= 0) {
 			return {
 				label: "Out of Stock",
 				color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
@@ -184,6 +219,13 @@ export default function InventoryPage() {
 	};
 
 	const exportInventory = () => {
+		// Product names routinely contain commas ("iPhone 17 Pro, 256GB"), which
+		// broke column alignment when rows were joined unquoted.
+		const escapeCell = (value: string | number | null) => {
+			const text = String(value ?? "");
+			return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+		};
+
 		const csv = [
 			[
 				"SKU",
@@ -206,15 +248,17 @@ export default function InventoryPage() {
 				item.location || "-",
 			]),
 		]
-			.map((row) => row.join(","))
-			.join("\n");
+			.map((row) => row.map(escapeCell).join(","))
+			.join("\r\n");
 
-		const blob = new Blob([csv], { type: "text/csv" });
+		// BOM so Excel reads the Bengali/UTF-8 product names correctly.
+		const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
 		const url = window.URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
 		a.download = `inventory-${new Date().toISOString().split("T")[0]}.csv`;
 		a.click();
+		window.URL.revokeObjectURL(url);
 	};
 
 	return (
@@ -285,7 +329,7 @@ export default function InventoryPage() {
 						<div>
 							<p className="text-sm text-zinc-500">Total Items</p>
 							<p className="text-2xl font-bold text-zinc-900 dark:text-white mt-1">
-								{inventory.length}
+								{summary.total_items}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
@@ -310,13 +354,7 @@ export default function InventoryPage() {
 						<div>
 							<p className="text-sm text-zinc-500">Low Stock</p>
 							<p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
-								{
-									inventory.filter(
-										(i) =>
-											i.available_quantity > 0 &&
-											i.available_quantity <= i.reorder_point,
-									).length
-								}
+								{summary.low_stock}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
@@ -341,7 +379,7 @@ export default function InventoryPage() {
 						<div>
 							<p className="text-sm text-zinc-500">Out of Stock</p>
 							<p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-								{inventory.filter((i) => i.available_quantity === 0).length}
+								{summary.out_of_stock}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
@@ -366,10 +404,7 @@ export default function InventoryPage() {
 						<div>
 							<p className="text-sm text-zinc-500">Total Stock</p>
 							<p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-								{inventory.reduce(
-									(sum, item) => sum + item.available_quantity,
-									0,
-								)}
+								{summary.total_stock}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
@@ -728,14 +763,28 @@ export default function InventoryPage() {
 					<span>{logTotal} total entries</span>
 					<div className="flex gap-2">
 						<button
-							disabled={logPage === 1}
-							onClick={() => { setLogPage(p => p - 1); fetchLogs(); }}
+							disabled={logPage === 1 || logLoading}
+							onClick={() => {
+								// fetchLogs is passed the target page explicitly —
+								// reading logPage inside it would use the value from
+								// before setLogPage, so Next re-fetched page 1.
+								const next = logPage - 1;
+								setLogPage(next);
+								fetchLogs(next);
+							}}
 							className="px-3 py-1 border border-zinc-200 dark:border-zinc-700 rounded disabled:opacity-40">
 							Previous
 						</button>
+						<span className="px-2 py-1 tabular-nums">
+							Page {logPage} of {Math.max(1, Math.ceil(logTotal / 25))}
+						</span>
 						<button
-							disabled={logPage * 25 >= logTotal}
-							onClick={() => { setLogPage(p => p + 1); fetchLogs(); }}
+							disabled={logPage * 25 >= logTotal || logLoading}
+							onClick={() => {
+								const next = logPage + 1;
+								setLogPage(next);
+								fetchLogs(next);
+							}}
 							className="px-3 py-1 border border-zinc-200 dark:border-zinc-700 rounded disabled:opacity-40">
 							Next
 						</button>
@@ -784,9 +833,19 @@ export default function InventoryPage() {
 								<p className="text-sm text-zinc-600 dark:text-zinc-400">
 									Current Stock
 								</p>
+								{/* Adjustments apply to on-hand, so lead with that.
+								    Showing only "available" made a removal look
+								    larger than the server would allow. */}
 								<p className="text-2xl font-bold text-zinc-900 dark:text-white">
-									{selectedItem.available_quantity}
+									{selectedItem.quantity}
+									<span className="text-sm font-medium text-zinc-500"> on hand</span>
 								</p>
+								{selectedItem.reserved_quantity > 0 && (
+									<p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+										{selectedItem.reserved_quantity} reserved for open orders ·{" "}
+										{selectedItem.available_quantity} free to remove
+									</p>
+								)}
 							</div>
 
 							<div>

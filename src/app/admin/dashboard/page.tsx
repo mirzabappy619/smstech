@@ -12,7 +12,8 @@ interface DashboardStats {
 	thisMonthRevenue: number;
 	lastMonthRevenue: number;
 	revenueChangePercent: number;
-	estimatedCOGS: number;
+	knownCOGS: number;
+	cogsCoverageNote?: string;
 	grossProfit: number;
 	grossMarginPct: number;
 	totalDuesReceivable: number;
@@ -144,7 +145,7 @@ export default function AdminDashboard() {
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 				<div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
 					<div className="flex justify-between items-center text-xs text-zinc-500 font-semibold">
-						<span>Total Gross Revenue</span>
+						<span>Net Revenue</span>
 						<span className="text-emerald-600 font-bold">
 							{stats?.revenueChangePercent ? `${stats.revenueChangePercent > 0 ? '+' : ''}${stats.revenueChangePercent}% vs last mo` : 'Active'}
 						</span>
@@ -152,18 +153,22 @@ export default function AdminDashboard() {
 					<p className="text-2xl font-black text-zinc-900 dark:text-white mt-1">
 						{fmt(stats?.totalRevenue || 0)}
 					</p>
-					<p className="text-[10px] text-zinc-400 mt-1">This month: {fmt(stats?.thisMonthRevenue || 0)}</p>
+					<p className="text-[10px] text-zinc-400 mt-1">
+						This month: {fmt(stats?.thisMonthRevenue || 0)} · excludes cancelled &amp; refunded
+					</p>
 				</div>
 
 				<div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
 					<div className="flex justify-between items-center text-xs text-zinc-500 font-semibold">
-						<span>Gross Profit (After COGS)</span>
-						<span className="text-blue-600 font-bold">{stats?.grossMarginPct || 22}% Margin</span>
+						<span>Gross Profit (Recorded COGS)</span>
+						<span className="text-blue-600 font-bold">{stats?.grossMarginPct ?? 0}% Margin</span>
 					</div>
 					<p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
 						{fmt(stats?.grossProfit || 0)}
 					</p>
-					<p className="text-[10px] text-zinc-400 mt-1">Est. COGS: {fmt(stats?.estimatedCOGS || 0)}</p>
+					<p className="text-[10px] text-zinc-400 mt-1" title={stats?.cogsCoverageNote}>
+						Recorded COGS: {fmt(stats?.knownCOGS || 0)} (serialized stock only)
+					</p>
 				</div>
 
 				<div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">

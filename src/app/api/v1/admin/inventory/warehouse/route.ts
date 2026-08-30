@@ -39,93 +39,64 @@ export async function POST(request: NextRequest) {
 
 		const supabase = await createAdminClient();
 
-		// Fetch current inventory record (upsert if missing)
-		let { data: currentStock, error: fetchError } = await supabase
-			.from("inventory")
-			.select("id, quantity, reserved_quantity, product_id")
-			.eq("variation_id", variation_id)
-			.eq("location_id", warehouse_id)
+		const { data: variation } = await supabase
+			.from("product_variations")
+			.select("product_id")
+			.eq("id", variation_id)
 			.single();
 
-		// If no record exists, create one (quantity 0)
-		if (fetchError || !currentStock) {
-			// Get product_id from the variation
-			const { data: variation } = await supabase
-				.from("product_variations")
-				.select("product_id")
-				.eq("id", variation_id)
-				.single();
-
-			if (!variation) {
-				return errorResponse(
-					"VARIATION_NOT_FOUND",
-					"Variation not found",
-					HTTP_STATUS.NOT_FOUND,
-				);
-			}
-
-			const { data: newRecord, error: createError } = await supabase
-				.from("inventory")
-				.insert({
-					product_id: variation.product_id,
-					variation_id,
-					location_id: warehouse_id,
-					quantity: quantity_in_packages,
-					reserved_quantity: 0,
-				})
-				.select("id, quantity, reserved_quantity, product_id")
-				.single();
-
-			if (createError || !newRecord) {
-				return errorResponse(
-					"INVENTORY_CREATE_FAILED",
-					"Failed to create inventory record",
-					HTTP_STATUS.INTERNAL_SERVER_ERROR,
-				);
-			}
-
-			currentStock = newRecord;
-			fetchError = null;
-		}
-
-		if (fetchError || !currentStock) {
+		if (!variation) {
 			return errorResponse(
-				"INVENTORY_NOT_FOUND",
-				"Inventory record not found",
+				"VARIATION_NOT_FOUND",
+				"Variation not found",
 				HTTP_STATUS.NOT_FOUND,
 			);
 		}
 
-		const oldQuantity = currentStock.quantity as number;
+		const { data: currentStock } = await supabase
+			.from("inventory")
+			.select("id, quantity")
+			.eq("variation_id", variation_id)
+			.eq("warehouse_id", warehouse_id)
+			.maybeSingle();
+
+		const oldQuantity = (currentStock?.quantity as number) ?? 0;
 		const quantityChange = quantity_in_packages - oldQuantity;
 
-		// Update the inventory quantity
-		const { error: updateError } = await supabase
-			.from("inventory")
-			.update({
-				quantity: quantity_in_packages,
-				updated_at: new Date().toISOString(),
-			})
-			.eq("id", currentStock.id);
+		// This screen sets an absolute count rather than applying a delta, so it
+		// goes through the same atomic helper with the delta that gets there.
+		// A count of zero is a legitimate result, so negatives are allowed here.
+		const { error: rpcError } = await supabase.rpc("apply_stock_movement", {
+			p_product_id: variation.product_id,
+			p_variation_id: variation_id,
+			p_warehouse_id: warehouse_id,
+			p_delta: quantityChange,
+			p_adjustment_type: "adjustment",
+			p_reason: notes || "Manual admin stock count",
+			p_order_id: null,
+			p_user_id: authResult.user?.id ?? null,
+			p_allow_negative: false,
+		});
 
-		if (updateError) {
+		if (rpcError) {
+			const insufficient = rpcError.message?.includes("INSUFFICIENT_STOCK");
 			return errorResponse(
-				"INVENTORY_UPDATE_FAILED",
-				"Failed to update inventory",
-				HTTP_STATUS.INTERNAL_SERVER_ERROR,
+				insufficient ? "INSUFFICIENT_STOCK" : "INVENTORY_UPDATE_FAILED",
+				insufficient
+					? "That count would leave fewer units on hand than are already reserved for orders."
+					: "Failed to update inventory",
+				insufficient
+					? HTTP_STATUS.BAD_REQUEST
+					: HTTP_STATUS.INTERNAL_SERVER_ERROR,
 			);
 		}
 
-		// Log the adjustment
-		await supabase.from("inventory_logs").insert({
-			inventory_id: currentStock.id,
-			adjustment_type: "adjustment",
-			quantity_change: quantityChange,
-			quantity_before: oldQuantity,
-			quantity_after: quantity_in_packages,
-			reason: notes || "Manual admin adjustment",
-			user_id: authResult.user?.id,
-		});
+		// Keep the last physical count timestamp in step with the change.
+		await supabase
+			.from("inventory")
+			.update({ last_counted_at: new Date().toISOString() })
+			.eq("variation_id", variation_id)
+			.eq("warehouse_id", warehouse_id);
 
 		return successResponse(
 			{
@@ -178,54 +149,54 @@ export async function GET(request: NextRequest) {
         quantity,
         reserved_quantity,
         available_quantity,
-        location_id,
-        locations ( id, name, code, address_city, is_default )
+        warehouse_id,
+        warehouses ( id, name, code, address, is_default )
       `,
 			)
 			.eq("variation_id", variationId)
 			.order("created_at", { ascending: true });
 
 		if (error) {
+			console.error("Inventory warehouse fetch failed:", error);
 			return errorResponse(
 				"INVENTORY_FETCH_FAILED",
-				"Failed to fetch inventory",
+				error.message,
 				HTTP_STATUS.INTERNAL_SERVER_ERROR,
 			);
 		}
 
 		// Also get all warehouses that DON'T have a record yet (so admin can add stock)
 		const { data: allWarehouses } = await supabase
-			.from("locations")
-			.select("id, name, code, address_city, is_default")
+			.from("warehouses")
+			.select("id, name, code, address, is_default")
 			.eq("is_active", true)
 			.order("is_default", { ascending: false });
 
-		const existingLocationIds = new Set(
-			(inventory || []).map((i) => i.location_id),
+		const existingWarehouseIds = new Set(
+			(inventory || []).map((i) => i.warehouse_id),
 		);
 		const missingWarehouses = (allWarehouses || []).filter(
-			(w) => !existingLocationIds.has(w.id),
+			(w) => !existingWarehouseIds.has(w.id),
 		);
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const warehouses = (inventory || []).map((item: any) => ({
 			inventory_id: item.id,
-			location_id: item.location_id,
-			location_name: item.locations?.name || "Unknown",
-			location_code: item.locations?.code || "",
-			location_city: item.locations?.address_city || "",
-			is_default: item.locations?.is_default || false,
-			quantity: item.quantity,
-			reserved_quantity: item.reserved_quantity,
-			available_quantity: item.available_quantity,
+			warehouse_id: item.warehouse_id,
+			location_name: item.warehouses?.name || "Unknown",
+			location_code: item.warehouses?.code || "",
+			location_city: item.warehouses?.address || "",
+			is_default: item.warehouses?.is_default || false,
+			quantity: item.quantity ?? 0,
+			reserved_quantity: item.reserved_quantity ?? 0,
+			available_quantity: item.available_quantity ?? 0,
 		}));
 
 		const totals = warehouses.reduce(
 			(acc, w) => ({
 				total_quantity: acc.total_quantity + w.quantity,
 				total_reserved: acc.total_reserved + w.reserved_quantity,
-				total_available:
-					acc.total_available + w.available_quantity,
+				total_available: acc.total_available + w.available_quantity,
 			}),
 			{ total_quantity: 0, total_reserved: 0, total_available: 0 },
 		);

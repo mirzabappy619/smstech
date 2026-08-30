@@ -8,7 +8,9 @@
     "start": "NODE_OPTIONS='--no-deprecation' next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "test:migrations": "node scripts/test-migrations.mjs",
+    "verify:pos": "node scripts/verify-pos-inventory.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
@@ -44,6 +46,7 @@
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@electric-sql/pglite": "^0.2.17"
   }
 }

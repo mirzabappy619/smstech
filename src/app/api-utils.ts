@@ -49,7 +49,7 @@ export const HTTP_STATUS = {
 // ==============================================
 export function successResponse<T>(
 	data: T,
-	status = HTTP_STATUS.OK,
+	status: number = HTTP_STATUS.OK,
 	meta?: ApiMeta,
 ): NextResponse<ApiResponse<T>> {
 	return NextResponse.json({ success: true, data, meta }, { status });

@@ -56,21 +56,64 @@ export async function GET(
 			);
 		}
 
-		// Get user info separately if user_id exists
-		let userData = null;
-		if (order.user_id) {
-			const { data: user } = await supabase
-				.from("users")
-				.select("id, email, first_name, last_name, phone")
-				.eq("id", order.user_id)
-				.single();
-			userData = user;
+		// Orders carry a customer_id (not a user_id) plus a snapshot of the
+		// customer's details at order time. Prefer the linked record, fall back
+		// to the snapshot so guest and counter orders still show a customer.
+		// The admin order page renders first/last name separately, so split the
+		// stored single name field rather than making the page handle both shapes.
+		const splitName = (full: string) => {
+			const parts = (full || "").trim().split(/\s+/).filter(Boolean);
+			return {
+				first_name: parts[0] || "",
+				last_name: parts.slice(1).join(" ") || "",
+			};
+		};
+
+		let customerData: {
+			id: string | null;
+			name: string;
+			first_name: string;
+			last_name: string;
+			email: string;
+			phone: string | null;
+		} | null = null;
+
+		if (order.customer_id) {
+			const { data: customer } = await supabase
+				.from("customers")
+				.select("id, name, email, phone")
+				.eq("id", order.customer_id)
+				.maybeSingle();
+			if (customer) {
+				const name = customer.name || order.customer_name || "";
+				customerData = {
+					id: customer.id,
+					name,
+					...splitName(name),
+					email: customer.email || order.customer_email || "",
+					phone: customer.phone || order.customer_phone || null,
+				};
+			}
 		}
 
-		// Get order items — name/sku/attributes are stored at order time; join products only for images
+		if (!customerData && (order.customer_name || order.customer_phone)) {
+			const name = order.customer_name || "";
+			customerData = {
+				id: null,
+				name,
+				...splitName(name),
+				email: order.customer_email || "",
+				phone: order.customer_phone || null,
+			};
+		}
+
+		// Get order items — product_name/variation_name are snapshotted at order
+		// time; products is joined only to recover a current image.
 		const { data: items, error: itemsError } = await supabase
 			.from("order_items")
-			.select("id, quantity, unit_price, total_price, product_id, variation_id, name, sku, attributes")
+			.select(
+				"id, quantity, unit_price, total, product_id, variation_id, product_name, variation_name, serial_number, imei_1, warranty_period",
+			)
 			.eq("order_id", orderId);
 
 		if (itemsError) {
@@ -102,7 +145,6 @@ export async function GET(
 			payment_status: order.payment_status || "pending",
 			total_amount: order.total,
 			subtotal: order.subtotal,
-			tax_amount: order.tax_amount,
 			shipping_amount: order.shipping_amount,
 			discount_amount: order.discount_amount,
 			payment_method: order.payment_method || "unknown",
@@ -111,30 +153,35 @@ export async function GET(
 			source: order.source,
 			created_at: order.created_at,
 			updated_at: order.updated_at,
-			customer: userData
-				? {
-						id: userData.id,
-						first_name: userData.first_name || "",
-						last_name: userData.last_name || "",
-						email: userData.email || "",
-						phone: userData.phone || null,
-					}
-				: null,
-			shipping_address:
-				typeof order.shipping_address === "string"
-					? JSON.parse(order.shipping_address)
-					: order.shipping_address,
-			billing_address:
-				typeof order.billing_address === "string"
-					? JSON.parse(order.billing_address)
-					: order.billing_address,
+			invoice_type: order.invoice_type || "storefront",
+			due_amount: order.due_amount ?? 0,
+			advance_deducted: order.advance_deducted ?? 0,
+			payment_breakdown: order.payment_breakdown || [],
+			customer: customerData,
+			tax_amount: 0,
+			shipping_address: {
+				name: order.customer_name || "",
+				...splitName(order.customer_name || ""),
+				address_line1: order.address_line1 || "",
+				address_line2: null,
+				city: order.city || "",
+				state: "",
+				postal_code: "",
+				country: "Bangladesh",
+				phone: order.customer_phone || null,
+				email: order.customer_email || null,
+			},
+			billing_address: null,
 			items: (items || []).map((item: any) => ({
 				id: item.id,
-				product_name: item.name || "Unknown Product",
-				variation_name: item.attributes?.variation_name || null,
+				product_name: item.product_name || "Unknown Product",
+				variation_name: item.variation_name || null,
 				quantity: item.quantity,
 				unit_price: item.unit_price,
-				total_price: item.total_price,
+				total_price: item.total,
+				serial_number: item.serial_number || null,
+				imei_1: item.imei_1 || null,
+				warranty_period: item.warranty_period || null,
 				image_url: productImageMap[item.product_id]?.[0] || null,
 			})),
 			notes: order.notes,

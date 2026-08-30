@@ -236,7 +236,19 @@ export async function requireAdmin(
 > {
 	const { user, error } = await requireAuth(request);
 	if (error) return { error };
-	const adminRoles = ["admin", "owner", "branch_manager", "staff", "manager"];
+	// Keep in step with ADMIN_PANEL_ROLES in src/proxy.ts and the allow-list in
+	// src/app/admin/layout.tsx.
+	const adminRoles = [
+		"owner",
+		"admin",
+		"branch_manager",
+		"cashier",
+		"inventory_manager",
+		"accountant",
+		"delivery_agent",
+		"staff",
+		"manager",
+	];
 	if (!adminRoles.includes(user.role)) {
 		return { error: forbiddenResponse("Admin access required") };
 	}

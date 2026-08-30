@@ -2,6 +2,31 @@
 // Run with: npm test
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { z } from "zod";
+
+// These were previously pulled in with require() inside each describe block.
+// CJS require() cannot resolve TypeScript specifiers under Vitest's ESM
+// runtime, so the whole file failed to collect.
+import {
+	emailSchema,
+	passwordSchema,
+	registerSchema,
+	createProductSchema,
+	addToCartSchema,
+	createOrderSchema,
+} from "./schemas";
+import { Money, Email, Address } from "./entities";
+import config, { formatCurrency } from "./config";
+import {
+	successResponse,
+	errorResponse,
+	validationErrorResponse,
+	notFoundResponse,
+	getPaginationMeta,
+	validateRequest,
+} from "./api-utils";
+import { NextRequest } from "next/server";
+import { jobQueue } from "./jobs";
 
 // ==============================================
 // MOCK IMPORTS (since modules need setup)
@@ -32,16 +57,6 @@ vi.mock("@/lib/supabase/server", () => ({
 // VALIDATION SCHEMA TESTS
 // ==============================================
 describe("Validation Schemas", () => {
-	// Import schemas
-	const {
-		emailSchema,
-		passwordSchema,
-		registerSchema,
-		createProductSchema,
-		addToCartSchema,
-		createOrderSchema,
-	} = require("./schemas");
-
 	describe("emailSchema", () => {
 		it("should accept valid email addresses", () => {
 			expect(() => emailSchema.parse("test@example.com")).not.toThrow();
@@ -232,13 +247,6 @@ describe("Validation Schemas", () => {
 // ENTITY TESTS
 // ==============================================
 describe("Domain Entities", () => {
-	// Import entities
-	const {
-		Money,
-		Email,
-		Address,
-	} = require("./entities");
-
 	describe("Money Value Object", () => {
 		it("should create a Money instance", () => {
 			const money = new Money(100, "USD");
@@ -281,7 +289,7 @@ describe("Domain Entities", () => {
 	describe("Email Value Object", () => {
 		it("should create a valid Email", () => {
 			const email = new Email("test@example.com");
-			expect(email.value).toBe("test@example.com");
+			expect(email.toString()).toBe("test@example.com");
 		});
 
 		it("should throw for invalid email", () => {
@@ -290,7 +298,7 @@ describe("Domain Entities", () => {
 
 		it("should normalize email to lowercase", () => {
 			const email = new Email("Test@Example.COM");
-			expect(email.value).toBe("test@example.com");
+			expect(email.toString()).toBe("test@example.com");
 		});
 	});
 
@@ -326,18 +334,19 @@ describe("Domain Entities", () => {
 // ==============================================
 describe("Utility Functions", () => {
 	describe("formatCurrency", () => {
-		const { formatCurrency } = require("./config");
-
-		it("should format USD correctly", () => {
-			expect(formatCurrency(99.99, "USD")).toBe("$99.99");
+		// The store trades in BDT and formats to whole taka — Intl renders
+		// "BDT 1,000", so formatCurrency uses the ৳ symbol and rounds.
+		it("should format taka with the ৳ symbol", () => {
+			expect(formatCurrency(99.99)).toBe("৳100");
+			expect(formatCurrency(48000)).toBe("৳48,000");
 		});
 
 		it("should handle zero", () => {
-			expect(formatCurrency(0, "USD")).toBe("$0.00");
+			expect(formatCurrency(0)).toBe("৳0");
 		});
 
-		it("should format large numbers", () => {
-			expect(formatCurrency(1234567.89, "USD")).toContain("1,234,567.89");
+		it("should group large numbers", () => {
+			expect(formatCurrency(1234567.89)).toContain("1,234,568");
 		});
 	});
 });
@@ -346,15 +355,6 @@ describe("Utility Functions", () => {
 // API UTILITIES TESTS
 // ==============================================
 describe("API Utilities", () => {
-	const {
-		successResponse,
-		errorResponse,
-		paginatedResponse,
-		createPaginationMeta,
-		validateRequest,
-	} = require("./api-utils");
-	const { z } = require("zod");
-
 	describe("successResponse", () => {
 		it("should create a success response", async () => {
 			const response = successResponse({ message: "Hello" });
@@ -372,84 +372,104 @@ describe("API Utilities", () => {
 	});
 
 	describe("errorResponse", () => {
+		// Signature is (code, message, status, details) — the previous tests
+		// called it as (message, status, details) and so asserted a 200.
 		it("should create an error response", async () => {
-			const response = errorResponse("Something went wrong", 400);
+			const response = errorResponse("BAD_REQUEST", "Something went wrong", 400);
 			const json = await response.json();
 
 			expect(response.status).toBe(400);
 			expect(json.success).toBe(false);
-			expect(json.error).toBe("Something went wrong");
+			expect(json.error.code).toBe("BAD_REQUEST");
+			expect(json.error.message).toBe("Something went wrong");
 		});
 
 		it("should include error details when provided", async () => {
-			const response = errorResponse("Validation failed", 422, {
-				field: "email",
-				issue: "Invalid format",
+			const response = errorResponse("VALIDATION_ERROR", "Validation failed", 400, {
+				email: ["Invalid format"],
 			});
 			const json = await response.json();
 
-			expect(json.details.field).toBe("email");
+			expect(response.status).toBe(400);
+			expect(json.error.details.email).toEqual(["Invalid format"]);
 		});
 	});
 
-	describe("paginatedResponse", () => {
-		it("should create a paginated response", async () => {
-			const items = [{ id: 1 }, { id: 2 }];
-			const response = paginatedResponse(items, 1, 10, 50);
+	describe("notFoundResponse", () => {
+		it("should name the missing resource", async () => {
+			const response = notFoundResponse("Inventory item");
 			const json = await response.json();
 
-			expect(json.success).toBe(true);
-			expect(json.data).toHaveLength(2);
-			expect(json.meta.page).toBe(1);
-			expect(json.meta.perPage).toBe(10);
-			expect(json.meta.total).toBe(50);
-			expect(json.meta.totalPages).toBe(5);
+			expect(response.status).toBe(404);
+			expect(json.error.message).toContain("Inventory item");
 		});
 	});
 
-	describe("createPaginationMeta", () => {
+	describe("validationErrorResponse", () => {
+		it("should surface per-field messages from a Zod error", async () => {
+			const schema = z.object({ name: z.string().min(1), age: z.number().positive() });
+			const parsed = schema.safeParse({ name: "", age: -5 });
+			expect(parsed.success).toBe(false);
+
+			if (!parsed.success) {
+				const response = validationErrorResponse(parsed.error);
+				const json = await response.json();
+
+				expect(response.status).toBe(400);
+				expect(json.error.details.name).toBeDefined();
+				expect(json.error.details.age).toBeDefined();
+			}
+		});
+	});
+
+	describe("getPaginationMeta", () => {
 		it("should calculate pagination correctly", () => {
-			const meta = createPaginationMeta(2, 10, 95);
+			const meta = getPaginationMeta(2, 10, 95);
 
 			expect(meta.page).toBe(2);
 			expect(meta.perPage).toBe(10);
 			expect(meta.total).toBe(95);
 			expect(meta.totalPages).toBe(10);
-			expect(meta.hasNextPage).toBe(true);
-			expect(meta.hasPreviousPage).toBe(true);
 		});
 
-		it("should handle last page", () => {
-			const meta = createPaginationMeta(5, 10, 50);
-
-			expect(meta.hasNextPage).toBe(false);
-			expect(meta.hasPreviousPage).toBe(true);
+		it("should round partial pages up", () => {
+			expect(getPaginationMeta(1, 25, 1).totalPages).toBe(1);
+			expect(getPaginationMeta(1, 25, 26).totalPages).toBe(2);
 		});
 
-		it("should handle first page", () => {
-			const meta = createPaginationMeta(1, 10, 50);
-
-			expect(meta.hasNextPage).toBe(true);
-			expect(meta.hasPreviousPage).toBe(false);
+		it("should handle an exact page boundary", () => {
+			expect(getPaginationMeta(5, 10, 50).totalPages).toBe(5);
 		});
 	});
 
 	describe("validateRequest", () => {
+		// Takes a NextRequest, not a plain object, and returns
+		// { data } | { error: NextResponse }.
 		const schema = z.object({
 			name: z.string().min(1),
 			age: z.number().positive(),
 		});
 
+		const makeRequest = (body: unknown) =>
+			new NextRequest("http://localhost/api/test", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			});
+
 		it("should return parsed data for valid input", async () => {
-			const result = await validateRequest(schema, { name: "John", age: 25 });
-			expect(result.name).toBe("John");
-			expect(result.age).toBe(25);
+			const result = await validateRequest(makeRequest({ name: "John", age: 25 }), schema);
+
+			expect(result.error).toBeUndefined();
+			expect(result.data?.name).toBe("John");
+			expect(result.data?.age).toBe(25);
 		});
 
-		it("should return error response for invalid input", async () => {
-			const result = await validateRequest(schema, { name: "", age: -5 });
-			expect(result).toBeInstanceOf(Response);
-			expect(result.status).toBe(422);
+		it("should return an error response for invalid input", async () => {
+			const result = await validateRequest(makeRequest({ name: "", age: -5 }), schema);
+
+			expect(result.data).toBeUndefined();
+			expect(result.error?.status).toBe(400);
 		});
 	});
 });
@@ -458,16 +478,15 @@ describe("API Utilities", () => {
 // CONFIGURATION TESTS
 // ==============================================
 describe("Configuration", () => {
-	const config = require("./config").default;
-
 	it("should have required app config", () => {
 		expect(config.app.name).toBeDefined();
 		expect(config.app.url).toBeDefined();
 	});
 
 	it("should have currency config", () => {
-		expect(config.currency.default).toBe("USD");
-		expect(config.currency.supported).toContain("USD");
+		expect(config.currency.default).toBe("BDT");
+		expect(config.currency.supported).toContain("BDT");
+		expect(config.currency.symbol).toBe("৳");
 	});
 
 	it("should have tax config", () => {
@@ -500,8 +519,6 @@ describe("Configuration", () => {
 // JOB QUEUE TESTS
 // ==============================================
 describe("Job Queue", () => {
-	const { jobQueue } = require("./jobs");
-
 	beforeEach(() => {
 		// Reset queue state if needed
 	});

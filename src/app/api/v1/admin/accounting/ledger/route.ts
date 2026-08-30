@@ -8,25 +8,48 @@ export async function GET(request: Request) {
     const partyId = searchParams.get("party_id");
 
     const supabase = await getSupabaseServerClient();
-    let query = supabase.from("party_ledgers").select("*").order("created_at", { ascending: false });
+    let query = supabase
+      .from("party_ledgers")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false });
 
     if (partyType !== "all") query = query.eq("party_type", partyType);
     if (partyId) query = query.eq("party_id", partyId);
 
-    const { data: entries, error } = await query.limit(100);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(searchParams.get("limit") || "50", 10)),
+    );
+    const offset = (page - 1) * limit;
+
+    const { data: entries, error, count } = await query.range(
+      offset,
+      offset + limit - 1,
+    );
     if (error) throw error;
 
-    // Also calculate global summary metrics
-    const { data: customers } = await supabase.from("customers").select("advance_balance, outstanding_due");
-    const totalDuesReceivable = customers?.reduce((s, c) => s + (Number(c.outstanding_due) || 0), 0) || 0;
-    const totalAdvanceLiabilities = customers?.reduce((s, c) => s + (Number(c.advance_balance) || 0), 0) || 0;
+    // Summaries run as SQL aggregates. Reducing an unbounded `.select()` in
+    // JavaScript silently stopped at PostgREST's 1000-row ceiling, so these
+    // totals froze once the store passed 1000 customers.
+    const [balances, supplierBalances] = await Promise.all([
+      supabase.rpc("admin_customer_balances"),
+      supabase.rpc("admin_supplier_balances"),
+    ]);
+
+    const row = balances.data?.[0];
+    const round2 = (n: number) => Math.round(n * 100) / 100;
 
     return NextResponse.json({
       success: true,
       data: entries || [],
+      meta: { page, limit, total: count ?? 0 },
       summary: {
-        totalDuesReceivable,
-        totalAdvanceLiabilities
+        totalDuesReceivable: round2(Number(row?.dues_receivable) || 0),
+        totalAdvanceLiabilities: round2(Number(row?.advance_liabilities) || 0),
+        totalSupplierPayables: round2(
+          Number(supplierBalances.data?.[0]?.payables) || 0,
+        ),
       }
     });
   } catch (error: any) {

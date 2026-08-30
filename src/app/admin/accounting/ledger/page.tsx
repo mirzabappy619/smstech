@@ -33,7 +33,12 @@ export default function AccountingLedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [customers, setCustomers] = useState<CustomerWithDue[]>([]);
   const [partyTypeFilter, setPartyTypeFilter] = useState("all");
-  const [summary, setSummary] = useState({ totalDuesReceivable: 0, totalAdvanceLiabilities: 0 });
+  const [summary, setSummary] = useState({
+    totalDuesReceivable: 0,
+    totalAdvanceLiabilities: 0,
+    totalSupplierPayables: 0,
+  });
+  const [ledgerTotal, setLedgerTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // Due Collection Modal
@@ -58,6 +63,7 @@ export default function AccountingLedgerPage() {
       if (json.success) {
         setEntries(json.data || []);
         if (json.summary) setSummary(json.summary);
+        setLedgerTotal(json.meta?.total ?? (json.data || []).length);
       }
     } catch (err) {
       console.error(err);
@@ -145,9 +151,11 @@ export default function AccountingLedgerPage() {
         </div>
 
         <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
-          <p className="text-xs font-medium text-zinc-500">Total Double-Entry Journal Rows</p>
-          <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{entries.length}</p>
-          <p className="text-[10px] text-zinc-400 mt-1">Immutable financial ledger records</p>
+          <p className="text-xs font-medium text-zinc-500">Supplier Payables</p>
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{fmt(summary.totalSupplierPayables)}</p>
+          <p className="text-[10px] text-zinc-400 mt-1">
+            {ledgerTotal} journal row{ledgerTotal === 1 ? "" : "s"} recorded
+          </p>
         </div>
       </div>
 
