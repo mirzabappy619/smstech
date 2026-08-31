@@ -6,6 +6,7 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin, jsonResponse, errorResponse } from "@/lib/api-utils";
+import { readStoreSettings, writeStoreSettings } from "@/lib/store-settings";
 import { z } from "zod";
 
 const nullableString = (schema: z.ZodString) =>
@@ -48,56 +49,18 @@ const settingsSchema = z.object({
 		.optional(),
 });
 
-const defaultSettings = {
-	store_name: "SMSTech BD",
-	store_email: "info@smstech.bd",
-	store_phone: "01781485588, 01723249598",
-	store_address: "Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205",
-	store_currency: "BDT",
-	store_timezone: "Asia/Dhaka",
-	tax_rate: 0,
-	shipping_enabled: true,
-	free_shipping_threshold: 0,
-	default_shipping_cost: 60,
-	inventory_tracking: true,
-	low_stock_threshold: 10,
-	allow_guest_checkout: true,
-	order_prefix: "SMST",
-	notify_on_order: true,
-	notify_on_low_stock: true,
-	social_facebook: "https://facebook.com/smstech.bd",
-	social_instagram: "https://instagram.com/smstech.bd",
-	social_youtube: "https://youtube.com/@smstech",
-	social_whatsapp: "https://wa.me/8801781485588",
-	social_twitter: "https://twitter.com/smstechbd",
-	maintenance_mode: false,
-};
-
 export async function GET(request: NextRequest) {
 	try {
 		const { error: authError } = await requireAdmin(request);
 		if (authError) return authError;
 
 		const supabase = await createAdminClient();
+		const settings = await readStoreSettings(supabase);
 
-		const { data: settings, error } = await supabase
-			.from("store_settings")
-			.select("*")
-			.single();
-
-		if (error && error.code !== "PGRST116") {
-			console.error("Error fetching settings:", error);
-			return jsonResponse({ settings: defaultSettings });
-		}
-
-		const mergedSettings = { ...defaultSettings, ...(settings || {}) };
-
-		return jsonResponse({
-			settings: mergedSettings,
-		});
+		return jsonResponse({ settings });
 	} catch (error) {
 		console.error("Settings GET error:", error);
-		return jsonResponse({ settings: defaultSettings });
+		return errorResponse("INTERNAL_ERROR", "Failed to load settings", 500);
 	}
 }
 
@@ -118,44 +81,17 @@ export async function PUT(request: NextRequest) {
 		}
 
 		const supabase = await createAdminClient();
+		const { settings, error } = await writeStoreSettings(
+			supabase,
+			validation.data,
+		);
 
-		const { data: existing } = await supabase
-			.from("store_settings")
-			.select("id")
-			.single();
-
-		let result;
-
-		if (existing) {
-			result = await supabase
-				.from("store_settings")
-				.update({
-					...validation.data,
-					updated_at: new Date().toISOString(),
-				})
-				.eq("id", existing.id)
-				.select()
-				.single();
-		} else {
-			result = await supabase
-				.from("store_settings")
-				.insert({
-					...defaultSettings,
-					...validation.data,
-				})
-				.select()
-				.single();
-		}
-
-		if (result.error) {
-			console.error("Error saving settings:", result.error);
+		if (error) {
+			console.error("Error saving settings:", error);
 			return errorResponse("DB_ERROR", "Failed to save settings", 500);
 		}
 
-		return jsonResponse({
-			success: true,
-			settings: result.data,
-		});
+		return jsonResponse({ success: true, settings });
 	} catch (error) {
 		console.error("Settings PUT error:", error);
 		return errorResponse("INTERNAL_ERROR", "Failed to save settings", 500);

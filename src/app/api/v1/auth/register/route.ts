@@ -6,6 +6,7 @@ import {
 	validationErrorResponse,
 } from "@/lib/api-utils";
 import { z } from "zod";
+import { joinFullName } from "@/lib/name";
 
 import { isValidBDPhone, normalizeBDPhone, BD_PHONE_ERROR_MESSAGE } from "@/lib/bd-phone-validator";
 
@@ -64,20 +65,26 @@ export async function POST(request: NextRequest) {
 		const { data: profileData, error: profileError } = await adminSupabase
 			.from("users")
 			.insert({
+				// The users table stores one full_name column and has no
+				// email_verified flag; verification lives on the auth record.
 				auth_id: authData.user.id,
 				email,
-				first_name: firstName,
-				last_name: lastName,
+				full_name: joinFullName(firstName, lastName),
 				phone: phone ? normalizeBDPhone(phone) : null,
 				role: "customer",
-				email_verified: false,
 			})
 			.select()
 			.single();
 
 		if (profileError) {
+			// Without a profile row the account cannot own orders, addresses or a
+			// wishlist, so fail loudly rather than returning a half-made account.
 			console.error("Profile creation error:", profileError);
-			// User was created in auth, but profile failed - log and continue
+			return errorResponse(
+				"PROFILE_CREATION_FAILED",
+				"Account created but profile setup failed. Please contact support.",
+				500,
+			);
 		}
 
 		return jsonResponse({

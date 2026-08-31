@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(npm run *)",
+      "Bash(curl -s -w \"\\\\n[%{http_code}]\\\\n\" http://localhost:3000/api/health)",
+      "Bash(curl -s -w \"\\\\n[%{http_code}]\\\\n\" http://localhost:3000/api/v1/admin/dashboard)",
+      "Bash(node -e \"console.log\\(require.resolve\\('@supabase/supabase-js'\\)\\)\")",
+      "Bash(cd /home/ab/Documents/smstech; *)",
+      "Bash(node scripts/.schemadiff.tmp.mjs)",
+      "Bash(sed -i \"/@supabase\\\\/supabase-js/d\" scripts/.livediff.tmp.mjs)",
+      "Bash(node scripts/.livediff.tmp.mjs)",
+      "Bash(python3 -c ' *)",
+      "Bash(cd /home/ab/Documents/smstech; sed -n '230,245p' src/app/api/v1/admin/products/route.ts; echo \"--- products/[id] ---\"; sed -n '330,345p' src/app/api/v1/admin/products/[id]/route.ts; echo \"--- warehouses route 110-125 ---\"; sed -n '108,124p' src/app/api/v1/admin/warehouses/route.ts)",
+      "Bash(cd /home/ab/Documents/smstech; sed -i 's/\\\\.from\\(\"locations\"\\)/.from\\(\"warehouses\"\\)/g; s/location_id: ws\\\\.warehouse_id/warehouse_id: ws.warehouse_id/g; s/location_id: defaultLocation\\\\.id/warehouse_id: defaultLocation.id/g; s/location_id: defaultLoc\\\\.id/warehouse_id: defaultLoc.id/g; s/onConflict: \"product_id,variation_id,location_id\"/onConflict: \"product_id,variation_id,warehouse_id\"/g; s/inventory\\(quantity, reserved_quantity, available_quantity, location_id\\)/inventory\\(quantity, reserved_quantity, available_quantity, warehouse_id\\)/g' src/app/api/v1/admin/products/route.ts src/app/api/v1/admin/products/\\\\[id\\\\]/route.ts; grep -rn \"location_id\\\\|from\\(\\\\\"locations\\\\\"\\)\" src/app/api/v1/admin/products/ || echo \"CLEAN\")",
+      "Bash(python3 -)",
+      "Bash(sed -i 's|APPLY_ME_017_018_019_combined.sql|APPLY_ME_017_020_combined.sql|' scripts/.combined.tmp.mjs)",
+      "Bash(node scripts/.combined.tmp.mjs)",
+      "Bash(curl -s -w \"\\\\n[%{http_code}]\\\\n\" http://localhost:3000/api/v1/cart -H 'x-session-id: test-sess-1')",
+      "Bash(curl -s -w \"\\\\n[%{http_code}]\\\\n\" -X POST http://localhost:3000/api/v1/coupons/validate -H 'Content-Type: application/json' -d '{}')",
+      "Bash(curl -s -w \"\\\\n[%{http_code}]\\\\n\" \"http://localhost:3000/api/v1/products?limit=2\")",
+      "Bash(curl -s \"http://localhost:3000/api/v1/products?limit=2\")",
+      "Bash(sed -i \"s|  describe\\('POST /api/v1/coupons/validate', \\(\\) => {|  describe\\('POST /api/v1/cart/coupon', \\(\\) => {|\" tests/integration/cart.test.ts)",
+      "Bash(curl -s -w \"\\\\n[%{http_code}]\\\\n\" -X POST http://localhost:3000/api/v1/cart/coupon -H 'Content-Type: application/json' -d '{\"cart_total\":100}')",
+      "Bash(git stash *)",
+      "Bash(npx eslint *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -sf http://localhost:3000/api/health)",
+      "Bash(break)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const e=Object.fromEntries\\(fs.readFileSync\\('.env.local','utf8'\\).split\\('\\\\n'\\).filter\\(l=>l&&!l.startsWith\\('#'\\)&&l.includes\\('='\\)\\).map\\(l=>{const i=l.indexOf\\('='\\);return[l.slice\\(0,i\\).trim\\(\\),l.slice\\(i+1\\).trim\\(\\)]}\\)\\);fetch\\(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/?apikey='+e.SUPABASE_SERVICE_ROLE_KEY\\).then\\(r=>r.json\\(\\)\\).then\\(s=>{const t=Object.keys\\(s.definitions||{}\\);console.log\\('tables:',t.length\\);console.log\\('carts present:',t.includes\\('carts'\\),'| coupons:',t.includes\\('coupons'\\),'| wishlists:',t.includes\\('wishlists'\\)\\)}\\)\")"
+    ]
+  }
+}

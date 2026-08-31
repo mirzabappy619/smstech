@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { successResponse, errorResponse, validationErrorResponse, HTTP_STATUS } from '@/lib/api-utils';
 import { z } from 'zod';
+import { resolveProfileId } from '@/lib/account';
 
 const addToWishlistSchema = z.object({
   product_id: z.string().uuid(),
@@ -14,6 +15,11 @@ export async function GET() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return errorResponse('UNAUTHORIZED', 'Unauthorized', 401);
+    }
+
+    const profileId = await resolveProfileId(supabase, user.id);
+    if (!profileId) {
+      return errorResponse('USER_NOT_FOUND', 'User profile not found', 404);
     }
 
     const { data: wishlist, error } = await supabase
@@ -30,7 +36,7 @@ export async function GET() {
           images
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -60,6 +66,11 @@ export async function POST(request: NextRequest) {
       return validationErrorResponse(validation.error);
     }
 
+    const profileId = await resolveProfileId(supabase, user.id);
+    if (!profileId) {
+      return errorResponse('USER_NOT_FOUND', 'User profile not found', 404);
+    }
+
     // Check if product exists
     const { data: product } = await supabase
       .from('products')
@@ -75,9 +86,9 @@ export async function POST(request: NextRequest) {
     const { data: existing } = await supabase
       .from('wishlists')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('product_id', validation.data.product_id)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return errorResponse('CONFLICT', 'Product already in wishlist', 409);
@@ -86,7 +97,7 @@ export async function POST(request: NextRequest) {
     const { data: wishlistItem, error } = await supabase
       .from('wishlists')
       .insert({
-        user_id: user.id,
+        user_id: profileId,
         product_id: validation.data.product_id,
       })
       .select()
@@ -119,10 +130,15 @@ export async function DELETE(request: NextRequest) {
       return errorResponse('BAD_REQUEST', 'Product ID is required', 400);
     }
 
+    const profileId = await resolveProfileId(supabase, user.id);
+    if (!profileId) {
+      return errorResponse('USER_NOT_FOUND', 'User profile not found', 404);
+    }
+
     const { error } = await supabase
       .from('wishlists')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('product_id', productId);
 
     if (error) {

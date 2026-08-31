@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient, createAdminClient } from "@/lib/supabase/server";
 import {
 	jsonResponse,
 	errorResponse,
@@ -33,14 +33,25 @@ export async function POST(request: NextRequest) {
 			return errorResponse("AUTH_FAILED", error.message, 401);
 		}
 
-		// Get user profile
-		const { data: profile } = await supabase
+		// Read the profile with the admin client: RLS on `users` hides the row
+		// from the freshly signed-in session, which silently downgraded every
+		// admin to the "customer" fallback below.
+		const adminSupabase = await createAdminClient();
+		const { data: profile } = await adminSupabase
 			.from("users")
-			.select("*")
+			.select("id, auth_id, email, full_name, phone, role, is_active, avatar_url, metadata, created_at")
 			.eq("auth_id", data.user.id)
-			.single();
+			.maybeSingle();
 
 		const meta = (profile?.metadata as Record<string, any>) || {};
+		if (profile && profile.is_active === false) {
+			await supabase.auth.signOut();
+			return errorResponse(
+				"ACCOUNT_DISABLED",
+				"Your account has been disabled by an administrator.",
+				403,
+			);
+		}
 		if (meta.is_disabled) {
 			await supabase.auth.signOut();
 			return errorResponse(

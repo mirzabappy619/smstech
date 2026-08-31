@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { errorResponse, paginatedResponse } from "@/lib/api-utils";
+import { resolveCustomerIds, resolveProfileId } from "@/lib/account";
+import { readStoreSettings } from "@/lib/store-settings";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -19,24 +21,24 @@ export async function GET(request: NextRequest) {
 		const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 50);
 		const status = searchParams.get("status");
 
-		// Get user's internal ID from their auth_id
-		const { data: userData } = await supabase
-			.from("users")
-			.select("id")
-			.eq("auth_id", user.id)
-			.single();
-
-		if (!userData) {
+		const profileId = await resolveProfileId(supabase, user.id);
+		if (!profileId) {
 			return errorResponse("USER_NOT_FOUND", "User profile not found", 404);
+		}
+
+		// Orders hang off customers, not users.
+		const customerIds = await resolveCustomerIds(supabase, profileId);
+		if (customerIds.length === 0) {
+			return paginatedResponse([], page, limit, 0);
 		}
 
 		let query = supabase
 			.from("orders")
 			.select(
-				"id, order_number, status, payment_status, total, currency, created_at, order_items(count)",
+				"id, order_number, status, payment_status, total, created_at, order_items(count)",
 				{ count: "exact" },
 			)
-			.eq("user_id", userData.id)
+			.in("customer_id", customerIds)
 			.order("created_at", { ascending: false });
 
 		if (status) {
@@ -53,17 +55,20 @@ export async function GET(request: NextRequest) {
 			return errorResponse("FETCH_FAILED", "Failed to fetch orders", 500);
 		}
 
-		// Transform to include items_count
+		// Currency is a store-wide setting, not a per-order column.
+		const { store_currency } = await readStoreSettings(supabase);
+
+		// order_items(count) comes back as [{ count: n }], not one row per item.
 		const transformedOrders = orders?.map((order) => ({
 			id: order.id,
 			order_number: order.order_number,
 			status: order.status,
 			payment_status: order.payment_status,
 			total: order.total,
-			currency: order.currency,
+			currency: store_currency,
 			created_at: order.created_at,
 			items_count: Array.isArray(order.order_items)
-				? order.order_items.length
+				? Number((order.order_items[0] as { count?: number } | undefined)?.count ?? 0)
 				: 0,
 		}));
 

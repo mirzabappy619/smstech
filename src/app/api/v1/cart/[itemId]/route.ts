@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { createServerClient } from "@/lib/supabase/server";
+// Cart routes run under the service role: a guest cart is keyed by an opaque
+// session id that RLS cannot verify. Every query below is scoped explicitly by
+// the caller's user id or session id.
+import { createAdminClient } from "@/lib/supabase/server";
 import {
 	errorResponse,
 	jsonResponse,
@@ -16,7 +19,7 @@ function getSessionId(request: NextRequest): string | null {
 }
 
 async function resolveCartId(
-	supabase: Awaited<ReturnType<typeof createServerClient>>,
+	supabase: Awaited<ReturnType<typeof createAdminClient>>,
 	userId: string | null,
 	sessionId: string | null,
 ): Promise<string | null> {
@@ -61,7 +64,7 @@ export async function PUT(
 			.parse(body);
 
 		const user = await getOptionalAuth(request);
-		const supabase = await createServerClient();
+		const supabase = await createAdminClient();
 		const cartId = await resolveCartId(
 			supabase,
 			user?.id ?? null,
@@ -109,7 +112,7 @@ export async function DELETE(
 		const { itemId } = await params;
 
 		const user = await getOptionalAuth(request);
-		const supabase = await createServerClient();
+		const supabase = await createAdminClient();
 		const cartId = await resolveCartId(
 			supabase,
 			user?.id ?? null,

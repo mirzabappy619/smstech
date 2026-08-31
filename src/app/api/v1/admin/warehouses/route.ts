@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 		const supabase = await createAdminClient();
 
 		const { data: warehouses, error } = await supabase
-			.from("locations")
+			.from("warehouses")
 			.select("*")
 			.order("is_default", { ascending: false })
 			.order("name", { ascending: true });
@@ -53,11 +53,11 @@ export async function GET(request: NextRequest) {
 		// Attach inventory summary per warehouse
 		const { data: inventorySummary } = await supabase
 			.from("inventory")
-			.select("location_id, quantity, available_quantity");
+			.select("warehouse_id, quantity, available_quantity");
 
 		const summaryByLocation = (inventorySummary || []).reduce(
 			(acc, row) => {
-				const key = row.location_id as string;
+				const key = row.warehouse_id as string;
 				if (!acc[key]) acc[key] = { total_quantity: 0, total_available: 0, sku_count: 0 };
 				acc[key].total_quantity += Number(row.quantity) || 0;
 				acc[key].total_available += Number(row.available_quantity) || 0;
@@ -111,13 +111,13 @@ export async function POST(request: NextRequest) {
 		// If this is being set as default, unset others
 		if (parsed.data.is_default) {
 			await supabase
-				.from("locations")
+				.from("warehouses")
 				.update({ is_default: false })
 				.eq("is_default", true);
 		}
 
 		const { data: warehouse, error } = await supabase
-			.from("locations")
+			.from("warehouses")
 			.insert(parsed.data)
 			.select("*")
 			.single();

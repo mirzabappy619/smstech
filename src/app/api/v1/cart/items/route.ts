@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { createServerClient } from "@/lib/supabase/server";
+// Cart routes run under the service role: a guest cart is keyed by an opaque
+// session id that RLS cannot verify. Every query below is scoped explicitly by
+// the caller's user id or session id.
+import { createAdminClient } from "@/lib/supabase/server";
 import {
 	errorResponse,
 	jsonResponse,
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
 
 		const { product_id, variation_id, quantity } = validation.data;
 		const user = await getOptionalAuth(request);
-		const supabase = await createServerClient();
+		const supabase = await createAdminClient();
 
 		// Verify product exists and is active
 		const { data: product } = await supabase

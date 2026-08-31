@@ -15,6 +15,7 @@ const defaultSettings: StoreSettings = {
 	store_email: "",
 	store_phone: "",
 	store_address: "",
+	store_currency: "BDT",
 	social_facebook: "",
 	social_instagram: "",
 	social_twitter: "",

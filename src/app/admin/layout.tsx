@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getUserPermissionsAndBranches } from "@/lib/rbac/rbac-service";
+import { isAdminPanelRole } from "@/lib/rbac/roles";
 import { RBACProvider } from "@/lib/rbac/rbac-context";
 import { AdminLayoutClient } from "./admin-layout-client";
 import { getStoreName } from "@/lib/get-store-name";
@@ -41,8 +42,10 @@ async function AdminAuthGuard() {
 	}
 
 	// Check if user has staff/admin privileges (not a basic storefront customer with no permissions)
-	const allowedRoles = ["owner", "admin", "branch_manager", "cashier", "inventory_manager", "accountant", "delivery_agent", "staff"];
-	const hasAccess = allowedRoles.includes(userRBAC.role) || userRBAC.permissions.length > 0 || userRBAC.isOwner;
+	const hasAccess =
+		isAdminPanelRole(userRBAC.role) ||
+		userRBAC.permissions.length > 0 ||
+		userRBAC.isOwner;
 
 	if (!hasAccess) {
 		redirect("/login?redirectTo=/admin&error=forbidden");

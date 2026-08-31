@@ -3,7 +3,10 @@ const PDFDocument = require('pdfkit');
 interface PackingSlipItem {
 	name: string;
 	variation_name: string | null;
-	sku: string;
+	// order_items carries a serial number for tracked devices; there is no sku
+	// column, so the SKU cell falls back to it.
+	sku?: string | null;
+	serial_number?: string | null;
 	quantity: number;
 }
 
@@ -11,15 +14,16 @@ interface PackingSlipOrder {
 	order_number: string;
 	created_at: string;
 	shipping_address: {
-		first_name: string;
-		last_name: string;
+		name?: string;
+		first_name?: string;
+		last_name?: string;
 		address_line1: string;
 		address_line2?: string | null;
 		city: string;
-		state: string;
-		postal_code: string;
-		country: string;
-		phone: string | null;
+		state?: string;
+		postal_code?: string;
+		country?: string;
+		phone?: string | null;
 	} | null;
 	items: PackingSlipItem[];
 }
@@ -69,15 +73,19 @@ export function generatePackingSlipPdf(
 		doc.font('Helvetica').fillColor('#333').fontSize(9);
 
 		if (addr) {
-			doc.text(`${addr.first_name} ${addr.last_name}`, 50, 171);
+			doc.text(
+				addr.name || `${addr.first_name ?? ''} ${addr.last_name ?? ''}`.trim(),
+				50,
+				171,
+			);
 			doc.text(addr.address_line1, 50, 184);
 			if (addr.address_line2) {
 				doc.text(addr.address_line2, 50, 197);
-				doc.text(`${addr.city}, ${addr.state} ${addr.postal_code}`, 50, 210);
+				doc.text(`${addr.city}, ${addr.state ?? ''} ${addr.postal_code ?? ''}`.trim(), 50, 210);
 			} else {
-				doc.text(`${addr.city}, ${addr.state} ${addr.postal_code}`, 50, 197);
+				doc.text(`${addr.city}, ${addr.state ?? ''} ${addr.postal_code ?? ''}`.trim(), 50, 197);
 			}
-			doc.text(addr.country, 50, addr.address_line2 ? 223 : 210);
+			doc.text(addr.country ?? '', 50, addr.address_line2 ? 223 : 210);
 			if (addr.phone) {
 				doc.text(addr.phone, 50, addr.address_line2 ? 236 : 223);
 			}
@@ -120,7 +128,7 @@ export function generatePackingSlipPdf(
 
 			doc.fontSize(9)
 				.fillColor('#333')
-				.text(item.sku, col.sku, y)
+				.text(item.sku || item.serial_number || '—', col.sku, y)
 				.text(String(item.quantity), col.qty, y);
 
 			y += itemHeight;

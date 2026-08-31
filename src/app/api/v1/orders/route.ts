@@ -8,6 +8,12 @@ import {
 	getOptionalAuth,
 } from "@/lib/api-utils";
 import { paymentService } from "@/lib/payment";
+import { readStoreSettings } from "@/lib/store-settings";
+import {
+	findOrCreateCustomer,
+	resolveCustomerIds,
+	resolveProfileId,
+} from "@/lib/account";
 // MetaPixelService import removed — CAPI Purchase is now handled exclusively
 // by the Supabase Edge Function (capi-purchase) triggered via DB webhook on
 // INSERT to the orders table.  The browser Pixel fires from the checkout page.
@@ -81,14 +87,8 @@ export async function GET(request: NextRequest) {
 			return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 		}
 
-		// Get user's internal ID from their auth_id
-		const { data: userData } = await supabase
-			.from("users")
-			.select("id")
-			.eq("auth_id", user.id)
-			.single();
-
-		if (!userData) {
+		const profileId = await resolveProfileId(supabase, user.id);
+		if (!profileId) {
 			return errorResponse("USER_NOT_FOUND", "User profile not found", 404);
 		}
 
@@ -97,10 +97,16 @@ export async function GET(request: NextRequest) {
 		const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 50);
 		const status = searchParams.get("status");
 
+		// Orders reference customers.id, not users.id.
+		const customerIds = await resolveCustomerIds(supabase, profileId);
+		if (customerIds.length === 0) {
+			return paginatedResponse([], page, limit, 0);
+		}
+
 		let query = supabase
 			.from("orders")
 			.select("*", { count: "exact" })
-			.eq("user_id", userData.id)
+			.in("customer_id", customerIds)
 			.order("created_at", { ascending: false });
 
 		if (status) {
@@ -289,23 +295,15 @@ export async function POST(request: NextRequest) {
 		// Calculate shipping — look up price from store settings
 		let shippingAmount = 0;
 		try {
-			const { data: storeSettings } = await adminSupabase
-				.from("store_settings")
-				.select("default_shipping_cost")
-				.single();
+			const settings = await readStoreSettings(adminSupabase);
+			const methods = settings.shipping_methods;
 
-			// Try to get shipping_methods if column exists
-			const { data: settingsWithMethods } = await adminSupabase
-				.from("store_settings")
-				.select("shipping_methods")
-				.single();
-
-			const methods = settingsWithMethods?.shipping_methods as Array<{ id: string; price: number }> | null;
-			if (methods && Array.isArray(methods)) {
+			if (Array.isArray(methods)) {
 				const matched = methods.find((m) => m.id === shipping_method);
-				shippingAmount = Number(matched?.price ?? storeSettings?.default_shipping_cost ?? 0) || 0;
+				shippingAmount =
+					Number(matched?.price ?? settings.default_shipping_cost ?? 0) || 0;
 			} else {
-				shippingAmount = Number(storeSettings?.default_shipping_cost ?? 0) || 0;
+				shippingAmount = Number(settings.default_shipping_cost ?? 0) || 0;
 			}
 		} catch (err) {
 			console.error("Shipping calculation error:", err);
@@ -369,11 +367,34 @@ export async function POST(request: NextRequest) {
 			internalUserId = userData.id;
 		}
 
+		// Orders reference customers.id, not users.id — guests included.
+		const customer = await findOrCreateCustomer(adminSupabase, {
+			profileId: internalUserId,
+			name: normalizedShippingAddress.name,
+			email: normalizedShippingAddress.email || user?.email,
+			phone: normalizedShippingAddress.phone,
+		});
+
+		if ("error" in customer) {
+			console.error("Customer resolution failed:", customer.error);
+			return errorResponse(
+				"CUSTOMER_CREATION_FAILED",
+				"Failed to attach the order to a customer record",
+				500,
+			);
+		}
+
 		// Create order (support both authenticated and guest users)
 		const { data: order, error: orderError } = await adminSupabase
 			.from("orders")
 			.insert({
-				user_id: internalUserId,
+				customer_id: customer.id,
+				customer_name: normalizedShippingAddress.name || null,
+				customer_phone: normalizedShippingAddress.phone || null,
+				customer_email:
+					normalizedShippingAddress.email || user?.email || null,
+				address_line1: normalizedShippingAddress.address_line1 || null,
+				city: normalizedShippingAddress.city || null,
 				order_number: orderNumber,
 				status: "pending",
 				payment_status:
@@ -384,7 +405,7 @@ export async function POST(request: NextRequest) {
 				shipping_amount: shippingAmount,
 				discount_amount: discountAmount,
 				total: totalAmount,
-				currency: "USD",
+				currency: "BDT",
 				shipping_method,
 				shipping_address: normalizedShippingAddress,
 				billing_address: billing_address || normalizedShippingAddress,
@@ -422,7 +443,7 @@ export async function POST(request: NextRequest) {
 			const amount = paymentService.calculateAmount(totalAmount, 0, 0, 0);
 			const paymentResult = await paymentService.createPaymentIntent({
 				amount,
-				currency: "USD",
+				currency: "BDT",
 				metadata: {
 					order_id: order.id,
 					order_number: orderNumber,

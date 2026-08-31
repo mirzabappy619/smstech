@@ -21,7 +21,7 @@ interface Warehouse {
 
 interface WarehouseStock {
 	inventory_id?: string;
-	location_id: string;
+	warehouse_id: string;
 	location_name: string;
 	location_code: string;
 	location_city?: string;
@@ -139,7 +139,7 @@ export default function WarehouseInventoryPage() {
 			// Seed edit quantities
 			const qtyMap: Record<string, number> = {};
 			(data.data.warehouses || []).forEach((w: WarehouseStock) => {
-				qtyMap[w.location_id] = w.quantity;
+				qtyMap[w.warehouse_id] = w.quantity;
 			});
 			setEditQuantities(qtyMap);
 			setSelectedVariation({ id, name: "Variation", sku: id });
@@ -389,7 +389,7 @@ export default function WarehouseInventoryPage() {
 						<tbody className="divide-y divide-gray-100 dark:divide-zinc-700">
 							{/* Existing records */}
 							{warehouseStocks.map((ws) => (
-								<tr key={ws.location_id} className="hover:bg-gray-50 dark:hover:bg-zinc-700/30">
+								<tr key={ws.warehouse_id} className="hover:bg-gray-50 dark:hover:bg-zinc-700/30">
 									<td className="px-4 py-3">
 										<p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
 											{ws.location_name}
@@ -407,11 +407,11 @@ export default function WarehouseInventoryPage() {
 										<input
 											type="number"
 											min={0}
-											value={editQuantities[ws.location_id] ?? ws.quantity}
+											value={editQuantities[ws.warehouse_id] ?? ws.quantity}
 											onChange={(e) =>
 												setEditQuantities((q) => ({
 													...q,
-													[ws.location_id]: parseInt(e.target.value) || 0,
+													[ws.warehouse_id]: parseInt(e.target.value) || 0,
 												}))
 											}
 											className="w-24 px-2 py-1 text-sm border border-gray-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-1 focus:ring-blue-500 focus:outline-none"
@@ -420,14 +420,14 @@ export default function WarehouseInventoryPage() {
 									<td className="px-4 py-3">
 										<div className="flex items-center gap-2">
 											<button
-												onClick={() => saveStock(ws.location_id)}
-												disabled={saving[ws.location_id]}
+												onClick={() => saveStock(ws.warehouse_id)}
+												disabled={saving[ws.warehouse_id]}
 												className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition">
-												{saving[ws.location_id] ? "Saving…" : "Save"}
+												{saving[ws.warehouse_id] ? "Saving…" : "Save"}
 											</button>
-											{successMsg[ws.location_id] && (
+											{successMsg[ws.warehouse_id] && (
 												<span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-													✓ {successMsg[ws.location_id]}
+													✓ {successMsg[ws.warehouse_id]}
 												</span>
 											)}
 										</div>

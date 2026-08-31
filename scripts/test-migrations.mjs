@@ -21,6 +21,9 @@ const MIGRATIONS = [
 	"supabase/migrations/016_rbac_and_branch_permissions.sql",
 	"supabase/migrations/017_inventory_integrity_and_pos_fixes.sql",
 	"supabase/migrations/018_storefront_and_admin_tables.sql",
+	"supabase/migrations/019_warehouse_contact_fields.sql",
+	"supabase/migrations/020_storefront_order_and_courier_columns.sql",
+	"supabase/migrations/021_row_level_security_policies.sql",
 ];
 
 let passed = 0;
@@ -389,6 +392,9 @@ async function main() {
 	for (const file of [
 		"supabase/migrations/017_inventory_integrity_and_pos_fixes.sql",
 		"supabase/migrations/018_storefront_and_admin_tables.sql",
+	"supabase/migrations/019_warehouse_contact_fields.sql",
+	"supabase/migrations/020_storefront_order_and_courier_columns.sql",
+	"supabase/migrations/021_row_level_security_policies.sql",
 	]) {
 		try {
 			await db.exec(fs.readFileSync(file, "utf8"));

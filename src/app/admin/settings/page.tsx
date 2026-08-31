@@ -114,6 +114,11 @@ const currencies = [
 ];
 
 const timezones = [
+	// Asia/Dhaka is the store default; without it here the select fell back to
+	// the first entry and silently rewrote the timezone on the next save.
+	"Asia/Dhaka",
+	"Asia/Kolkata",
+	"Asia/Karachi",
 	"America/New_York",
 	"America/Chicago",
 	"America/Denver",

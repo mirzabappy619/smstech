@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { jsonResponse, errorResponse } from "@/lib/api-utils";
+import { splitFullName } from "@/lib/name";
 
 export async function GET(_request: NextRequest) {
 	try {
@@ -31,15 +32,19 @@ export async function GET(_request: NextRequest) {
 			});
 		}
 
+		const { first_name, last_name } = splitFullName(profile.full_name);
+
 		return jsonResponse({
 			id: profile.id,
 			email: profile.email,
-			first_name: profile.first_name,
-			last_name: profile.last_name,
+			full_name: profile.full_name,
+			first_name,
+			last_name,
 			role: profile.role,
 			avatar_url: profile.avatar_url,
 			phone: profile.phone,
-			email_verified: profile.email_verified,
+			// Verification is tracked on the auth record, not the profile row.
+			email_verified: Boolean(user.email_confirmed_at),
 			created_at: profile.created_at,
 		});
 	} catch (error) {

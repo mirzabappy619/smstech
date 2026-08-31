@@ -1,16 +1,20 @@
 import { defineConfig } from 'vitest/config';
-// import react from '@vitejs/plugin-react';
 import path from 'path';
 
+const alias = {
+  '@': path.resolve(__dirname, './src'),
+  '@/domain': path.resolve(__dirname, './src/domain'),
+  '@/application': path.resolve(__dirname, './src/application'),
+  '@/infrastructure': path.resolve(__dirname, './src/infrastructure'),
+  '@/presentation': path.resolve(__dirname, './src/presentation'),
+  '@/lib': path.resolve(__dirname, './src/lib'),
+  '@/config': path.resolve(__dirname, './src/config'),
+};
+
 export default defineConfig({
-  // plugins: [react()],
   plugins: [],
+  resolve: { alias },
   test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.ts'],
-    include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['node_modules', '.next', 'dist'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -23,18 +27,34 @@ export default defineConfig({
         '**/types/**',
       ],
     },
-    testTimeout: 10000,
-    hookTimeout: 10000,
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@/domain': path.resolve(__dirname, './src/domain'),
-      '@/application': path.resolve(__dirname, './src/application'),
-      '@/infrastructure': path.resolve(__dirname, './src/infrastructure'),
-      '@/presentation': path.resolve(__dirname, './src/presentation'),
-      '@/lib': path.resolve(__dirname, './src/lib'),
-      '@/config': path.resolve(__dirname, './src/config'),
-    },
+    // Unit and integration tests need different environments. The unit setup
+    // stubs global fetch, which silently broke every integration test — they
+    // got the stub instead of a real HTTP response, so `response.status` was
+    // undefined. Keeping them in separate projects prevents that.
+    projects: [
+      {
+        resolve: { alias },
+        test: {
+          name: 'unit',
+          globals: true,
+          environment: 'jsdom',
+          setupFiles: ['./vitest.setup.ts'],
+          include: ['tests/unit/**/*.{test,spec}.{ts,tsx}', 'src/**/*.{test,spec}.{ts,tsx}'],
+          testTimeout: 10000,
+          hookTimeout: 10000,
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          name: 'integration',
+          globals: true,
+          environment: 'node',
+          include: ['tests/integration/**/*.{test,spec}.{ts,tsx}'],
+          testTimeout: 30000,
+          hookTimeout: 30000,
+        },
+      },
+    ],
   },
 });

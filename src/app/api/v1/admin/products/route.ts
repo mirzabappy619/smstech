@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
 		if (variations.length > 0) {
 			// Get the default warehouse location for inventory seeding
 			const { data: defaultLocation } = await supabase
-				.from("locations")
+				.from("warehouses")
 				.select("id")
 				.eq("is_default", true)
 				.single();
@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
 							inventoryInserts.push({
 								product_id: product.id,
 								variation_id: dbVar.id,
-								location_id: ws.warehouse_id,
+								warehouse_id: ws.warehouse_id,
 								quantity: ws.quantity_in_packages,
 								reserved_quantity: 0,
 							});
@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
 						inventoryInserts.push({
 							product_id: product.id,
 							variation_id: dbVar.id,
-							location_id: defaultLocation.id,
+							warehouse_id: defaultLocation.id,
 							quantity: 0,
 							reserved_quantity: 0,
 						});
@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
 					await supabase
 						.from("inventory")
 						.upsert(inventoryInserts as Parameters<typeof supabase.from>[0] extends never ? never : Record<string, unknown>[], {
-							onConflict: "product_id,variation_id,location_id",
+							onConflict: "product_id,variation_id,warehouse_id",
 						});
 				}
 			}

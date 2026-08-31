@@ -22,7 +22,7 @@ export async function POST(
 		// Fetch customer email
 		const { data: customer, error: fetchError } = await supabase
 			.from("users")
-			.select("id, auth_id, email, first_name, last_name")
+			.select("id, auth_id, email, full_name")
 			.eq("id", customerId)
 			.single();
 

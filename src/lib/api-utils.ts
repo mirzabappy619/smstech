@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError, ZodSchema } from "zod";
 import { createServerClient, createAdminClient } from "./supabase/server";
+import { isAdminPanelRole } from "./rbac/roles";
 
 // ==============================================
 // API RESPONSE TYPES
@@ -236,20 +237,7 @@ export async function requireAdmin(
 > {
 	const { user, error } = await requireAuth(request);
 	if (error) return { error };
-	// Keep in step with ADMIN_PANEL_ROLES in src/proxy.ts and the allow-list in
-	// src/app/admin/layout.tsx.
-	const adminRoles = [
-		"owner",
-		"admin",
-		"branch_manager",
-		"cashier",
-		"inventory_manager",
-		"accountant",
-		"delivery_agent",
-		"staff",
-		"manager",
-	];
-	if (!adminRoles.includes(user.role)) {
+	if (!isAdminPanelRole(user.role)) {
 		return { error: forbiddenResponse("Admin access required") };
 	}
 	return { user };

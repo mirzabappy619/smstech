@@ -13,7 +13,8 @@ describe("Products API", () => {
 
 			expect(response.status).toBe(200);
 			expect(data).toHaveProperty("data");
-			expect(data).toHaveProperty("pagination");
+			// paginatedResponse() puts page/perPage/total/totalPages under `meta`.
+			expect(data).toHaveProperty("meta");
 			expect(Array.isArray(data.data)).toBe(true);
 		});
 

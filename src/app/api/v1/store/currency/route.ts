@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { readStoreSettings } from '@/lib/store-settings';
 import { jsonResponse, errorResponse } from '@/lib/api-utils';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -18,12 +19,9 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 export async function GET(_request: NextRequest) {
 	try {
 		const supabase = await createServerClient();
-		const { data } = await supabase
-			.from('store_settings')
-			.select('store_currency')
-			.single();
+		const settings = await readStoreSettings(supabase);
 
-		const currency_code = data?.store_currency || 'USD';
+		const currency_code = settings.store_currency || 'USD';
 		const currency_symbol = CURRENCY_SYMBOLS[currency_code] || currency_code;
 
 		return jsonResponse({

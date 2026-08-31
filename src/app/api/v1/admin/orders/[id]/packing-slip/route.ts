@@ -29,7 +29,7 @@ export async function GET(
 	// Fetch order items
 	const { data: items, error: itemsError } = await supabase
 		.from('order_items')
-		.select('id, name, sku, quantity, variation_id, product_variations(name)')
+		.select('id, product_name, variation_name, quantity, serial_number')
 		.eq('order_id', orderId);
 
 	if (itemsError) {
@@ -38,9 +38,9 @@ export async function GET(
 
 	// Format items for PDF
 	const formattedItems = (items || []).map((item: any) => ({
-		name: item.name,
-		variation_name: item.product_variations?.name || null,
-		sku: item.sku,
+		name: item.product_name,
+		variation_name: item.variation_name || null,
+		serial_number: item.serial_number,
 		quantity: item.quantity,
 	}));
 
@@ -48,7 +48,12 @@ export async function GET(
 		const pdfBuffer = await generatePackingSlipPdf({
 			order_number: order.order_number,
 			created_at: order.created_at,
-			shipping_address: order.shipping_address,
+			shipping_address: {
+				name: order.customer_name || '',
+				address_line1: order.address_line1 || '',
+				city: order.city || '',
+				phone: order.customer_phone || '',
+			},
 			items: formattedItems,
 		});
 

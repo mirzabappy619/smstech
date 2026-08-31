@@ -1,10 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { createServerClient } from "@/lib/supabase/server";
+// Cart routes run under the service role: a guest cart is keyed by an opaque
+// session id that RLS cannot verify. Every query below is scoped explicitly by
+// the caller's user id or session id.
+import { createAdminClient } from "@/lib/supabase/server";
 import {
 	errorResponse,
 	jsonResponse,
 	getOptionalAuth,
+	validationErrorResponse,
 } from "@/lib/api-utils";
 
 function getSessionId(request: NextRequest): string | null {
@@ -16,7 +20,7 @@ function getSessionId(request: NextRequest): string | null {
 }
 
 async function resolveCart(
-	supabase: Awaited<ReturnType<typeof createServerClient>>,
+	supabase: Awaited<ReturnType<typeof createAdminClient>>,
 	userId: string | null,
 	sessionId: string | null,
 ) {
@@ -51,11 +55,19 @@ async function resolveCart(
  */
 export async function POST(request: NextRequest) {
 	try {
-		const body = await request.json();
-		const { code } = z.object({ code: z.string().trim().min(1) }).parse(body);
+		const body = await request.json().catch(() => null);
+		const parsed = z
+			.object({ code: z.string().trim().min(1) })
+			.safeParse(body);
+
+		// A missing/blank code is a bad request, not a server error.
+		if (!parsed.success) {
+			return validationErrorResponse(parsed.error);
+		}
+		const { code } = parsed.data;
 
 		const user = await getOptionalAuth(request);
-		const supabase = await createServerClient();
+		const supabase = await createAdminClient();
 		const cart = await resolveCart(
 			supabase,
 			user?.id ?? null,
@@ -144,7 +156,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
 	try {
 		const user = await getOptionalAuth(request);
-		const supabase = await createServerClient();
+		const supabase = await createAdminClient();
 		const cart = await resolveCart(
 			supabase,
 			user?.id ?? null,

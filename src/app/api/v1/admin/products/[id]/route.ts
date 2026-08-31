@@ -102,7 +102,7 @@ export async function GET(
         category:categories(id, name, slug),
         variations:product_variations(
           *,
-          inventory(quantity, reserved_quantity, available_quantity, location_id)
+          inventory(quantity, reserved_quantity, available_quantity, warehouse_id)
         )`,
       )
       .eq("id", id)
@@ -325,16 +325,16 @@ export async function PUT(
                 warehouseStocks.map((ws) => ({
                   product_id: id,
                   variation_id: newVar.id,
-                  location_id: ws.warehouse_id,
+                  warehouse_id: ws.warehouse_id,
                   quantity: ws.quantity_in_packages,
                   reserved_quantity: 0,
                 })),
-                { onConflict: "product_id,variation_id,location_id" },
+                { onConflict: "product_id,variation_id,warehouse_id" },
               );
             } else {
               // Fall back to default warehouse with 0 stock
               const { data: defaultLoc } = await supabase
-                .from("locations")
+                .from("warehouses")
                 .select("id")
                 .eq("is_default", true)
                 .single();
@@ -344,11 +344,11 @@ export async function PUT(
                   {
                     product_id: id,
                     variation_id: newVar.id,
-                    location_id: defaultLoc.id,
+                    warehouse_id: defaultLoc.id,
                     quantity: 0,
                     reserved_quantity: 0,
                   },
-                  { onConflict: "product_id,variation_id,location_id" },
+                  { onConflict: "product_id,variation_id,warehouse_id" },
                 );
               }
             }

@@ -1,9 +1,34 @@
 -- ============================================================================
 -- COMBINED MIGRATION — run this once in the Supabase SQL editor
 -- ============================================================================
--- Contains migrations 017 and 018. Additive only: no drops, no data changes.
--- Verified against Postgres via scripts/test-migrations.mjs (56 assertions),
--- including a clean second run, so re-applying is safe.
+-- Contains migrations 017, 018, 019, 020 and 021.
+--
+-- Verified with scripts/test-migrations.mjs (62 assertions) against a real
+-- Postgres seeded to migration 016 — which is exactly where this project's
+-- database currently sits — including a clean second run, so re-applying is
+-- safe. Additive except for three deliberately dropped policies (see 021).
+--
+-- WHAT IT FIXES
+--
+-- Missing tables (13) — every screen below queries a table that was never
+-- created and errors at runtime:
+--   /admin/coupons            /admin/sliders          /admin/google-analytics
+--   /admin/landing-pages      /admin/inventory        storefront cart
+--   storefront wishlist       account addresses       checkout delivery zones
+--
+-- Missing columns:
+--   inventory   reorder_point, reorder_quantity, bin_location, last_counted_at
+--   orders      pre_booking_id, shipping/billing address, currency, tax_amount,
+--               coupon_code, customer_notes, internal_notes, source, fbc, fbp,
+--               tracking_number and the eight courier_* columns
+--   warehouses  type, split address, phone, email, latitude, longitude
+--
+-- Security (021):
+--   Removes "Public read orders", which exposed every customer's name, phone,
+--   email, address and order total to anyone holding the public anon key, plus
+--   the matching public INSERT policies. Replaces them with owner-scoped rules
+--   and adds the missing policies that were silently emptying the account
+--   pages and the storefront's store settings.
 --
 -- Supabase dashboard -> SQL Editor -> New query -> paste -> Run.
 -- ============================================================================
@@ -420,7 +445,6 @@ END $$;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
 
-
 -- ============================================================================
 -- STOREFRONT & REMAINING ADMIN TABLES (018)
 -- ============================================================================
@@ -698,3 +722,297 @@ END $$;
 
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+
+-- ============================================================================
+-- WAREHOUSE CONTACT & ADDRESS FIELDS (019)
+-- ============================================================================
+-- /admin/inventory/warehouse and POST /api/v1/admin/warehouses accept a type,
+-- a split address, contact details and coordinates. The warehouses table only
+-- had (name, code, address, is_active, is_default), so every create/update that
+-- filled those fields was rejected by PostgREST as unknown columns.
+--
+-- The route previously wrote to a table called "locations" that no migration
+-- ever created; it now targets warehouses, and these are the columns it needs.
+--
+-- Safe to re-run: every statement is guarded.
+-- ============================================================================
+
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'warehouse';
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS address_street TEXT;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS address_city TEXT;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS address_state TEXT;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS address_postal_code TEXT;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS address_country TEXT DEFAULT 'Bangladesh';
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS latitude NUMERIC(10, 7);
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS longitude NUMERIC(10, 7);
+
+-- Matches the z.enum() in POST /api/v1/admin/warehouses.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'warehouses_type_check'
+    ) THEN
+        ALTER TABLE warehouses ADD CONSTRAINT warehouses_type_check
+            CHECK (type IN ('warehouse', 'store', 'fulfillment_center'));
+    END IF;
+END $$;
+
+-- The create/update handlers unset every other default before setting one, so
+-- at most one row can be the default. Enforce that in the database too.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_warehouses_single_default
+    ON warehouses (is_default) WHERE is_default;
+
+-- The legacy "address" column is superseded by the split fields above. Keep it
+-- (data may exist) but seed the new street column from it where it is unset.
+UPDATE warehouses SET address_street = address
+WHERE address_street IS NULL AND address IS NOT NULL;
+
+-- ============================================================================
+-- STOREFRONT ORDER & COURIER COLUMNS (020)
+-- ============================================================================
+-- The orders table was created for in-store POS sales. The storefront checkout
+-- and the courier integration both write a wider record than it can hold, so
+-- every web order insert was rejected and every courier screen errored out.
+--
+-- Affected features:
+--   POST /api/v1/orders          web checkout (inserted 10 unknown columns)
+--   /admin/courier               Pathao / Steadfast dispatch and sync
+--   /admin/orders/[id]           tracking number, internal notes, addresses
+--   webhooks/pathao, /steadfast  delivery status callbacks
+--   capi-purchase edge function  fbc / fbp match-quality signals
+--
+-- Additive only: no drops, no data changes.
+-- Safe to re-run: every statement is guarded.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- 1. Web checkout fields
+-- ----------------------------------------------------------------------------
+-- Addresses are stored as JSONB because checkout accepts a free-form address
+-- object (name, lines, city, state, postcode, country, phone, email).
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_address JSONB;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_address JSONB;
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BDT';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_notes TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS internal_notes TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'web';
+
+-- ----------------------------------------------------------------------------
+-- 2. Meta Conversions API match quality
+-- ----------------------------------------------------------------------------
+-- Captured at checkout and read by the capi-purchase edge function so browser
+-- and server events deduplicate against the same user_data.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fbc TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fbp TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 3. Courier dispatch and tracking
+-- ----------------------------------------------------------------------------
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_provider TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_consignment_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_tracking_code TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_status TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_delivery_fee NUMERIC(12, 2);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_data JSONB;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_sent_at TIMESTAMPTZ;
+
+-- Only pathao and steadfast are implemented in src/infrastructure/courier.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'orders_courier_provider_check'
+    ) THEN
+        ALTER TABLE orders ADD CONSTRAINT orders_courier_provider_check
+            CHECK (courier_provider IS NULL
+                   OR courier_provider IN ('pathao', 'steadfast'));
+    END IF;
+END $$;
+
+-- The courier dashboard filters on provider/status, and the webhooks look an
+-- order up by its consignment id.
+CREATE INDEX IF NOT EXISTS idx_orders_courier_provider
+    ON orders (courier_provider) WHERE courier_provider IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_courier_status
+    ON orders (courier_status) WHERE courier_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_courier_consignment
+    ON orders (courier_consignment_id) WHERE courier_consignment_id IS NOT NULL;
+
+-- Web orders are listed per shopper via customers.user_id -> orders.customer_id.
+CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders (customer_id);
+
+-- ============================================================================
+-- ROW LEVEL SECURITY POLICIES (021)
+-- ============================================================================
+-- Two problems this fixes.
+--
+-- 1. DATA LEAK. Migration 000 created:
+--        CREATE POLICY "Public read orders" ON orders FOR SELECT USING (true);
+--    With the anon key that exposes every order — customer name, phone, email,
+--    delivery address and totals — to anyone on the internet. The matching
+--    "Public insert" policies let anyone forge orders. All three are replaced
+--    below with owner-scoped equivalents.
+--
+-- 2. LOCKED-OUT STOREFRONT. users, wishlists, addresses, carts, cart_items and
+--    coupons have RLS enabled but no policy at all, so the signed-in session
+--    client reads zero rows. That silently emptied the account pages and made
+--    the login route fall back to role "customer" for admins.
+--
+-- Admin API routes run under the service role, which bypasses RLS entirely, so
+-- none of the admin panel is affected by anything here.
+--
+-- Safe to re-run: every statement is guarded.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- 0. Helper — the users.id behind the current auth session
+-- ----------------------------------------------------------------------------
+-- SECURITY DEFINER so the lookup itself is not subject to the users policy it
+-- is used to define, which would recurse.
+CREATE OR REPLACE FUNCTION current_profile_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT id FROM users WHERE auth_id = auth.uid()
+$$;
+
+GRANT EXECUTE ON FUNCTION current_profile_id() TO anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
+-- 1. Orders — replace the blanket public policies
+-- ----------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Public read orders" ON orders;
+DROP POLICY IF EXISTS "Public insert orders" ON orders;
+DROP POLICY IF EXISTS "Public insert order_items" ON order_items;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'orders' AND policyname = 'Own orders read') THEN
+        CREATE POLICY "Own orders read" ON orders FOR SELECT
+            USING (customer_id IN (
+                SELECT id FROM customers WHERE user_id = current_profile_id()
+            ));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'order_items' AND policyname = 'Own order items read') THEN
+        CREATE POLICY "Own order items read" ON order_items FOR SELECT
+            USING (order_id IN (
+                SELECT o.id FROM orders o
+                JOIN customers c ON c.id = o.customer_id
+                WHERE c.user_id = current_profile_id()
+            ));
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- 2. Profile row
+-- ----------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'users' AND policyname = 'Own profile read') THEN
+        CREATE POLICY "Own profile read" ON users FOR SELECT
+            USING (auth_id = auth.uid());
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'users' AND policyname = 'Own profile update') THEN
+        CREATE POLICY "Own profile update" ON users FOR UPDATE
+            USING (auth_id = auth.uid())
+            WITH CHECK (auth_id = auth.uid());
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- 3. Customer record
+-- ----------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'customers' AND policyname = 'Own customer read') THEN
+        CREATE POLICY "Own customer read" ON customers FOR SELECT
+            USING (user_id = current_profile_id());
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- 4. Wishlist and address book — full ownership
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['wishlists', 'addresses'] LOOP
+        IF NOT EXISTS (SELECT 1 FROM pg_policies
+                       WHERE tablename = t AND policyname = 'Own ' || t) THEN
+            EXECUTE format(
+                'CREATE POLICY %I ON %I FOR ALL USING (user_id = current_profile_id()) WITH CHECK (user_id = current_profile_id())',
+                'Own ' || t, t
+            );
+        END IF;
+    END LOOP;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- 5. Carts
+-- ----------------------------------------------------------------------------
+-- Signed-in carts are owner-scoped here. Guest carts key off an opaque
+-- session_id that RLS cannot verify, so those requests are served by the API
+-- routes under the service role, which scope every query by that session id.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'carts' AND policyname = 'Own cart') THEN
+        CREATE POLICY "Own cart" ON carts FOR ALL
+            USING (user_id = current_profile_id())
+            WITH CHECK (user_id = current_profile_id());
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'cart_items' AND policyname = 'Own cart items') THEN
+        CREATE POLICY "Own cart items" ON cart_items FOR ALL
+            USING (cart_id IN (SELECT id FROM carts WHERE user_id = current_profile_id()))
+            WITH CHECK (cart_id IN (SELECT id FROM carts WHERE user_id = current_profile_id()));
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- 6. Coupons — the storefront validates a code the shopper typed
+-- ----------------------------------------------------------------------------
+-- Only active codes are readable; usage counts and limits are not secret, but
+-- inactive/expired campaigns stay hidden.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'coupons' AND policyname = 'Public read active coupons') THEN
+        CREATE POLICY "Public read active coupons" ON coupons FOR SELECT
+            USING (is_active = true);
+    END IF;
+END $$;
+
+-- ----------------------------------------------------------------------------
+-- 7. Storefront-visible configuration
+-- ----------------------------------------------------------------------------
+-- store_settings is key/value and holds only storefront configuration (name,
+-- contact details, shipping rates, social links). Without a policy the
+-- storefront silently fell back to hardcoded defaults, so nothing an admin
+-- saved ever reached the site.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies
+                   WHERE tablename = 'store_settings' AND policyname = 'Public read store_settings') THEN
+        CREATE POLICY "Public read store_settings" ON store_settings FOR SELECT
+            USING (true);
+    END IF;
+END $$;
+

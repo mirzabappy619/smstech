@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin, errorResponse } from '@/lib/api-utils';
 import { generateInvoicePdf } from '@/lib/pdf/invoice';
+import { getStoreSettings } from '@/lib/get-store-name';
 
 export const runtime = 'nodejs';
 
@@ -29,38 +30,32 @@ export async function GET(
 	// Fetch order items
 	const { data: items, error: itemsError } = await supabase
 		.from('order_items')
-		.select('id, name, sku, quantity, unit_price, total_price, variation_id, product_variations(name)')
+		.select('id, product_name, variation_name, quantity, unit_price, total, serial_number, imei_1, warranty_period')
 		.eq('order_id', orderId);
 
 	if (itemsError) {
 		return errorResponse('ITEMS_FETCH_FAILED', 'Failed to fetch order items', 500);
 	}
 
-	// Fetch customer data
-	let userData = null;
-	if (order.user_id) {
-		const { data } = await supabase
-			.from('users')
-			.select('first_name, last_name, email, phone')
-			.eq('id', order.user_id)
-			.single();
-		userData = data;
-	}
+	// Orders carry the customer's details directly; there is no user_id column.
+	const customer = {
+		name: order.customer_name || '',
+		email: order.customer_email || '',
+		phone: order.customer_phone || '',
+	};
 
-	// Fetch store settings
-	const { data: settings } = await supabase
-		.from('store_settings')
-		.select('store_name, store_address, store_email, store_phone')
-		.single();
+	const settings = await getStoreSettings();
 
 	// Format items for PDF
 	const formattedItems = (items || []).map((item: any) => ({
-		name: item.name,
-		variation_name: item.product_variations?.name || null,
-		sku: item.sku,
+		name: item.product_name,
+		variation_name: item.variation_name || null,
 		quantity: item.quantity,
 		unit_price: item.unit_price,
-		total_price: item.total_price,
+		total_price: item.total,
+		serial_number: item.serial_number,
+		imei_1: item.imei_1,
+		warranty_period: item.warranty_period,
 	}));
 
 	try {
@@ -69,21 +64,29 @@ export async function GET(
 				order_number: order.order_number,
 				created_at: order.created_at,
 				payment_method: order.payment_method,
-				customer: userData,
-				shipping_address: order.shipping_address,
+				payment_breakdown: order.payment_breakdown || undefined,
+				customer,
+				shipping_address: {
+					name: order.customer_name || '',
+					address_line1: order.address_line1 || '',
+					city: order.city || '',
+					phone: order.customer_phone || '',
+					email: order.customer_email || '',
+				},
 				items: formattedItems,
 				subtotal: order.subtotal || 0,
-				tax_amount: order.tax_amount || 0,
 				shipping_amount: order.shipping_amount || 0,
 				discount_amount: order.discount_amount || 0,
-				total_amount: order.total_amount ?? order.total ?? 0,
-				currency: 'BDT',
+				advance_deducted: order.advance_deducted || 0,
+				due_amount: order.due_amount || 0,
+				total: order.total ?? 0,
+				currency: settings.store_currency || 'BDT',
 			},
 			{
-				store_name: settings?.store_name || 'SMSTech BD',
-				store_address: settings?.store_address || '',
-				store_email: settings?.store_email || '',
-				store_phone: settings?.store_phone || '',
+				store_name: settings.store_name,
+				store_address: settings.store_address,
+				store_email: settings.store_email,
+				store_phone: settings.store_phone,
 			}
 		);
 

@@ -1,6 +1,7 @@
 // Next.js Middleware for Authentication and Protection
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAdminPanelRole } from "@/lib/rbac/roles";
 
 // Routes that require authentication
 const protectedRoutes = ["/account", "/wishlist"];
@@ -8,22 +9,9 @@ const protectedRoutes = ["/account", "/wishlist"];
 // Routes that require admin role
 const adminRoutes = ["/admin"];
 
-// Roles allowed into the admin panel. This must stay in step with the
-// allow-list in src/app/admin/layout.tsx and requireAdmin() in lib/api-utils —
-// the proxy runs first, so anything missing here can never reach either.
-// Restricting this to admin/owner previously locked cashiers, branch managers,
-// inventory managers and accountants out of the screens built for them.
-const ADMIN_PANEL_ROLES = [
-	"owner",
-	"admin",
-	"branch_manager",
-	"cashier",
-	"inventory_manager",
-	"accountant",
-	"delivery_agent",
-	"staff",
-	"manager",
-];
+// Roles allowed into the admin panel. Shared with the /admin layout and
+// requireAdmin() so the three gates cannot drift apart; the proxy runs first,
+// so anything missing there can never reach either of the others.
 
 // Routes that require owner role
 const ownerRoutes = ["/owner"];
@@ -162,7 +150,7 @@ export async function proxy(request: NextRequest) {
 		// Admin routes require a staff role. Finer-grained permission checks
 		// happen per-route; this gate only keeps storefront customers out.
 		if (isAdminRoute || isAdminApiRoute) {
-			if (!ADMIN_PANEL_ROLES.includes(userRole)) {
+			if (!isAdminPanelRole(userRole)) {
 				if (pathname.startsWith("/api/")) {
 					return NextResponse.json(
 						{ success: false, error: "Forbidden" },

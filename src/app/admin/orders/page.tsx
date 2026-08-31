@@ -157,7 +157,7 @@ export default function AdminOrdersPage() {
 			const result = await response.json();
 			if (result && result.success && Array.isArray(result.data)) {
 				setOrders(result.data || []);
-				setTotalOrders(result.pagination?.total ?? result.data?.length ?? 0);
+				setTotalOrders(result.meta?.total ?? result.data?.length ?? 0);
 			} else {
 				setOrders([]);
 				setTotalOrders(0);

@@ -1,10 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import {
+	DEFAULT_STORE_SETTINGS,
+	readStoreSettings,
+} from "@/lib/store-settings";
 
 export interface StoreSettings {
 	store_name: string;
 	store_email: string;
 	store_phone: string;
 	store_address: string;
+	store_currency: string;
 	social_facebook: string;
 	social_instagram: string;
 	social_twitter: string;
@@ -12,35 +17,35 @@ export interface StoreSettings {
 
 export async function getStoreSettings(): Promise<StoreSettings> {
 	const defaults: StoreSettings = {
-		store_name: "SMS Tech BD",
-		store_email: "info@smstech.bd",
-		store_phone: "01781485588",
-		store_address: "",
-		social_facebook: "",
-		social_instagram: "",
-		social_twitter: "",
+		store_name: DEFAULT_STORE_SETTINGS.store_name,
+		store_email: DEFAULT_STORE_SETTINGS.store_email,
+		store_phone: DEFAULT_STORE_SETTINGS.store_phone,
+		store_address: DEFAULT_STORE_SETTINGS.store_address,
+		store_currency: DEFAULT_STORE_SETTINGS.store_currency,
+		social_facebook: DEFAULT_STORE_SETTINGS.social_facebook,
+		social_instagram: DEFAULT_STORE_SETTINGS.social_instagram,
+		social_twitter: DEFAULT_STORE_SETTINGS.social_twitter,
 	};
+
 	try {
 		const supabase = await createAdminClient();
-		const { data } = await supabase
-			.from("store_settings")
-			.select("store_name, store_email, store_phone, store_address, social_facebook, social_instagram, social_twitter")
-			.single();
-		if (!data) return defaults;
+		const settings = await readStoreSettings(supabase);
 
-		let storeName = (data.store_name || "").trim();
+		// Guard against the placeholder name left over from the old branding.
+		let storeName = (settings.store_name || "").trim();
 		if (!storeName || storeName.toLowerCase().includes("gizmo")) {
-			storeName = "SMS Tech BD";
+			storeName = defaults.store_name;
 		}
 
 		return {
 			store_name: storeName,
-			store_email: data.store_email || defaults.store_email,
-			store_phone: data.store_phone || defaults.store_phone,
-			store_address: data.store_address || defaults.store_address,
-			social_facebook: data.social_facebook || defaults.social_facebook,
-			social_instagram: data.social_instagram || defaults.social_instagram,
-			social_twitter: data.social_twitter || defaults.social_twitter,
+			store_email: settings.store_email || defaults.store_email,
+			store_phone: settings.store_phone || defaults.store_phone,
+			store_address: settings.store_address || defaults.store_address,
+			store_currency: settings.store_currency || defaults.store_currency,
+			social_facebook: settings.social_facebook || defaults.social_facebook,
+			social_instagram: settings.social_instagram || defaults.social_instagram,
+			social_twitter: settings.social_twitter || defaults.social_twitter,
 		};
 	} catch {
 		return defaults;

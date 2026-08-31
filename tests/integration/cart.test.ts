@@ -69,9 +69,9 @@ describe('Cart API', () => {
 });
 
 describe('Coupons API', () => {
-  describe('POST /api/v1/coupons/validate', () => {
+  describe('POST /api/v1/cart/coupon', () => {
     it('should reject invalid coupon code', async () => {
-      const response = await fetch(`${BASE_URL}/api/v1/coupons/validate`, {
+      const response = await fetch(`${BASE_URL}/api/v1/cart/coupon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,7 +85,7 @@ describe('Coupons API', () => {
     });
 
     it('should reject validation without code', async () => {
-      const response = await fetch(`${BASE_URL}/api/v1/coupons/validate`, {
+      const response = await fetch(`${BASE_URL}/api/v1/cart/coupon`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

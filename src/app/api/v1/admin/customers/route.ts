@@ -6,6 +6,7 @@ import {
 	paginatedResponse,
 	requireAdmin,
 } from "@/lib/api-utils";
+import { splitFullName } from "@/lib/name";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -26,14 +27,14 @@ export async function GET(request: NextRequest) {
 		let query = supabase
 			.from("users")
 			.select(
-				"id, auth_id, first_name, last_name, email, phone, role, metadata, created_at",
+				"id, auth_id, full_name, email, phone, role, metadata, created_at",
 				{ count: "exact" }
 			)
 			.order("created_at", { ascending: false });
 
 		if (search) {
 			query = query.or(
-				`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
+				`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
 			);
 		}
 
@@ -55,11 +56,12 @@ export async function GET(request: NextRequest) {
 		// Map metadata fields and calculate order stats
 		let formattedCustomers = (users || []).map((user) => {
 			const meta = (user.metadata as Record<string, any>) || {};
+			const { first_name, last_name } = splitFullName(user.full_name);
 			return {
 				id: user.id,
 				auth_id: user.auth_id,
-				first_name: user.first_name || "",
-				last_name: user.last_name || "",
+				first_name,
+				last_name,
 				email: user.email || "",
 				phone: user.phone || null,
 				role: user.role || "customer",

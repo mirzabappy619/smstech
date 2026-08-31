@@ -85,3 +85,32 @@ export const SYSTEM_ROLES: Record<string, SystemRoleDefinition> = {
 		level: 10,
 	},
 };
+
+// ============================================================================
+// Admin panel access
+// ============================================================================
+
+/**
+ * Roles allowed into /admin and the admin API.
+ *
+ * Three layers gate the admin panel and they must agree, because each one can
+ * only ever narrow the previous: `proxy.ts` runs first, then the `/admin`
+ * layout, then `requireAdmin()` on each API route. All three import this list.
+ */
+export const ADMIN_PANEL_ROLES = [
+	"owner",
+	"admin",
+	"branch_manager",
+	"cashier",
+	"inventory_manager",
+	"accountant",
+	"delivery_agent",
+	"staff",
+	"manager",
+] as const;
+
+export type AdminPanelRole = (typeof ADMIN_PANEL_ROLES)[number];
+
+export function isAdminPanelRole(role: string | null | undefined): boolean {
+	return !!role && (ADMIN_PANEL_ROLES as readonly string[]).includes(role);
+}
