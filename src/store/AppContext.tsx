@@ -81,6 +81,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [compareList, isLoaded])
 
   const addToCart = useCallback((product: Product, variant?: string) => {
+    // Pre-order products are sold through the pre-booking queue, not the cart.
+    // The UI hides Add to Cart for them; this stops stale carts and any other
+    // call site from slipping one through.
+    if (product.isPreorder) return
+
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id && i.variant === variant)
       if (existing) {

@@ -152,6 +152,9 @@ export interface Database {
           seo_description: string | null;
           is_active: boolean;
           is_featured: boolean;
+          is_preorder: boolean;
+          preorder_release_date: string | null;
+          preorder_deposit_pct: number;
           weight: number | null;
           dimensions: Json | null;
           created_at: string;
@@ -176,6 +179,9 @@ export interface Database {
           seo_description?: string | null;
           is_active?: boolean;
           is_featured?: boolean;
+          is_preorder?: boolean;
+          preorder_release_date?: string | null;
+          preorder_deposit_pct?: number;
           weight?: number | null;
           dimensions?: Json | null;
           created_at?: string;
@@ -199,6 +205,9 @@ export interface Database {
           seo_description?: string | null;
           is_active?: boolean;
           is_featured?: boolean;
+          is_preorder?: boolean;
+          preorder_release_date?: string | null;
+          preorder_deposit_pct?: number;
           weight?: number | null;
           dimensions?: Json | null;
           updated_at?: string;

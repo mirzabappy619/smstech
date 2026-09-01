@@ -20,6 +20,11 @@ export default function ProductCard({ product, compact }: Props) {
     <div className="group relative bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg hover:shadow-blue-50 dark:hover:shadow-none transition-all duration-300 flex flex-col">
       {/* Badges */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1">
+        {product.isPreorder && (
+          <span className="text-[10px] font-700 uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-500 text-white">
+            Pre-Order
+          </span>
+        )}
         {product.badges.slice(0, 2).map((b) => (
           <span
             key={b}
@@ -80,7 +85,11 @@ export default function ProductCard({ product, compact }: Props) {
 
         {/* Availability */}
         <div className="flex items-center gap-2 text-xs">
-          {product.stock === 'out_of_stock' ? (
+          {product.isPreorder ? (
+            <span className="text-amber-600 dark:text-amber-400 font-600">
+              Pre-Order{product.preorderReleaseDate ? ` · ${new Date(product.preorderReleaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+            </span>
+          ) : product.stock === 'out_of_stock' ? (
             <span className="text-red-500 dark:text-red-400 font-500">Out of Stock</span>
           ) : product.stock === 'low_stock' ? (
             <span className="text-amber-600 dark:text-amber-400 font-600">Only {product.stockCount} left</span>
@@ -103,7 +112,14 @@ export default function ProductCard({ product, compact }: Props) {
 
         {/* Actions */}
         <div className="flex gap-2 mt-2">
-          {product.stock === 'out_of_stock' ? (
+          {product.isPreorder ? (
+            <Link
+              href={`/product/${product.slug}`}
+              className="flex-1 py-2 text-sm font-600 bg-amber-500 text-white rounded-xl text-center hover:bg-amber-600 active:scale-95 transition-all"
+            >
+              Pre-Order
+            </Link>
+          ) : product.stock === 'out_of_stock' ? (
             <button className="flex-1 py-2 text-sm font-600 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-600 dark:text-slate-300 hover:border-blue-400 transition-colors">
               Notify Me
             </button>

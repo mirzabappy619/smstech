@@ -12,6 +12,7 @@ interface Product {
 	images: string[];
 	is_active: boolean;
 	is_featured: boolean;
+	is_preorder: boolean;
 	category: { id: string; name: string } | null;
 	created_at: string;
 }
@@ -424,6 +425,11 @@ export default function AdminProductsPage() {
 																	Featured
 																</span>
 															)}
+															{product.is_preorder && (
+																<span className="px-1.5 py-0.5 text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 rounded shrink-0">
+																	Pre-Order
+																</span>
+															)}
 														</div>
 													</div>
 												</div>
@@ -534,6 +540,11 @@ export default function AdminProductsPage() {
 												{product.is_featured && (
 													<span className="px-1.5 py-0.2 text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded">
 														Featured
+													</span>
+												)}
+												{product.is_preorder && (
+													<span className="px-1.5 py-0.2 text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 rounded">
+														Pre-Order
 													</span>
 												)}
 											</div>

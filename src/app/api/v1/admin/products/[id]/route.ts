@@ -69,6 +69,14 @@ const updateProductSchema = z.object({
   is_featured: z.boolean().optional(),
   is_digital: z.boolean().optional(),
   track_inventory: z.boolean().optional(),
+  // Pre-order mode: sold through the pre-booking queue instead of the cart
+  is_preorder: z.boolean().optional(),
+  preorder_release_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+    .nullable()
+    .optional(),
+  preorder_deposit_pct: z.number().gt(0).max(100).optional(),
   seo_title: z.string().trim().max(70).nullable().optional(),
   seo_description: z.string().trim().max(160).nullable().optional(),
   seo_keywords: z.string().trim().optional(),
@@ -211,6 +219,11 @@ export async function PUT(
       updatePayload.requires_shipping = !rest.is_digital;
     }
     if (track_inventory !== undefined) updatePayload.track_inventory = track_inventory;
+    if (rest.is_preorder !== undefined) updatePayload.is_preorder = rest.is_preorder;
+    if (Object.prototype.hasOwnProperty.call(rest, "preorder_release_date"))
+      updatePayload.preorder_release_date = rest.preorder_release_date || null;
+    if (rest.preorder_deposit_pct !== undefined)
+      updatePayload.preorder_deposit_pct = rest.preorder_deposit_pct;
     if (Object.prototype.hasOwnProperty.call(rest, "seo_title"))
       updatePayload.seo_title = rest.seo_title ?? null;
     if (Object.prototype.hasOwnProperty.call(rest, "seo_description"))

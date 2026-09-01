@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
 		const productIds = [...new Set(items.map((i) => i.product_id))];
 		const { data: products, error: productsError } = await adminSupabase
 			.from("products")
-			.select("id, name, sku, base_price, product_variations(id, name, sku, price)")
+			.select("id, name, sku, base_price, is_preorder, product_variations(id, name, sku, price)")
 			.in("id", productIds);
 
 		if (productsError || !products) {
@@ -253,6 +253,17 @@ export async function POST(request: NextRequest) {
 				"PRODUCTS_FETCH_FAILED",
 				"Failed to fetch products",
 				500,
+			);
+		}
+
+		// Pre-order products are reserved through /api/v1/pre-bookings with a
+		// deposit; they must never enter a normal order.
+		const preorderItems = products.filter((p) => p.is_preorder);
+		if (preorderItems.length > 0) {
+			return errorResponse(
+				"PREORDER_NOT_ORDERABLE",
+				`${preorderItems.map((p) => p.name).join(", ")} ${preorderItems.length > 1 ? "are" : "is"} pre-order only. Please reserve with a deposit from the product page.`,
+				400,
 			);
 		}
 

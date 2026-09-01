@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRBAC } from "@/lib/rbac/rbac-context";
 
 interface DashboardStats {
 	totalOrders: number;
@@ -52,18 +53,12 @@ interface DashboardData {
 	lowStockProducts: LowStockProduct[];
 }
 
-interface Warehouse {
-	id: string;
-	name: string;
-	code: string;
-}
-
 const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
 
 export default function AdminDashboard() {
+	// Branch scope comes from the global switcher in the admin header (no local picker)
+	const { activeBranch } = useRBAC();
 	const [data, setData] = useState<DashboardData | null>(null);
-	const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-	const [selectedBranch, setSelectedBranch] = useState("all");
 	const [loading, setLoading] = useState(true);
 	// error state
 
@@ -71,24 +66,18 @@ export default function AdminDashboard() {
 		try {
 			// clear error
 			const params = new URLSearchParams();
-			if (selectedBranch !== "all") params.append("warehouse_id", selectedBranch);
+			if (activeBranch) params.append("warehouse_id", activeBranch.id);
 
-			const [dashRes, whRes] = await Promise.all([
-				fetch(`/api/v1/admin/dashboard?${params}`),
-				fetch("/api/v1/admin/warehouses")
-			]);
-
+			const dashRes = await fetch(`/api/v1/admin/dashboard?${params}`);
 			const dashJson = await dashRes.json();
-			const whJson = await whRes.json();
 
 			if (dashJson.success) setData(dashJson.data);
-			if (whJson.success) setWarehouses(whJson.data || []);
 		} catch (err: any) {
 			// handle error
 		} finally {
 			setLoading(false);
 		}
-	}, [selectedBranch]);
+	}, [activeBranch]);
 
 	useEffect(() => {
 		fetchDashboard();
@@ -106,32 +95,21 @@ export default function AdminDashboard() {
 
 	return (
 		<div className="space-y-6">
-			{/* Top Bar with Branch Filter */}
+			{/* Top Bar — branch scope is set by the switcher in the admin header */}
 			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 				<div>
 					<h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
 						Executive & Multi-Branch Dashboard
 					</h1>
 					<p className="text-xs text-zinc-500 mt-1">
-						Real-time revenue, gross profit after COGS, cash shifts, and party ledger metrics.
+						{activeBranch
+							? `Showing ${activeBranch.name} (${activeBranch.code}) — `
+							: "Showing all branches (consolidated) — "}
+						real-time revenue, gross profit after COGS, cash shifts, and party ledger metrics.
 					</p>
 				</div>
 
 				<div className="flex items-center gap-3">
-					<div className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 rounded-xl">
-						<span className="text-xs text-zinc-500 font-bold">Branch View:</span>
-						<select
-							value={selectedBranch}
-							onChange={e => setSelectedBranch(e.target.value)}
-							className="bg-transparent text-xs font-black text-zinc-900 dark:text-white focus:outline-none"
-						>
-							<option value="all">🏢 Global Enterprise (All Branches)</option>
-							{warehouses.map(w => (
-								<option key={w.id} value={w.id}>{w.name} ({w.code})</option>
-							))}
-						</select>
-					</div>
-
 					<Link
 						href="/admin/pos"
 						className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-600/30 flex items-center gap-1.5"

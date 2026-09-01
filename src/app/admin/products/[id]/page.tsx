@@ -58,6 +58,9 @@ interface Product {
   is_featured: boolean;
   is_digital: boolean;
   track_inventory: boolean;
+  is_preorder: boolean;
+  preorder_release_date: string | null;
+  preorder_deposit_pct: number | null;
   seo_title: string | null;
   seo_description: string | null;
   seo_keywords: string | string[] | null;
@@ -131,6 +134,9 @@ export default function EditProductPage() {
     is_featured: false,
     is_digital: false,
     track_inventory: false,
+    is_preorder: false,
+    preorder_release_date: "",
+    preorder_deposit_pct: "10",
     seo_title: "",
     seo_description: "",
     seo_keywords: "",
@@ -313,6 +319,9 @@ export default function EditProductPage() {
           is_featured: p.is_featured ?? false,
           is_digital: p.is_digital ?? false,
           track_inventory: p.track_inventory ?? false,
+          is_preorder: p.is_preorder ?? false,
+          preorder_release_date: p.preorder_release_date || "",
+          preorder_deposit_pct: (p.preorder_deposit_pct ?? 10).toString(),
           seo_title: p.seo_title || "",
           seo_description: p.seo_description || "",
           seo_keywords: Array.isArray(p.seo_keywords) ? p.seo_keywords.join(", ") : (p.seo_keywords || ""),
@@ -469,6 +478,8 @@ export default function EditProductPage() {
         compare_at_price: formData.compare_at_price ? parseFloat(formData.compare_at_price) : null,
         cost_price: formData.cost_price ? parseFloat(formData.cost_price) : null,
         weight: formData.weight ? parseFloat(formData.weight) : null,
+        preorder_release_date: formData.preorder_release_date || null,
+        preorder_deposit_pct: parseFloat(formData.preorder_deposit_pct) || 10,
         variations: variations.map((v) => ({
           id: v.id.startsWith("temp-") || v.id.startsWith("auto-") ? undefined : v.id,
           name: v.name,
@@ -680,6 +691,65 @@ export default function EditProductPage() {
                     <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
                       ✓ Out-of-stock orders are blocked for this product
                     </p>
+                  )}
+                </div>
+
+                {/* Pre-order toggle */}
+                <div className="pt-4 mt-4 border-t border-gray-200 dark:border-zinc-700">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pre-Order Only</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        Hides Add to Cart and Buy Now on the storefront. Customers reserve a queue slot
+                        with a deposit instead, and the booking appears under Pre-Bookings for allocation.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formData.is_preorder}
+                      onClick={() => setFormData((prev) => ({ ...prev, is_preorder: !prev.is_preorder }))}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${
+                        formData.is_preorder ? "bg-amber-500" : "bg-gray-200 dark:bg-zinc-600"
+                      }`}>
+                      <span
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${
+                          formData.is_preorder ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {formData.is_preorder && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className={lbl}>Expected Release Date</label>
+                        <input
+                          type="date"
+                          name="preorder_release_date"
+                          value={formData.preorder_release_date}
+                          onChange={handleInputChange}
+                          className={input}
+                        />
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Optional. Shown to customers on the product page.</p>
+                      </div>
+                      <div>
+                        <label className={lbl}>Deposit Required (%)</label>
+                        <input
+                          type="number"
+                          name="preorder_deposit_pct"
+                          value={formData.preorder_deposit_pct}
+                          onChange={handleInputChange}
+                          step="0.5"
+                          min="0.5"
+                          max="100"
+                          className={input}
+                        />
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          Advance paid to hold a queue slot. 100% = full prepayment.
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

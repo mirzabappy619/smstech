@@ -21,6 +21,9 @@ export type Product = {
   colors?: string[]
   variants?: { label: string; price: number }[]
   isNew?: boolean
+  isPreorder?: boolean
+  preorderReleaseDate?: string | null
+  preorderDepositPct?: number
 }
 
 export function normalizeProduct(p: any): Product {
@@ -90,6 +93,9 @@ export function normalizeProduct(p: any): Product {
     colors: parsedColors,
     variants,
     isNew: Boolean(p.is_new ?? p.isNew ?? false),
+    isPreorder: Boolean(p.is_preorder ?? p.isPreorder ?? false),
+    preorderReleaseDate: p.preorder_release_date ?? p.preorderReleaseDate ?? null,
+    preorderDepositPct: Number(p.preorder_deposit_pct ?? p.preorderDepositPct ?? 10),
   }
 }
 

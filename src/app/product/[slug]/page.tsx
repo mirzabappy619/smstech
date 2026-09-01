@@ -110,7 +110,14 @@ export default function ProductDetail() {
   const currentPrice = conditionGrade === 'pre_owned_a_plus' ? Math.round(rawPrice * 0.82) : rawPrice
   const originalPrice = conditionGrade === 'pre_owned_a_plus' ? rawPrice : product.originalPrice
   const discount = Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
-  const requiredAdvance = Math.round(currentPrice * 0.10) // 10% advance deposit for pre-booking
+
+  // Pre-order is a per-product setting; the deposit percentage comes with it
+  const isPreorder = Boolean(product.isPreorder)
+  const depositPct = Number(product.preorderDepositPct) || 10
+  const requiredAdvance = Math.round(currentPrice * (depositPct / 100))
+  const releaseDate = product.preorderReleaseDate
+    ? new Date(product.preorderReleaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
 
   const tabs = ['Overview', 'Specifications', 'Store Availability', 'Reviews', 'Warranty Terms']
 
@@ -324,28 +331,46 @@ export default function ProductDetail() {
 
           {/* Actions & Pre-Booking Option */}
           <div className="flex flex-col gap-3 pt-2">
-            <button
-              onClick={() => addToCart(product, `${product.variants?.[selectedVariant]?.label || ''} (${conditionGrade === 'pre_owned_a_plus' ? 'Pre-Owned A+' : 'Brand New'})`)}
-              className="py-3.5 font-700 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all text-sm shadow-md"
-            >
-              Add to Cart · {fmt(currentPrice)}
-            </button>
+            {isPreorder ? (
+              <>
+                <div className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
+                  <p className="text-sm font-700 text-amber-800 dark:text-amber-300">⏳ Pre-Order Item</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400/90 mt-1">
+                    {releaseDate
+                      ? `Not in stock yet — expected ${releaseDate}. `
+                      : 'Not in stock yet. '}
+                    Reserve your unit with a {depositPct}% deposit and we will allocate stock by queue position on arrival.
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Link
-                href="/checkout"
-                onClick={() => addToCart(product, `${product.variants?.[selectedVariant]?.label || ''} (${conditionGrade === 'pre_owned_a_plus' ? 'Pre-Owned A+' : 'Brand New'})`)}
-                className="py-3 font-700 border-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-500 rounded-xl text-center hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-colors text-xs"
-              >
-                ⚡ Buy Now (Express)
-              </Link>
-              <button
-                onClick={() => setShowPreBookingModal(true)}
-                className="py-3 font-700 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-center transition-colors text-xs shadow-sm"
-              >
-                ⏳ Pre-Book with Deposit ({fmt(requiredAdvance)})
-              </button>
-            </div>
+                <button
+                  onClick={() => setShowPreBookingModal(true)}
+                  className="py-3.5 font-700 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors text-sm shadow-md"
+                >
+                  ⏳ Pre-Book Now · Deposit {fmt(requiredAdvance)}
+                </button>
+                <p className="text-xs text-slate-500 dark:text-slate-400 text-center -mt-1">
+                  Remaining {fmt(currentPrice - requiredAdvance)} payable on delivery. Deposit is refundable until allocation.
+                </p>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => addToCart(product, `${product.variants?.[selectedVariant]?.label || ''} (${conditionGrade === 'pre_owned_a_plus' ? 'Pre-Owned A+' : 'Brand New'})`)}
+                  className="py-3.5 font-700 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all text-sm shadow-md"
+                >
+                  Add to Cart · {fmt(currentPrice)}
+                </button>
+
+                <Link
+                  href="/checkout"
+                  onClick={() => addToCart(product, `${product.variants?.[selectedVariant]?.label || ''} (${conditionGrade === 'pre_owned_a_plus' ? 'Pre-Owned A+' : 'Brand New'})`)}
+                  className="py-3 font-700 border-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-500 rounded-xl text-center hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-colors text-xs"
+                >
+                  ⚡ Buy Now (Express)
+                </Link>
+              </>
+            )}
 
             <div className="flex gap-2">
               <button
@@ -471,9 +496,15 @@ export default function ProductDetail() {
                     <span className="font-bold">{fmt(currentPrice)}</span>
                   </div>
                   <div className="flex justify-between text-emerald-600 font-extrabold">
-                    <span>Advance Deposit (10%):</span>
+                    <span>Advance Deposit ({depositPct}%):</span>
                     <span>{fmt(requiredAdvance)}</span>
                   </div>
+                  {releaseDate && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Expected Availability:</span>
+                      <span className="font-bold">{releaseDate}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 text-xs">

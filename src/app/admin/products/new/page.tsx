@@ -90,6 +90,9 @@ export default function NewProductPage() {
 		is_active: true,
 		is_featured: false,
 		is_digital: false,
+		is_preorder: false,
+		preorder_release_date: "",
+		preorder_deposit_pct: "10",
 		seo_title: "",
 		seo_description: "",
 		seo_keywords: "",
@@ -483,6 +486,8 @@ export default function NewProductPage() {
 					? parseFloat(formData.cost_price)
 					: null,
 				weight: formData.weight ? parseFloat(formData.weight) : null,
+				preorder_release_date: formData.preorder_release_date || null,
+				preorder_deposit_pct: parseFloat(formData.preorder_deposit_pct) || 10,
 				variations: normalizedVariations,
 				images,
 				trust_badges: trustBadges,
@@ -871,6 +876,53 @@ export default function NewProductPage() {
 										Digital product (no shipping required)
 									</span>
 								</label>
+
+								<div className="pt-4 border-t border-gray-200 dark:border-zinc-700">
+									<label className="flex items-center gap-3">
+										<input
+											type="checkbox"
+											name="is_preorder"
+											checked={formData.is_preorder}
+											onChange={handleInputChange}
+											className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+										/>
+										<span className="text-sm text-zinc-900 dark:text-zinc-100">
+											Pre-order only (deposit booking instead of Add to Cart)
+										</span>
+									</label>
+
+									{formData.is_preorder && (
+										<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+											<div>
+												<label className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-1">
+													Expected Release Date
+												</label>
+												<input
+													type="date"
+													name="preorder_release_date"
+													value={formData.preorder_release_date}
+													onChange={handleInputChange}
+													className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm"
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-1">
+													Deposit Required (%)
+												</label>
+												<input
+													type="number"
+													name="preorder_deposit_pct"
+													value={formData.preorder_deposit_pct}
+													onChange={handleInputChange}
+													step="0.5"
+													min="0.5"
+													max="100"
+													className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm"
+												/>
+											</div>
+										</div>
+									)}
+								</div>
 							</div>
 						</div>
 					</div>

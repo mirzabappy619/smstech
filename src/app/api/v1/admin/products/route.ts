@@ -66,6 +66,14 @@ const adminCreateProductSchema = z.object({
 	is_featured: z.boolean().default(false),
 	is_digital: z.boolean().default(false),
 	track_inventory: z.boolean().default(false),
+	// Pre-order mode: sold through the pre-booking queue instead of the cart
+	is_preorder: z.boolean().default(false),
+	preorder_release_date: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+		.nullable()
+		.optional(),
+	preorder_deposit_pct: z.number().gt(0).max(100).default(10),
 	seo_title: z.string().trim().max(70).optional().default(""),
 	seo_description: z.string().trim().max(160).optional().default(""),
 	seo_keywords: z.string().trim().optional().default(""),
@@ -190,6 +198,7 @@ export async function POST(request: NextRequest) {
 			.insert({
 				...productFields,
 				barcode: productFields.barcode || null,
+				preorder_release_date: productFields.preorder_release_date || null,
 				short_description: productFields.short_description || null,
 				description: productFields.description || null,
 				seo_title: productFields.seo_title || null,
