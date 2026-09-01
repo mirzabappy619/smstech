@@ -34,7 +34,7 @@ export function normalizeProduct(p: any): Product {
     try { parsedImages = JSON.parse(p.images) } catch { parsedImages = [] }
   }
 
-  let mainImage = p.image || p.image_url || parsedImages[0] || 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=600&h=450&fit=crop&auto=format'
+  const mainImage = p.image || p.image_url || parsedImages[0] || 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=600&h=450&fit=crop&auto=format'
   if (parsedImages.length === 0) {
     parsedImages = [mainImage]
   }

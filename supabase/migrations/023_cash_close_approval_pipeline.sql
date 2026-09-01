@@ -201,7 +201,32 @@ END $$;
 -- the one-open-shift index only covers status='open', so a shift waiting on
 -- approval never blocks the branch from trading.
 
--- ─── 6. Default pipeline ────────────────────────────────────────────────────
+-- ─── 6. RLS ─────────────────────────────────────────────────────────────────
+-- Every read and write goes through admin API routes that run requirePermission
+-- with the service role, so these tables are closed to the anon/authenticated
+-- keys entirely rather than carrying permissive policies.
+
+ALTER TABLE approval_pipelines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approval_pipeline_nodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_close_approvals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_close_approval_actions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role manages approval_pipelines" ON approval_pipelines;
+CREATE POLICY "Service role manages approval_pipelines" ON approval_pipelines
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role manages approval_pipeline_nodes" ON approval_pipeline_nodes;
+CREATE POLICY "Service role manages approval_pipeline_nodes" ON approval_pipeline_nodes
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role manages cash_close_approvals" ON cash_close_approvals;
+CREATE POLICY "Service role manages cash_close_approvals" ON cash_close_approvals
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role manages cash_close_approval_actions" ON cash_close_approval_actions;
+CREATE POLICY "Service role manages cash_close_approval_actions" ON cash_close_approval_actions
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+-- ─── 7. Default pipeline ────────────────────────────────────────────────────
 -- Branch Manager, then Superadmin. Global (every branch) until someone builds
 -- a branch-specific chain in /admin/approvals/pipelines.
 
@@ -229,28 +254,3 @@ BEGIN
     END IF;
 END $$;
 
--- ─── 7. RLS ─────────────────────────────────────────────────────────────────
--- Every read and write goes through admin API routes that run requirePermission
--- with the service role, so these tables are closed to the anon/authenticated
--- keys entirely rather than carrying permissive policies.
-
-ALTER TABLE approval_pipelines ENABLE ROW LEVEL SECURITY;
-ALTER TABLE approval_pipeline_nodes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cash_close_approvals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cash_close_approval_actions ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Service role manages approval_pipelines" ON approval_pipelines;
-CREATE POLICY "Service role manages approval_pipelines" ON approval_pipelines
-    FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role manages approval_pipeline_nodes" ON approval_pipeline_nodes;
-CREATE POLICY "Service role manages approval_pipeline_nodes" ON approval_pipeline_nodes
-    FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role manages cash_close_approvals" ON cash_close_approvals;
-CREATE POLICY "Service role manages cash_close_approvals" ON cash_close_approvals
-    FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Service role manages cash_close_approval_actions" ON cash_close_approval_actions;
-CREATE POLICY "Service role manages cash_close_approval_actions" ON cash_close_approval_actions
-    FOR ALL TO service_role USING (true) WITH CHECK (true);

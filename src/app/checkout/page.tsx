@@ -143,7 +143,16 @@ export default function Checkout() {
         })
       } catch {}
 
-      router.push('/order-success')
+      // Carry the real order number to the confirmation page. It used to be
+      // dropped here and the success page invented a random one, so customers
+      // were shown a reference that matched nothing in the system.
+      const createdOrderNumber =
+        json?.data?.order?.order_number || json?.order?.order_number || ''
+      router.push(
+        createdOrderNumber
+          ? `/order-success?order=${encodeURIComponent(createdOrderNumber)}`
+          : '/order-success',
+      )
     } catch {
       router.push('/order-success')
     } finally {

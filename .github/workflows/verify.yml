@@ -1,0 +1,49 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # Each gate runs even if an earlier one fails, so one push surfaces every
+      # problem rather than only the first.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        if: '!cancelled()'
+        run: npm run lint
+
+      - name: Unit tests
+        if: '!cancelled()'
+        run: npm run test:unit
+
+      # Applies the whole migration chain to a throwaway in-process Postgres and
+      # asserts the schema invariants. Catches SQL that would only fail in the
+      # Supabase editor.
+      - name: Migration tests
+        if: '!cancelled()'
+        run: |
+          npm install --no-save @electric-sql/pglite
+          npm run test:migrations
+
+      - name: Build
+        if: '!cancelled()'
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key

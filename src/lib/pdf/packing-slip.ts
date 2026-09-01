@@ -1,4 +1,4 @@
-const PDFDocument = require('pdfkit');
+import PDFDocument from "pdfkit";
 
 interface PackingSlipItem {
 	name: string;

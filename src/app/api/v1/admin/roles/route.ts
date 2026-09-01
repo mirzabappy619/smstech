@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 	}
 
 	// 2. Fetch role_permissions from DB
-	let dbRolePerms: Record<string, string[]> = {};
+	const dbRolePerms: Record<string, string[]> = {};
 	try {
 		const { data } = await adminSupabase
 			.from("role_permissions")
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 	}
 
 	// 3. Count users per role
-	let userCounts: Record<string, number> = {};
+	const userCounts: Record<string, number> = {};
 	try {
 		const { data } = await adminSupabase.from("users").select("role");
 		if (data) {

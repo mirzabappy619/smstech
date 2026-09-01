@@ -24,6 +24,9 @@ const MIGRATIONS = [
 	"supabase/migrations/019_warehouse_contact_fields.sql",
 	"supabase/migrations/020_storefront_order_and_courier_columns.sql",
 	"supabase/migrations/021_row_level_security_policies.sql",
+	"supabase/migrations/022_product_preorder.sql",
+	"supabase/migrations/023_cash_close_approval_pipeline.sql",
+	"supabase/migrations/024_performance_indexes.sql",
 ];
 
 let passed = 0;
@@ -387,6 +390,127 @@ async function main() {
 	const zones = await db.query(`SELECT COUNT(*)::int AS n FROM delivery_zones`);
 	check("default delivery zones seeded", zones.rows[0].n === 2, `${zones.rows[0].n} zones`);
 
+	// ── Cash close approval pipeline (023) ──────────────────────────────────
+	// The invariant that matters: a chain cannot be topped by anyone but the
+	// superadmin, and the database must hold that line on its own — the API
+	// and the pipeline builder are not the only writers.
+
+	const seeded = await db.query(
+		`SELECT p.id, COUNT(n.id)::int AS steps
+       FROM approval_pipelines p
+       LEFT JOIN approval_pipeline_nodes n ON n.pipeline_id = p.id
+      WHERE p.type = 'cash_close' AND p.warehouse_id IS NULL
+      GROUP BY p.id`,
+	);
+	check(
+		"a default global cash close pipeline is seeded",
+		seeded.rows.length === 1 && seeded.rows[0].steps === 2,
+		`${seeded.rows[0]?.steps ?? 0} steps`,
+	);
+
+	const topRole = await db.query(
+		`SELECT approver_role FROM approval_pipeline_nodes
+      WHERE pipeline_id = $1 ORDER BY step_order DESC LIMIT 1`,
+		[seeded.rows[0].id],
+	);
+	check(
+		"the seeded chain ends at the owner",
+		topRole.rows[0].approver_role === "owner",
+	);
+
+	let nonOwnerTopRefused = false;
+	try {
+		await db.exec("BEGIN");
+		// Branch-scoped: a second *global* pipeline is refused by the
+		// one-active-global index before the trigger is ever reached.
+		await db.query(
+			`INSERT INTO approval_pipelines (id, name, type, warehouse_id)
+       VALUES ('ccc00000-0000-0000-0000-000000000001','Bad Chain','cash_close',
+               (SELECT id FROM warehouses ORDER BY code LIMIT 1))`,
+		);
+		await db.query(
+			`INSERT INTO approval_pipeline_nodes (pipeline_id, step_order, name, approver_role)
+       VALUES ('ccc00000-0000-0000-0000-000000000001', 1, 'Manager Only', 'branch_manager')`,
+		);
+		await db.exec("COMMIT");
+	} catch (err) {
+		nonOwnerTopRefused = /must be the owner|superadmin/i.test(err.message);
+		await db.exec("ROLLBACK").catch(() => {});
+	}
+	check("a chain not ending at the owner is refused", nonOwnerTopRefused);
+
+	// The trigger is deferred, so building a chain bottom-up inside one
+	// transaction must succeed even though intermediate states look illegal.
+	let multiStepAccepted = false;
+	try {
+		await db.exec("BEGIN");
+		await db.query(
+			`INSERT INTO approval_pipelines (id, name, type, warehouse_id)
+       VALUES ('ccc00000-0000-0000-0000-000000000002','Long Chain','cash_close',
+               (SELECT id FROM warehouses ORDER BY code OFFSET 1 LIMIT 1))`,
+		);
+		await db.query(
+			`INSERT INTO approval_pipeline_nodes (pipeline_id, step_order, name, approver_role)
+       VALUES ('ccc00000-0000-0000-0000-000000000002', 1, 'Cashier Check', 'cashier'),
+              ('ccc00000-0000-0000-0000-000000000002', 2, 'Manager Review', 'branch_manager'),
+              ('ccc00000-0000-0000-0000-000000000002', 3, 'Accounts', 'accountant'),
+              ('ccc00000-0000-0000-0000-000000000002', 4, 'Superadmin', 'owner')`,
+		);
+		await db.exec("COMMIT");
+		multiStepAccepted = true;
+	} catch {
+		await db.exec("ROLLBACK").catch(() => {});
+	}
+	check("a four-step chain ending at the owner is accepted", multiStepAccepted);
+
+	let bothApproversRefused = false;
+	try {
+		await db.query(
+			`INSERT INTO approval_pipeline_nodes (pipeline_id, step_order, name, approver_role, approver_user_id)
+       VALUES ('ccc00000-0000-0000-0000-000000000002', 9, 'Ambiguous', 'accountant', gen_random_uuid())`,
+		);
+	} catch (err) {
+		bothApproversRefused = /single_approver|check constraint|foreign key/i.test(err.message);
+	}
+	check("a step naming both a role and a user is refused", bothApproversRefused);
+
+	const shiftStates = await db.query(
+		`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+      WHERE conname = 'pos_shifts_status_check'`,
+	);
+	check(
+		"shifts can sit in pending_approval",
+		/pending_approval/.test(shiftStates.rows[0]?.def || ""),
+	);
+
+	// A close awaiting approval must not block the branch from trading, or the
+	// next cashier cannot open the register.
+	await db.query(
+		`INSERT INTO warehouses (name, code) VALUES ('Approval Test Branch','APRV-T')
+     ON CONFLICT (code) DO NOTHING`,
+	);
+	const branchId = (
+		await db.query(`SELECT id FROM warehouses WHERE code = 'APRV-T'`)
+	).rows[0].id;
+	await db.query(
+		`INSERT INTO pos_shifts (shift_number, warehouse_id, opening_float, status, closed_at)
+     VALUES ('SHIFT-PEND', $1, 1000, 'pending_approval', NOW())`,
+		[branchId],
+	);
+	let openedAlongsidePending = false;
+	try {
+		await db.query(
+			`INSERT INTO pos_shifts (shift_number, warehouse_id, opening_float, status)
+       VALUES ('SHIFT-NEXT', $1, 500, 'open')`,
+			[branchId],
+		);
+		openedAlongsidePending = true;
+	} catch { /* blocked */ }
+	check(
+		"a shift awaiting approval does not block the next one",
+		openedAlongsidePending,
+	);
+
 	// Re-running must be a no-op, not an error.
 	console.log("\n\x1b[1mIdempotency\x1b[0m");
 	for (const file of [
@@ -395,6 +519,9 @@ async function main() {
 	"supabase/migrations/019_warehouse_contact_fields.sql",
 	"supabase/migrations/020_storefront_order_and_courier_columns.sql",
 	"supabase/migrations/021_row_level_security_policies.sql",
+	"supabase/migrations/022_product_preorder.sql",
+	"supabase/migrations/023_cash_close_approval_pipeline.sql",
+		"supabase/migrations/024_performance_indexes.sql",
 	]) {
 		try {
 			await db.exec(fs.readFileSync(file, "utf8"));

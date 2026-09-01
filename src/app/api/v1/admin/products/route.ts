@@ -7,6 +7,7 @@ import {
 	requireAdmin,
 	successResponse,
 	validateRequest,
+	parsePagination
 } from "@/lib/api-utils";
 
 const adminProductVariationSchema = z.object({
@@ -101,13 +102,9 @@ export async function GET(request: NextRequest) {
 
 		const { searchParams } = new URL(request.url);
 		const search = searchParams.get("search") || "";
-		const limit = parseInt(searchParams.get("limit") || "20");
-		const page = parseInt(searchParams.get("page") || "1");
-		const offset = (page - 1) * limit;
+		const { page, limit, offset } = parsePagination(searchParams);
 
 		const supabase = await createAdminClient();
-
-		console.log("Attempting to query products with search:", search);
 
 		// Build query with correct column names
 		let query = supabase
@@ -128,17 +125,9 @@ export async function GET(request: NextRequest) {
 			.order("created_at", { ascending: false })
 			.range(offset, offset + limit - 1);
 
-		console.log("Executing query...");
 		const { data: products, error, count } = await query;
-		console.log("Query result:", {
-			productsCount: products?.length,
-			error,
-			count,
-		});
-
 		if (error) {
-			console.error("Error fetching products:", error);
-			console.error("Error details:", JSON.stringify(error, null, 2));
+			console.error("Failed to fetch products:", error.message);
 			return errorResponse(
 				"PRODUCTS_FETCH_FAILED",
 				`Failed to fetch products: ${error.message}`,

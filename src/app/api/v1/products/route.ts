@@ -6,6 +6,7 @@ import {
 	validationErrorResponse,
 	paginatedResponse,
 	withAuth,
+	parsePagination
 } from "@/lib/api-utils";
 import { productSchema } from "@/lib/schemas";
 import { allProducts } from "@/data/products";
@@ -13,8 +14,10 @@ import { allProducts } from "@/data/products";
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
-		const page = parseInt(searchParams.get("page") || "1");
-		const limit = parseInt(searchParams.get("limit") || "50");
+		const { page, limit } = parsePagination(searchParams, {
+			defaultLimit: 50,
+			maxLimit: 100,
+		});
 		const search = searchParams.get("search");
 		const featured = searchParams.get("featured");
 		const category = searchParams.get("category") || searchParams.get("category_id") || searchParams.get("cat");

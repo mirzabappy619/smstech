@@ -151,8 +151,10 @@ export async function POST(request: NextRequest) {
 			return validationErrorResponse(validation.error);
 		}
 
-		let {
-			items,
+		// `items` is the only one reassigned below (it falls back to the cart
+		// when the request omits it), so the rest stay const.
+		let { items } = validation.data;
+		const {
 			shipping_address,
 			billing_address,
 			shipping_method,
@@ -161,8 +163,8 @@ export async function POST(request: NextRequest) {
 			notes,
 			source,
 			create_payment_intent,
-		fbc,
-		fbp,
+			fbc,
+			fbp,
 		} = validation.data;
 
 		// Normalize address fields (support both camelCase, snake_case, and single name field)

@@ -6,6 +6,7 @@ import {
 	validationErrorResponse,
 	paginatedResponse,
 	requireAdmin,
+	parsePagination
 } from "@/lib/api-utils";
 import { createLandingPageSchema } from "@/app/landing-page-types";
 
@@ -19,8 +20,7 @@ export async function GET(request: NextRequest) {
 
 		// Parse query params
 		const searchParams = request.nextUrl.searchParams;
-		const page = parseInt(searchParams.get("page") || "1");
-		const limit = parseInt(searchParams.get("limit") || "20");
+		const { page, limit } = parsePagination(searchParams);
 		const status = searchParams.get("status");
 		const search = searchParams.get("search");
 

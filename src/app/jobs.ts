@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Background Jobs System
 // Simple queue-based job processing for Next.js
 
@@ -259,7 +258,7 @@ async function handleSendPush(payload: JobPayload["send_push"]): Promise<void> {
 async function handleAbandonedCart(
 	payload: JobPayload["process_abandoned_cart"],
 ): Promise<void> {
-	const supabase = createAdminClient();
+	const supabase = await createAdminClient();
 
 	// Get cart details
 	const { data: cart } = (await supabase
@@ -322,7 +321,7 @@ async function handleAbandonedCart(
  * Check low stock handler
  */
 async function handleCheckLowStock(): Promise<void> {
-	const supabase = createAdminClient();
+	const supabase = await createAdminClient();
 
 	const { data: lowStockItems } = (await supabase
 		.from("inventory")
@@ -370,7 +369,7 @@ async function handleCheckLowStock(): Promise<void> {
  * Cleanup expired carts handler
  */
 async function handleCleanupExpiredCarts(): Promise<void> {
-	const supabase = createAdminClient();
+	const supabase = await createAdminClient();
 
 	const expiryDate = new Date(
 		Date.now() - cartConfig.cartExpiryDays * 24 * 60 * 60 * 1000,
@@ -391,7 +390,7 @@ async function handleCleanupExpiredCarts(): Promise<void> {
 async function handleGenerateInvoice(
 	payload: JobPayload["generate_invoice"],
 ): Promise<void> {
-	const supabase = createAdminClient();
+	const supabase = await createAdminClient();
 
 	const { data: order } = (await supabase
 		.from("orders")
@@ -440,7 +439,8 @@ async function handleGenerateInvoice(
 async function handleGenerateReport(
 	payload: JobPayload["generate_report"],
 ): Promise<void> {
-	const supabase = createAdminClient();
+	// No database client until there is something to query — the handler is
+	// still a stub.
 	console.log("[Jobs] Generating report:", payload);
 
 	// TODO: Implement report generation based on type
@@ -497,7 +497,7 @@ export const scheduledJobs: ScheduledJob[] = [
 		name: "Check abandoned carts",
 		cron: "*/15 * * * *", // Every 15 minutes
 		handler: async () => {
-			const supabase = createAdminClient();
+			const supabase = await createAdminClient();
 			const abandonedThreshold = new Date(
 				Date.now() - cartConfig.abandonedCartTimeoutMinutes * 60 * 1000,
 			);

@@ -6,11 +6,17 @@
     "dev": "NODE_OPTIONS='--no-deprecation' next dev",
     "build": "NODE_OPTIONS='--no-deprecation' next build",
     "start": "NODE_OPTIONS='--no-deprecation' next start",
-    "lint": "eslint",
-    "test": "vitest",
+    "lint": "eslint .",
+    "test": "vitest --project unit",
     "test:coverage": "vitest --coverage",
     "test:migrations": "node scripts/test-migrations.mjs",
-    "verify:pos": "node scripts/verify-pos-inventory.mjs"
+    "verify:pos": "node scripts/verify-pos-inventory.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:run": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "verify": "npm run typecheck && npm run lint && npm run test:unit && npm run test:migrations",
+    "test:integration": "vitest run --project integration",
+    "test:all": "vitest run"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

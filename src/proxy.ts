@@ -178,12 +178,28 @@ export async function proxy(request: NextRequest) {
 		"camera=(), microphone=(), geolocation=()",
 	);
 
+	// The storefront takes card and mobile-wallet payments, so downgrade
+	// attacks matter. Only sent over HTTPS; on plain HTTP it is meaningless and
+	// browsers ignore it, which keeps local development working.
+	if (request.nextUrl.protocol === "https:") {
+		response.headers.set(
+			"Strict-Transport-Security",
+			"max-age=31536000; includeSubDomains",
+		);
+	}
+
 	// Add CORS headers for API routes
 	if (pathname.startsWith("/api/")) {
-		response.headers.set(
-			"Access-Control-Allow-Origin",
-			process.env.NEXT_PUBLIC_APP_URL || "*",
-		);
+		// Only the configured app origin may read API responses cross-origin.
+		// This used to fall back to "*", which let any site on the internet read
+		// the response of a request carrying an Authorization header. With no
+		// configured origin the header is omitted entirely and the browser's
+		// same-origin default applies.
+		const allowedOrigin = process.env.NEXT_PUBLIC_APP_URL;
+		if (allowedOrigin) {
+			response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
+			response.headers.set("Vary", "Origin");
+		}
 		response.headers.set(
 			"Access-Control-Allow-Methods",
 			"GET, POST, PUT, DELETE, OPTIONS",

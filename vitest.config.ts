@@ -51,6 +51,9 @@ export default defineConfig({
           globals: true,
           environment: 'node',
           include: ['tests/integration/**/*.{test,spec}.{ts,tsx}'],
+          // Skips the suite when no server is listening instead of failing
+          // every case with ECONNREFUSED.
+          setupFiles: ['tests/integration/setup.ts'],
           testTimeout: 30000,
           hookTimeout: 30000,
         },

@@ -49,7 +49,7 @@ describe("SMSTech Enterprise Retail & POS Unit Tests", () => {
   // 3. Double-Entry Party Accounting Ledger
   describe("Party Double-Entry Accounting Ledger", () => {
     it("should compute running balance after debit/credit operations", () => {
-      let initialDue = 15000;
+      const initialDue = 15000;
       const paymentReceived = 10000;
 
       // Credit entry: payment received reduces customer due balance

@@ -69,19 +69,28 @@ export async function GET(request: NextRequest) {
 				500,
 			);
 
-		// Get product counts for each category
-		const categoriesWithCounts = await Promise.all(
-			(categories || []).map(async (category) => {
-				const { count } = await supabase
-					.from("products")
-					.select("*", { count: "exact", head: true })
-					.eq("category_id", category.id)
-					.eq("is_active", true);
+		// Product counts for every category in one pass. This ran a COUNT query
+		// per category before, so the nav menu cost one round trip per row.
+		const categoryIds = (categories || []).map((c) => c.id);
+		const countByCategory = new Map<string, number>();
 
-				return mapCategoryResponse({
-					...category,
-					product_count: count || 0,
-				});
+		if (categoryIds.length > 0) {
+			const { data: activeProducts } = await supabase
+				.from("products")
+				.select("category_id")
+				.eq("is_active", true)
+				.in("category_id", categoryIds);
+
+			for (const row of activeProducts || []) {
+				const key = row.category_id as string;
+				countByCategory.set(key, (countByCategory.get(key) ?? 0) + 1);
+			}
+		}
+
+		const categoriesWithCounts = (categories || []).map((category) =>
+			mapCategoryResponse({
+				...category,
+				product_count: countByCategory.get(category.id) ?? 0,
 			}),
 		);
 

@@ -1,7 +1,28 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 
-export default function OrderSuccess() {
-  const orderNumber = `#SMST-2026-${Math.floor(Math.random() * 90000 + 10000)}`
+// The order number comes from the checkout redirect. It was previously invented
+// here with Math.random(), which both broke hydration (server and client rolled
+// different numbers) and showed the customer a reference that matched no order.
+async function OrderNumber({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string }>
+}) {
+  const { order } = await searchParams
+  if (!order) return null
+  return (
+    <p className="font-700 text-blue-600 dark:text-blue-400 text-lg mb-8">
+      {order.startsWith('#') ? order : `#${order}`}
+    </p>
+  )
+}
+
+export default function OrderSuccess({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string }>
+}) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-20 text-center">
@@ -12,7 +33,9 @@ export default function OrderSuccess() {
       </div>
       <h1 className="text-3xl font-800 text-slate-900 dark:text-white mb-2">Order Confirmed!</h1>
       <p className="text-slate-500 dark:text-slate-400 mb-2">Thank you for shopping with SMSTech.</p>
-      <p className="font-700 text-blue-600 dark:text-blue-400 text-lg mb-8">{orderNumber}</p>
+      <Suspense fallback={<div className="h-7 mb-8" />}>
+        <OrderNumber searchParams={searchParams} />
+      </Suspense>
 
       <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-6 text-left space-y-3 mb-8 border border-slate-100 dark:border-slate-700/80 transition-colors">
         <div className="flex justify-between text-sm">

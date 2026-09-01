@@ -311,6 +311,28 @@ export const paginationSchema = z.object({
 
 export type PaginationParams = z.infer<typeof paginationSchema>;
 
+/**
+ * Reads `page` and `limit` from a query string with bounds applied.
+ *
+ * Every list endpoint needs this and several were parsing the values raw, so
+ * `?limit=999999` on a public route would try to serialise the whole table,
+ * and a non-numeric `?limit=abc` produced NaN and a broken range query.
+ */
+export function parsePagination(
+	searchParams: URLSearchParams,
+	{ defaultLimit = 20, maxLimit = 100 }: { defaultLimit?: number; maxLimit?: number } = {},
+): { page: number; limit: number; offset: number } {
+	const rawPage = parseInt(searchParams.get("page") ?? "", 10);
+	const rawLimit = parseInt(searchParams.get("limit") ?? "", 10);
+
+	const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+	const limit = Number.isFinite(rawLimit)
+		? Math.min(Math.max(1, rawLimit), maxLimit)
+		: defaultLimit;
+
+	return { page, limit, offset: (page - 1) * limit };
+}
+
 export function getPaginationMeta(
 	page: number,
 	perPage: number,

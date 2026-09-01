@@ -33,10 +33,6 @@ export async function POST(request: NextRequest) {
     const { error: authError } = await requireAdmin(request);
     if (authError) return authError;
 
-    const cloned = request.clone();
-    const rawBody = await cloned.json().catch(() => null);
-    console.log("📦 [POST create-direct-order] Incoming Payload:\n", JSON.stringify(rawBody, null, 2));
-
     const { data, error: validationError } = await validateRequest(request, directOrderSchema);
     if (validationError) {
       console.error("❌ [POST create-direct-order] Zod Validation Failed:\n", JSON.stringify(validationError, null, 2));
@@ -76,7 +72,13 @@ export async function POST(request: NextRequest) {
       amount_to_collect: Math.round(data.amount_to_collect ?? 0),
     });
 
-    console.log("✅ [POST create-direct-order] Order Created Successfully:", result);
+    // Log the consignment reference only. The payload and the courier response
+    // both carry the customer's name, phone and full delivery address, and
+    // application logs are not the place for it.
+    console.info(
+      "[create-direct-order] consignment created",
+      (result as { consignment_id?: string })?.consignment_id ?? "(no id)",
+    );
     return successResponse(result);
   } catch (error: any) {
     console.error('🔴 [POST create-direct-order] Exception Error:\n', error);
