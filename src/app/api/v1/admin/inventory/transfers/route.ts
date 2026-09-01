@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 
 // A transfer may only move forward through these states.
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -13,10 +14,13 @@ function badRequest(error: string, status = 400) {
 	return NextResponse.json({ success: false, error }, { status });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
 	try {
+		const auth = await requirePermission(request, "inventory:view");
+		if (auth.error) return auth.error;
+
 		const supabase = await getSupabaseServerClient();
-		const { data: transfers, error } = await supabase
+		let query = supabase
 			.from("branch_transfers")
 			.select(
 				`
@@ -31,6 +35,17 @@ export async function GET() {
 			)
 			.order("created_at", { ascending: false });
 
+		// A transfer is visible to both ends of it, and to nobody else.
+		if (!auth.userRBAC.branchContext.isAllBranches) {
+			const ids = auth.userRBAC.branchContext.branchIds;
+			const list = ids.length > 0 ? ids.join(",") : "00000000-0000-0000-0000-000000000000";
+			query = query.or(
+				`source_warehouse_id.in.(${list}),target_warehouse_id.in.(${list})`,
+			);
+		}
+
+		const { data: transfers, error } = await query;
+
 		if (error) throw error;
 		return NextResponse.json({ success: true, data: transfers || [] });
 	} catch (error: unknown) {
@@ -39,10 +54,13 @@ export async function GET() {
 	}
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
 	const supabase = await getSupabaseServerClient();
 
 	try {
+		const auth = await requirePermission(request, "inventory:transfers");
+		if (auth.error) return auth.error;
+
 		const body = await request.json();
 		const {
 			action,
@@ -62,6 +80,11 @@ export async function POST(request: Request) {
 			}
 			if (source_warehouse_id === target_warehouse_id) {
 				return badRequest("Source and destination branches must differ.");
+			}
+			// Dispatching removes stock from the source, so that is the branch
+			// the caller has to hold. Receiving is checked separately below.
+			if (!hasBranchAccess(auth.userRBAC.branchContext, source_warehouse_id)) {
+				return badRequest("You cannot dispatch stock from this branch.", 403);
 			}
 
 			// ── Validate lines ───────────────────────────────────────────────
@@ -274,6 +297,16 @@ export async function POST(request: Request) {
 
 			if (!transfer) {
 				return badRequest("Transfer not found", 404);
+			}
+
+			// Either end may move a transfer along — the source cancels or
+			// dispatches, the destination receives — but a third branch cannot.
+			const ctx = auth.userRBAC.branchContext;
+			if (
+				!hasBranchAccess(ctx, transfer.source_warehouse_id) &&
+				!hasBranchAccess(ctx, transfer.target_warehouse_id)
+			) {
+				return badRequest("This transfer does not involve your branch.", 403);
 			}
 
 			const allowed = ALLOWED_TRANSITIONS[transfer.status] ?? [];

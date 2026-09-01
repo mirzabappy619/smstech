@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
 	supplierRunningBalance,
 	writeLedgerEntry,
 } from "@/lib/accounting/ledger";
+import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -25,10 +26,13 @@ function badRequest(error: string, status = 400) {
 	return NextResponse.json({ success: false, error }, { status });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
 	const supabase = await getSupabaseServerClient();
 
 	try {
+		const auth = await requirePermission(request, "inventory:procurement");
+		if (auth.error) return auth.error;
+
 		const body = await request.json();
 		const {
 			type,
@@ -41,6 +45,14 @@ export async function POST(request: Request) {
 			payment_status,
 			notes,
 		} = body;
+
+		// Stock lands in a specific branch, so the caller must hold that branch.
+		if (
+			warehouse_id &&
+			!hasBranchAccess(auth.userRBAC.branchContext, warehouse_id)
+		) {
+			return badRequest("You do not have access to this branch.", 403);
+		}
 
 		// ====================================================================
 		// BATCH BUY — intake from a supplier

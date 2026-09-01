@@ -1,12 +1,16 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { jsonResponse, errorResponse } from "@/lib/api-utils";
+import { requirePermission } from "@/lib/rbac/rbac-service";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requirePermission(request, "marketing:sliders");
+    if (auth.error) return auth.error;
+
     const { id } = await params;
     const body = await request.json();
     const supabase = await createServerClient();
@@ -39,10 +43,13 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requirePermission(request, "marketing:sliders");
+    if (auth.error) return auth.error;
+
     const { id } = await params;
     const supabase = await createServerClient();
 

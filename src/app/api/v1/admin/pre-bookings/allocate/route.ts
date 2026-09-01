@@ -1,10 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/rbac/rbac-service";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, "inventory:serials");
+    if (auth.error) return auth.error;
+
     const body = await request.json();
     const { product_id, warehouse_id } = body;
+
+    if (
+      warehouse_id &&
+      !auth.userRBAC.branchContext.isAllBranches &&
+      !auth.userRBAC.branchContext.branchIds.includes(warehouse_id)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "You do not have access to this branch." },
+        { status: 403 },
+      );
+    }
 
     const supabase = await getSupabaseServerClient();
 

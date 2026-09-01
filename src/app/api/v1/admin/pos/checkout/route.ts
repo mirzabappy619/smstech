@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { customerNetBalance, writeLedgerEntry } from "@/lib/accounting/ledger";
+import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 import {
 	GATEWAY_BY_METHOD,
 	TENDER_TOLERANCE as TOLERANCE,
@@ -36,7 +37,7 @@ function badRequest(error: string, status = 400) {
 	return NextResponse.json({ success: false, error }, { status });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
 	let createdOrderId: string | null = null;
 	// Stock we have already taken, so a later failure can put it back.
 	const appliedStock: {
@@ -49,6 +50,9 @@ export async function POST(request: Request) {
 	const supabase = await getSupabaseServerClient();
 
 	try {
+		const auth = await requirePermission(request, "pos:access");
+		if (auth.error) return auth.error;
+
 		const body = await request.json();
 		const {
 			warehouse_id,
@@ -71,6 +75,9 @@ export async function POST(request: Request) {
 
 		if (!warehouse_id) {
 			return badRequest("A branch must be selected before checkout");
+		}
+		if (!hasBranchAccess(auth.userRBAC.branchContext, warehouse_id)) {
+			return badRequest("You cannot sell from this branch.", 403);
 		}
 		warehouseId = warehouse_id;
 

@@ -199,6 +199,20 @@ export const PERMISSIONS: Record<string, SystemPermission> = {
 		module: "Accounting",
 	},
 
+	// Cash Close Approvals
+	"approvals:view": {
+		code: "approvals:view",
+		name: "View Approval Queue",
+		description: "See cash close approval requests awaiting action",
+		module: "Accounting",
+	},
+	"approvals:act": {
+		code: "approvals:act",
+		name: "Approve / Reject Requests",
+		description: "Act on approval steps you are an assigned approver for",
+		module: "Accounting",
+	},
+
 	// Marketing & Landing Pages
 	"marketing:coupons": {
 		code: "marketing:coupons",
@@ -244,6 +258,12 @@ export const PERMISSIONS: Record<string, SystemPermission> = {
 		description: "Configure general store settings, tax rates, and integrations",
 		module: "Administration",
 	},
+	"approvals:manage": {
+		code: "approvals:manage",
+		name: "Configure Approval Pipelines",
+		description: "Create and edit the approval chains cash closes are routed through",
+		module: "Administration",
+	},
 };
 
 export const ALL_PERMISSION_CODES = Object.keys(PERMISSIONS);
@@ -285,6 +305,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 		"customers:edit",
 		"accounting:view",
 		"accounting:manage",
+		"approvals:view",
+		"approvals:act",
 	],
 	cashier: [
 		"pos:access",
@@ -295,6 +317,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 		"orders:create",
 		"orders:invoice",
 		"customers:view",
+		// Sees the queue to track their own submitted closes; cannot act on them.
+		"approvals:view",
 	],
 	inventory_manager: [
 		"products:view",
@@ -315,6 +339,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 		"customers:view",
 		"accounting:view",
 		"accounting:manage",
+		"approvals:view",
+		"approvals:act",
 	],
 	delivery_agent: ["orders:view", "orders:edit_status", "courier:view"],
 	customer: [],

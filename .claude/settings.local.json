@@ -30,7 +30,11 @@
       "Bash(break)",
       "Bash(curl -s http://localhost:3000/api/health)",
       "Bash(node -e \"const fs=require\\('fs'\\);const e=Object.fromEntries\\(fs.readFileSync\\('.env.local','utf8'\\).split\\('\\\\n'\\).filter\\(l=>l&&!l.startsWith\\('#'\\)&&l.includes\\('='\\)\\).map\\(l=>{const i=l.indexOf\\('='\\);return[l.slice\\(0,i\\).trim\\(\\),l.slice\\(i+1\\).trim\\(\\)]}\\)\\);fetch\\(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/?apikey='+e.SUPABASE_SERVICE_ROLE_KEY\\).then\\(r=>r.json\\(\\)\\).then\\(s=>{const t=Object.keys\\(s.definitions||{}\\);console.log\\('tables:',t.length\\);console.log\\('carts present:',t.includes\\('carts'\\),'| coupons:',t.includes\\('coupons'\\),'| wishlists:',t.includes\\('wishlists'\\)\\)}\\)\")",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(cd /home/ab/Documents/smstech; grep -rn \"pos_shifts\" --include=\"*.sql\" supabase/ | head; echo \"=== schema ===\"; sed -n '/CREATE TABLE.*pos_shifts/,/^\\);/p' supabase/migrations/*.sql | head -40)",
+      "Bash(which psql *)",
+      "Bash(timeout 60 docker run --rm -d --name pgcheck -e POSTGRES_PASSWORD=x -p 55433:5432 postgres:16-alpine)",
+      "Bash(python3 -c \"import json,sys;d=json.load\\(sys.stdin\\);[print\\(f\\\\\"{x['filePath'].split\\('smstech/'\\)[1]}: {x['errorCount']}e {x['warningCount']}w\\\\\"\\) for x in d]\")"
     ]
   }
 }

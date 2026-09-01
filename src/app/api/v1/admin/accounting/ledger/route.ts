@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/rbac/rbac-service";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, "accounting:view");
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(request.url);
     const partyType = searchParams.get("party_type") || "all"; // 'customer' | 'supplier' | 'all'
     const partyId = searchParams.get("party_id");

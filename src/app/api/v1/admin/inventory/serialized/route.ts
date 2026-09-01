@@ -1,11 +1,26 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildIlikeOr } from "@/lib/supabase/filters";
+import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, "inventory:view");
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(request.url);
     const warehouseId = searchParams.get("warehouse_id");
+
+    if (
+      warehouseId &&
+      warehouseId !== "all" &&
+      !hasBranchAccess(auth.userRBAC.branchContext, warehouseId)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "You do not have access to this branch." },
+        { status: 403 },
+      );
+    }
     const status = searchParams.get("status") || "all";
     const grade = searchParams.get("grade") || "all";
     const query = searchParams.get("q")?.trim();
@@ -33,6 +48,9 @@ export async function GET(request: Request) {
 
     if (warehouseId && warehouseId !== "all") {
       dbQuery = dbQuery.eq("warehouse_id", warehouseId);
+    } else if (!auth.userRBAC.branchContext.isAllBranches) {
+      // "All branches" means all the branches this user actually holds.
+      dbQuery = dbQuery.in("warehouse_id", auth.userRBAC.branchContext.branchIds);
     }
     if (status !== "all") {
       dbQuery = dbQuery.eq("status", status);
@@ -57,8 +75,11 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, "inventory:serials");
+    if (auth.error) return auth.error;
+
     const body = await request.json();
     const {
       product_id,
@@ -82,6 +103,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: "Product, branch, serial number and selling price are all required." },
         { status: 400 }
+      );
+    }
+
+    if (!hasBranchAccess(auth.userRBAC.branchContext, warehouse_id)) {
+      return NextResponse.json(
+        { success: false, error: "You cannot add stock to this branch." },
+        { status: 403 },
       );
     }
 

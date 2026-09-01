@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { jsonResponse, errorResponse } from "@/lib/api-utils";
+import { requirePermission } from "@/lib/rbac/rbac-service";
 
 export const defaultSliders = [
   {
@@ -38,6 +39,9 @@ export const defaultSliders = [
   },
 ];
 
+// Left unauthenticated on purpose: the storefront hero (components/HeroSlider)
+// reads its banners from here, so this is public catalogue content. Only the
+// write handlers below are gated.
 export async function GET(_request: NextRequest) {
   try {
     const supabase = await createServerClient();
@@ -57,6 +61,9 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, "marketing:sliders");
+    if (auth.error) return auth.error;
+
     const body = await request.json();
     const supabase = await createServerClient();
 

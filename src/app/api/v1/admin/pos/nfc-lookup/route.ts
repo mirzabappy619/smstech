@@ -1,9 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildIlikeOr } from "@/lib/supabase/filters";
+import { requirePermission } from "@/lib/rbac/rbac-service";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requirePermission(request, "pos:access");
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(request.url);
     const nfcUid = searchParams.get("uid")?.trim();
     const query = searchParams.get("query")?.trim(); // Phone, Name, or CUST-XXXXX

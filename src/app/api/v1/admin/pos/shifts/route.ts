@@ -1,5 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
+import {
+	resolvePipeline,
+	firstApplicableNode,
+} from "@/lib/approvals/cash-close";
 
 type SupabaseClient = Awaited<ReturnType<typeof getSupabaseServerClient>>;
 
@@ -43,11 +48,22 @@ async function withDrawerFigures(
 }
 
 // GET current active shift for warehouse/cashier or shift history
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
 	try {
+		const auth = await requirePermission(request, "pos:shifts");
+		if (auth.error) return auth.error;
+		const { userRBAC } = auth;
+
 		const { searchParams } = new URL(request.url);
 		const warehouseId = searchParams.get("warehouse_id");
 		const status = searchParams.get("status") || "open";
+
+		if (warehouseId && !hasBranchAccess(userRBAC.branchContext, warehouseId)) {
+			return NextResponse.json(
+				{ success: false, error: "You do not have access to this branch." },
+				{ status: 403 },
+			);
+		}
 
 		const supabase = await getSupabaseServerClient();
 
@@ -82,7 +98,13 @@ export async function GET(request: Request) {
 			.order("created_at", { ascending: false })
 			.limit(30);
 
-		if (warehouseId) query = query.eq("warehouse_id", warehouseId);
+		if (warehouseId) {
+			query = query.eq("warehouse_id", warehouseId);
+		} else if (!userRBAC.branchContext.isAllBranches) {
+			// No branch asked for: show only the ones this user is assigned to,
+			// never the whole estate.
+			query = query.in("warehouse_id", userRBAC.branchContext.branchIds);
+		}
 
 		const { data: shifts, error } = await query;
 		if (error) throw error;
@@ -95,8 +117,12 @@ export async function GET(request: Request) {
 }
 
 // POST: Open Shift, Close Shift, or Add Cash Movement
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
 	try {
+		const auth = await requirePermission(request, "pos:shifts");
+		if (auth.error) return auth.error;
+		const { userRBAC } = auth;
+
 		const body = await request.json();
 		const {
 			action,
@@ -119,6 +145,13 @@ export async function POST(request: Request) {
 				);
 			}
 
+			if (!hasBranchAccess(userRBAC.branchContext, warehouse_id)) {
+				return NextResponse.json(
+					{ success: false, error: "You cannot open a shift at this branch." },
+					{ status: 403 },
+				);
+			}
+
 			const float = Number(opening_float);
 			if (!Number.isFinite(float) || float < 0) {
 				return NextResponse.json(
@@ -133,6 +166,7 @@ export async function POST(request: Request) {
 				.insert({
 					shift_number: shiftNumber,
 					warehouse_id,
+					cashier_user_id: userRBAC.userId,
 					opening_float: float,
 					closing_cash_expected: float,
 					status: "open",
@@ -191,7 +225,7 @@ export async function POST(request: Request) {
 
 			const { data: shift } = await supabase
 				.from("pos_shifts")
-				.select("id, status")
+				.select("id, status, warehouse_id")
 				.eq("id", shift_id)
 				.maybeSingle();
 
@@ -199,6 +233,12 @@ export async function POST(request: Request) {
 				return NextResponse.json(
 					{ success: false, error: "Shift not found" },
 					{ status: 404 },
+				);
+			}
+			if (!hasBranchAccess(userRBAC.branchContext, shift.warehouse_id)) {
+				return NextResponse.json(
+					{ success: false, error: "You do not have access to this branch." },
+					{ status: 403 },
 				);
 			}
 			if (shift.status !== "open") {
@@ -263,9 +303,25 @@ export async function POST(request: Request) {
 				);
 			}
 
+			if (!hasBranchAccess(userRBAC.branchContext, currentShift.warehouse_id)) {
+				return NextResponse.json(
+					{ success: false, error: "You do not have access to this branch." },
+					{ status: 403 },
+				);
+			}
+
 			if (currentShift.status === "closed") {
 				return NextResponse.json(
 					{ success: false, error: "That shift is already closed." },
+					{ status: 409 },
+				);
+			}
+			if (currentShift.status === "pending_approval") {
+				return NextResponse.json(
+					{
+						success: false,
+						error: "This close is already awaiting approval.",
+					},
 					{ status: 409 },
 				);
 			}
@@ -281,24 +337,102 @@ export async function POST(request: Request) {
 			const expected = await expectedCash(supabase, shift_id);
 			const difference = round2(actual - expected);
 
-			const { data: closedShift, error: closeErr } = await supabase
+			// The drawer count is routed through the branch's approval chain
+			// rather than closing the shift outright.
+			const pipeline = await resolvePipeline(
+				supabase,
+				currentShift.warehouse_id,
+			);
+
+			if (!pipeline || pipeline.nodes.length === 0) {
+				return NextResponse.json(
+					{
+						success: false,
+						error:
+							"No cash close approval pipeline is configured for this branch. Ask an administrator to set one up under Approvals → Pipelines.",
+					},
+					{ status: 409 },
+				);
+			}
+
+			const firstNode = firstApplicableNode(pipeline.nodes, difference);
+			if (!firstNode) {
+				return NextResponse.json(
+					{
+						success: false,
+						error:
+							"The approval pipeline for this branch has no step that applies to this variance.",
+					},
+					{ status: 409 },
+				);
+			}
+
+			// A shift already rejected once may be recounted and resubmitted;
+			// the previous request stays in the log as history.
+			const previousStatus = currentShift.status;
+
+			const { data: pendingShift, error: closeErr } = await supabase
 				.from("pos_shifts")
 				.update({
 					closing_cash_actual: actual,
 					closing_cash_expected: expected,
 					difference,
-					status: "closed",
+					status: "pending_approval",
 					closed_at: new Date().toISOString(),
+					closed_by_user_id: userRBAC.userId,
 					notes: notes || currentShift.notes,
 				})
 				.eq("id", shift_id)
-				.eq("status", "open")
+				.eq("status", previousStatus)
 				.select()
 				.single();
 
 			if (closeErr) throw closeErr;
+			if (!pendingShift) {
+				return NextResponse.json(
+					{ success: false, error: "That shift was changed by someone else." },
+					{ status: 409 },
+				);
+			}
 
-			return NextResponse.json({ success: true, data: closedShift });
+			const requestNumber = `CCA-${Date.now().toString().slice(-8)}`;
+			const { data: approval, error: approvalErr } = await supabase
+				.from("cash_close_approvals")
+				.insert({
+					request_number: requestNumber,
+					shift_id,
+					warehouse_id: currentShift.warehouse_id,
+					pipeline_id: pipeline.id,
+					closing_cash_expected: expected,
+					closing_cash_actual: actual,
+					difference,
+					submitted_by: userRBAC.userId,
+					current_node_id: firstNode.id,
+					current_step: firstNode.step_order,
+					status: "pending",
+					notes: notes || null,
+				})
+				.select()
+				.single();
+
+			if (approvalErr) {
+				// Leave the shift open rather than stranding it in a pending
+				// state with nothing to approve it.
+				await supabase
+					.from("pos_shifts")
+					.update({ status: previousStatus, closed_at: null, closed_by_user_id: null })
+					.eq("id", shift_id);
+				throw approvalErr;
+			}
+
+			return NextResponse.json({
+				success: true,
+				data: pendingShift,
+				approval,
+				pipeline: { id: pipeline.id, name: pipeline.name, steps: pipeline.nodes.length },
+				next_approver: firstNode.name,
+				message: `Drawer submitted for approval as ${requestNumber}. Awaiting: ${firstNode.name}.`,
+			});
 		}
 
 		return NextResponse.json(

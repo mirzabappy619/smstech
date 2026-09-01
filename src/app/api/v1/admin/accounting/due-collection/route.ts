@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { customerNetBalance, writeLedgerEntry } from "@/lib/accounting/ledger";
+import { requirePermission } from "@/lib/rbac/rbac-service";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -11,8 +12,11 @@ const GATEWAY_BY_METHOD: Record<string, string> = {
 	nagad: "nagad",
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
 	try {
+		const auth = await requirePermission(request, "accounting:manage");
+		if (auth.error) return auth.error;
+
 		const body = await request.json();
 		const { customer_id, amount, payment_method, reference, notes, shift_id } =
 			body;

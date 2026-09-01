@@ -69,7 +69,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 import { useRBAC } from "@/lib/rbac/rbac-context";
 
 export default function PosTerminalPage() {
-  const { activeBranch } = useRBAC();
+  const { activeBranch, branchContext } = useRBAC();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(activeBranch?.id || "");
   const [activeShift, setActiveShift] = useState<PosShift | null>(null);
@@ -131,9 +131,19 @@ export default function PosTerminalPage() {
         const res = await fetch("/api/v1/admin/warehouses");
         const json = await res.json();
         if (json.success && json.data?.length) {
-          setWarehouses(json.data);
-          if (!selectedBranch) {
-            const defaultBranch = activeBranch || json.data.find((w: any) => w.is_default) || json.data[0];
+          // Only offer branches this user is actually assigned to — the shift
+          // and checkout APIs reject the rest, so listing them would just hand
+          // the cashier a branch that 403s.
+          const allowed = branchContext.isAllBranches
+            ? json.data
+            : json.data.filter((w: any) => branchContext.branchIds.includes(w.id));
+
+          setWarehouses(allowed);
+          if (!selectedBranch && allowed.length > 0) {
+            const defaultBranch =
+              (activeBranch && allowed.find((w: any) => w.id === activeBranch.id)) ||
+              allowed.find((w: any) => w.is_default) ||
+              allowed[0];
             setSelectedBranch(defaultBranch.id);
           }
         }
@@ -1182,6 +1192,10 @@ export default function PosTerminalPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">End-of-Day Shift Reconciliation</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 -mt-2">
+              The register frees up immediately, but the shift stays open on the books
+              until every approver in this branch&rsquo;s chain has signed off.
+            </p>
             <div className="space-y-1.5 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl text-xs">
               <div className="flex justify-between"><span>Opening Float:</span><span className="font-bold">{fmt(activeShift.opening_float)}</span></div>
               <div className="flex justify-between"><span>Cash Sales:</span><span className="font-bold">{fmt(activeShift.cash_sales_total)}</span></div>
@@ -1248,11 +1262,11 @@ export default function PosTerminalPage() {
                   const json = await res.json();
                   if (json.success) {
                     const diff = Number(json.data.difference) || 0;
-                    alert(
+                    const variance =
                       diff === 0
-                        ? "Shift closed. Drawer balanced exactly."
-                        : `Shift closed. Drawer is ${fmt(Math.abs(diff))} ${diff > 0 ? "over" : "short"}.`
-                    );
+                        ? "Drawer balanced exactly."
+                        : `Drawer is ${fmt(Math.abs(diff))} ${diff > 0 ? "over" : "short"}.`;
+                    alert(`${variance}\n\n${json.message || "Submitted for approval."}`);
                     setActiveShift(null);
                     setActualCashInput("");
                     setShowCloseShiftModal(false);
@@ -1262,7 +1276,7 @@ export default function PosTerminalPage() {
                 }}
                 className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold"
               >
-                Lock & Close Register
+                Submit for Approval
               </button>
             </div>
           </div>

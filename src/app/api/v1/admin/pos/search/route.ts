@@ -1,12 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildIlikeOr } from "@/lib/supabase/filters";
+import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
 	try {
+		const auth = await requirePermission(request, "pos:access");
+		if (auth.error) return auth.error;
+
 		const { searchParams } = new URL(request.url);
 		const q = searchParams.get("q")?.trim() || "";
 		const warehouseId = searchParams.get("warehouse_id");
+
+		if (warehouseId && !hasBranchAccess(auth.userRBAC.branchContext, warehouseId)) {
+			return NextResponse.json(
+				{ success: false, error: "You do not have access to this branch." },
+				{ status: 403 },
+			);
+		}
 
 		const supabase = await getSupabaseServerClient();
 
