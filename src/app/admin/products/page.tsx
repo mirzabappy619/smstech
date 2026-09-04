@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { formatBDT } from "@/lib/currency";
 
 interface Product {
 	id: string;
@@ -438,7 +439,7 @@ export default function AdminProductsPage() {
 												{product.sku || "—"}
 											</td>
 											<td className="px-4 py-3.5 font-medium text-zinc-900 dark:text-white">
-												৳{Math.round(product.base_price).toLocaleString("en-BD")}
+												{formatBDT(product.base_price)}
 											</td>
 											<td className="px-4 py-3.5 text-zinc-600 dark:text-zinc-400">
 												{product.category?.name || "—"}
@@ -555,7 +556,7 @@ export default function AdminProductsPage() {
 											</div>
 											<div className="mt-2 flex items-center justify-between">
 												<span className="font-bold text-sm text-zinc-900 dark:text-white">
-													৳{Math.round(product.base_price).toLocaleString("en-BD")}
+													{formatBDT(product.base_price)}
 												</span>
 												<span
 													className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${

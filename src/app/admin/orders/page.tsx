@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE, normalizeBDPhone } from "@/lib/bd-phone-validator";
 import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
+import { formatBDT } from "@/lib/currency";
 
 interface OrderItem {
 	id: string;
@@ -543,7 +544,7 @@ export default function AdminOrdersPage() {
 												</div>
 											</td>
 											<td className="px-4 py-4 font-bold text-zinc-900 dark:text-white">
-												৳ {Number(order.total || 0).toLocaleString()}
+												{formatBDT(order.total || 0)}
 											</td>
 											<td className="px-4 py-4">
 												<span
@@ -604,7 +605,7 @@ export default function AdminOrdersPage() {
 										</div>
 										<div className="text-right">
 											<span className="font-bold text-sm text-zinc-900 dark:text-white">
-												৳ {Number(order.total || 0).toLocaleString()}
+												{formatBDT(order.total || 0)}
 											</span>
 											<p className="text-zinc-400 text-[10px] capitalize">
 												{(order.payment_method || "COD").replace(/_/g, " ")} • {order.payment_status || "pending"}
@@ -870,7 +871,7 @@ export default function AdminOrdersPage() {
 													<option value="">-- Choose Product --</option>
 													{availableProducts.map((p) => (
 														<option key={p.id} value={p.id}>
-															{p.name} (৳{p.base_price})
+															{p.name} ({formatBDT(p.base_price)})
 														</option>
 													))}
 												</select>
@@ -894,7 +895,7 @@ export default function AdminOrdersPage() {
 																		<option value="">Default Variation</option>
 																		{prod.product_variations.map((v) => (
 																			<option key={v.id} value={v.id}>
-																				{v.name} (৳{v.price})
+																				{v.name} ({formatBDT(v.price)})
 																			</option>
 																		))}
 																	</select>
@@ -969,8 +970,8 @@ export default function AdminOrdersPage() {
 																	{item.variation_name && <span className="text-zinc-500 font-normal"> ({item.variation_name})</span>}
 																</td>
 																<td className="p-2.5 font-bold">{item.quantity}</td>
-																<td className="p-2.5">৳{item.unit_price}</td>
-																<td className="p-2.5 text-right font-bold">৳{item.unit_price * item.quantity}</td>
+																<td className="p-2.5">{formatBDT(item.unit_price)}</td>
+																<td className="p-2.5 text-right font-bold">{formatBDT(item.unit_price * item.quantity)}</td>
 																<td className="p-2.5 text-center">
 																	<button
 																		type="button"
@@ -991,7 +992,7 @@ export default function AdminOrdersPage() {
 									<div className="bg-zinc-50 dark:bg-zinc-800/40 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl space-y-2 text-xs">
 										<div className="flex justify-between text-zinc-600 dark:text-zinc-400">
 											<span>Subtotal:</span>
-											<span className="font-semibold text-zinc-900 dark:text-white">৳ {draftSubtotal.toLocaleString()}</span>
+											<span className="font-semibold text-zinc-900 dark:text-white">{formatBDT(draftSubtotal)}</span>
 										</div>
 										<div className="flex justify-between items-center text-zinc-600 dark:text-zinc-400">
 											<span>Shipping Fee (৳):</span>
@@ -1015,7 +1016,7 @@ export default function AdminOrdersPage() {
 										</div>
 										<div className="border-t border-zinc-300 dark:border-zinc-700 pt-2 flex justify-between text-sm font-bold text-zinc-900 dark:text-white">
 											<span>Total Receivable:</span>
-											<span className="text-blue-600 dark:text-blue-400">৳ {draftTotal.toLocaleString()}</span>
+											<span className="text-blue-600 dark:text-blue-400">{formatBDT(draftTotal)}</span>
 										</div>
 									</div>
 								</div>

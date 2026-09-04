@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { formatCurrencyForPdf } from '@/lib/currency';
 
 interface InvoiceOrderItem {
 	name: string;
@@ -89,10 +90,9 @@ export function generateInvoicePdf(
 		doc.on('end', () => resolve(Buffer.concat(chunks)));
 		doc.on('error', reject);
 
-		const fmt = (amount: number) => {
-			const val = Math.round(Number(amount || 0));
-			return `BDT ${val.toLocaleString('en-US')}`;
-		};
+		// PDFKit's built-in Helvetica cannot encode ৳ (U+09F3), so the PDF
+		// spells the code out. cleanPdfText() below maps any stray ৳ the same way.
+		const fmt = (amount: number) => formatCurrencyForPdf(amount, order.currency);
 
 		// ── HEADER & COMPANY BRAND ──────────────────────────────────────────
 		doc.fontSize(22).font('Helvetica-Bold').fillColor('#0f172a').text(cleanPdfText(store.store_name || 'SMSTech Bangladesh'), 40, 40);

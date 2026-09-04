@@ -2,6 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import {
+  ArrowRight,
+  Clock,
+  Facebook,
+  Instagram,
+  MapPin,
+  MessageCircle,
+  Phone,
+  RotateCcw,
+  ShieldCheck,
+  Youtube,
+} from 'lucide-react'
+import Container from './ui/container'
 
 type Settings = {
   store_name?: string
@@ -14,16 +27,57 @@ type Settings = {
   social_twitter?: string
 }
 
+const columns: { heading: string; links: [string, string][] }[] = [
+  {
+    heading: 'Shop',
+    links: [
+      ['Laptops', '/laptops'],
+      ['Smartphones', '/smartphones'],
+      ['Certified pre-owned', '/laptops?cat=pre-owned'],
+      ['Deals', '/deals'],
+      ['New arrivals', '/new-arrivals'],
+      ['All brands', '/brands'],
+    ],
+  },
+  {
+    heading: 'Support',
+    links: [
+      ['Track your order', '/track-order'],
+      ['Contact us', '/contact'],
+      ['Warranty claims', '/faq?cat=warranty'],
+      ['Returns & refunds', '/faq?cat=returns'],
+      ['FAQ', '/faq'],
+      ['Compare devices', '/compare'],
+    ],
+  },
+  {
+    heading: 'Company',
+    links: [
+      ['About SMSTech', '/about'],
+      ['Our stores', '/stores'],
+      ['How we grade devices', '/about#grading'],
+      ['Privacy policy', '/faq?cat=privacy'],
+      ['Terms & conditions', '/faq?cat=terms'],
+    ],
+  },
+]
+
+const guarantees = [
+  { icon: ShieldCheck, title: 'Authenticity guaranteed', body: 'Sourced through authorised channels only.' },
+  { icon: RotateCcw, title: '7-day returns', body: 'Change your mind within a week of delivery.' },
+  { icon: MapPin, title: 'Walk-in showroom', body: 'Inspect any device in person before you buy.' },
+]
+
 export default function Footer() {
   const [settings, setSettings] = useState<Settings>({
     store_name: 'SMSTech BD',
-    store_address: 'Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205',
+    store_address:
+      'Shop 309, Level 03, Computer City Market (Multiplan), New Elephant Road (69–71), Dhaka 1205',
     store_phone: '01781485588, 01723249598',
     social_facebook: 'https://facebook.com',
     social_instagram: 'https://instagram.com',
     social_youtube: 'https://youtube.com',
     social_whatsapp: 'https://wa.me/8801781485588',
-    social_twitter: 'https://twitter.com',
   })
 
   useEffect(() => {
@@ -31,9 +85,7 @@ export default function Footer() {
       try {
         const res = await fetch('/api/v1/settings')
         const data = await res.json()
-        if (data) {
-          setSettings((prev) => ({ ...prev, ...data }))
-        }
+        if (data) setSettings((prev) => ({ ...prev, ...data }))
       } catch (e) {
         console.error('Failed to load footer settings:', e)
       }
@@ -41,152 +93,147 @@ export default function Footer() {
     loadSettings()
   }, [])
 
+  const socials = [
+    { href: settings.social_facebook, label: 'Facebook', Icon: Facebook },
+    { href: settings.social_instagram, label: 'Instagram', Icon: Instagram },
+    { href: settings.social_youtube, label: 'YouTube', Icon: Youtube },
+    { href: settings.social_whatsapp, label: 'WhatsApp', Icon: MessageCircle },
+  ].filter((s) => Boolean(s.href))
+
   return (
-    <footer className="bg-slate-900 dark:bg-slate-950 text-slate-300 border-t border-slate-800 dark:border-slate-800/80 mt-20 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 py-14 grid grid-cols-2 md:grid-cols-5 gap-10">
+    <footer className="mt-24 border-t border-line bg-surface">
+      {/* Guarantee strip */}
+      <div className="border-b border-line">
+        <Container className="grid gap-6 py-8 sm:grid-cols-3">
+          {guarantees.map((g) => {
+            const Icon = g.icon
+            return (
+              <div key={g.title} className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-2 text-ink">
+                  <Icon className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-ink">{g.title}</p>
+                  <p className="mt-0.5 text-[13px] text-ink-3">{g.body}</p>
+                </div>
+              </div>
+            )
+          })}
+        </Container>
+      </div>
+
+      <Container className="grid gap-10 py-14 md:grid-cols-12">
         {/* Brand */}
-        <div className="col-span-2 md:col-span-1">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-800 text-sm">S</span>
-            </div>
-            <span className="font-800 text-white text-xl">SMS<span className="text-blue-400">Tech</span> <span className="text-blue-400 font-700 text-lg">BD</span></span>
-          </div>
-          <p className="text-sm text-slate-400 leading-relaxed mb-4">Technology. Trust. Service.</p>
-          <p className="text-xs text-slate-500">
-            Bangladesh's trusted tech store for genuine laptops, smartphones &amp; certified pre-owned devices.
+        <div className="md:col-span-4">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-inverse font-display text-[13px] font-bold tracking-tight text-inverse-ink">
+              SM
+            </span>
+            <span className="font-display text-[19px] font-semibold tracking-tight text-ink">
+              SMSTech
+              <span className="ml-1 align-super text-[10px] font-medium tracking-[0.14em] text-ink-3">
+                BD
+              </span>
+            </span>
+          </Link>
+
+          <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-ink-2">
+            Bangladesh&rsquo;s specialist in high-end laptops and smartphones — brand new and
+            certified pre-owned, every unit inspected and graded before it is listed.
           </p>
 
-          {/* Social Media Icons (Connected to Admin Panel Settings) */}
-          <div className="flex flex-wrap gap-2.5 mt-5">
-            {settings.social_facebook && (
-              <a
-                href={settings.social_facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Facebook"
-                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105"
-                title="Facebook"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                </svg>
-              </a>
-            )}
-
-            {settings.social_instagram && (
-              <a
-                href={settings.social_instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Instagram"
-                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-pink-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105"
-                title="Instagram"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-                </svg>
-              </a>
-            )}
-
-            {settings.social_youtube && (
-              <a
-                href={settings.social_youtube}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="YouTube"
-                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105"
-                title="YouTube"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                </svg>
-              </a>
-            )}
-
-            {settings.social_whatsapp && (
-              <a
-                href={settings.social_whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="WhatsApp"
-                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105"
-                title="WhatsApp"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
-                </svg>
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Shop */}
-        <div>
-          <h4 className="font-700 text-white text-sm mb-4">Shop</h4>
-          <ul className="space-y-2.5 text-sm">
-            {['Laptops', 'Smartphones', 'Deals', 'New Arrivals', 'Brands', 'Compare'].map((l) => (
-              <li key={l}>
-                <Link href={`/${l.toLowerCase().replace(' ', '-')}`} className="hover:text-blue-400 transition-colors">{l}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Customer Service */}
-        <div>
-          <h4 className="font-700 text-white text-sm mb-4">Customer Service</h4>
-          <ul className="space-y-2.5 text-sm">
-            {[['Contact Us', '/contact'], ['FAQ', '/faq'], ['Track Order', '/track-order'], ['Warranty', '/faq?cat=warranty'], ['Returns', '/faq?cat=returns']].map(([l, h]) => (
-              <li key={l}>
-                <Link href={h} className="hover:text-blue-400 transition-colors">{l}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Company & Admin */}
-        <div>
-          <h4 className="font-700 text-white text-sm mb-4">Company &amp; Management</h4>
-          <ul className="space-y-2.5 text-sm">
-            {[['About Us', '/about'], ['Our Stores', '/stores'], ['Admin Dashboard', '/admin'], ['Privacy Policy', '#'], ['Terms & Conditions', '#']].map(([l, h]) => (
-              <li key={l}>
-                <Link href={h} className="hover:text-blue-400 transition-colors">{l}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Store Location */}
-        <div>
-          <h4 className="font-700 text-white text-sm mb-4">Visit Our Store</h4>
-          <div className="space-y-3 text-sm">
-            <div>
-              <p className="font-700 text-slate-100">{settings.store_name || 'SMSTech'} Multiplan Branch</p>
-              <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                {settings.store_address || 'Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205'}
-              </p>
-              <p className="text-blue-400 font-600 text-xs mt-1">📞 {settings.store_phone || '01781485588, 01723249598'}</p>
-              <p className="text-slate-400 text-xs mt-0.5">🕐 10:00 AM – 8:00 PM</p>
+          {socials.length > 0 && (
+            <div className="mt-6 flex gap-2">
+              {socials.map(({ href, label, Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  title={label}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:border-line-2 hover:bg-surface-2 hover:text-ink"
+                >
+                  <Icon className="h-4 w-4" strokeWidth={2} />
+                </a>
+              ))}
             </div>
-            <Link href="/stores" className="inline-block mt-1 text-xs text-blue-400 hover:text-blue-300 font-600">
-              Get Directions &amp; View Map →
+          )}
+        </div>
+
+        {/* Link columns */}
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:col-span-5">
+          {columns.map((col) => (
+            <div key={col.heading}>
+              <p className="eyebrow mb-3.5">{col.heading}</p>
+              <ul className="space-y-2.5">
+                {col.links.map(([label, href]) => (
+                  <li key={label}>
+                    <Link
+                      href={href}
+                      className="text-[13.5px] text-ink-2 transition-colors hover:text-accent"
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Store card */}
+        <div className="md:col-span-3">
+          <p className="eyebrow mb-3.5">Visit us</p>
+          <div className="rounded-xl border border-line bg-surface-2 p-4">
+            <p className="text-sm font-medium text-ink">
+              {settings.store_name || 'SMSTech'} — Multiplan
+            </p>
+            <ul className="mt-3 space-y-2.5 text-[13px] text-ink-2">
+              <li className="flex gap-2.5">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+                <span className="leading-relaxed">{settings.store_address}</span>
+              </li>
+              <li className="flex gap-2.5">
+                <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+                <span className="tnum">{settings.store_phone}</span>
+              </li>
+              <li className="flex gap-2.5">
+                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+                <span>10:00 AM – 8:00 PM daily</span>
+              </li>
+            </ul>
+            <Link
+              href="/stores"
+              className="group mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent"
+            >
+              Directions &amp; map
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
+              />
             </Link>
           </div>
         </div>
-      </div>
+      </Container>
 
-      <div className="border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">© 2026 {settings.store_name || 'SMSTech'}. All rights reserved.</p>
-          <div className="flex items-center gap-3">
-            <div className="flex gap-2">
-              {['VISA', 'MC', 'bKash', 'Nagad', 'COD'].map((m) => (
-                <span key={m} className="px-2 py-1 text-[10px] font-700 bg-slate-800 text-slate-400 rounded-md">{m}</span>
-              ))}
-            </div>
+      <div className="border-t border-line">
+        <Container className="flex flex-col items-center justify-between gap-4 py-5 sm:flex-row">
+          <p className="text-xs text-ink-3">
+            © {new Date().getFullYear()} {settings.store_name || 'SMSTech'}. All rights reserved.
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-ink-3">We accept</span>
+            {['Visa', 'Mastercard', 'bKash', 'Nagad', 'Cash on delivery'].map((m) => (
+              <span
+                key={m}
+                className="rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-ink-3"
+              >
+                {m}
+              </span>
+            ))}
           </div>
-        </div>
+        </Container>
       </div>
     </footer>
   )

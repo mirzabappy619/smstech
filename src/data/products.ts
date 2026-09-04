@@ -18,6 +18,14 @@ export type Product = {
   storeAvailability: { store1: boolean; store2: boolean; online: boolean }
   badges: string[]
   warranty: string
+  /**
+   * Condition grade for the unit on sale. Free-form on the wire (the catalogue
+   * may say "Grade A", "open box", ...); resolveCondition() in components/ui
+   * maps it onto the canonical grade scale.
+   */
+  condition?: string
+  /** Battery health percentage, surfaced for pre-owned devices. */
+  batteryHealth?: number
   colors?: string[]
   variants?: { label: string; price: number }[]
   isNew?: boolean
@@ -90,6 +98,11 @@ export function normalizeProduct(p: any): Product {
     storeAvailability: p.store_availability || p.storeAvailability || { store1: true, store2: true, online: true },
     badges: parsedBadges,
     warranty: p.warranty || '1 Year Official Warranty',
+    condition: p.condition ?? p.condition_grade ?? p.specs?.condition ?? undefined,
+    batteryHealth:
+      p.battery_health != null || p.batteryHealth != null
+        ? Number(p.battery_health ?? p.batteryHealth)
+        : undefined,
     colors: parsedColors,
     variants,
     isNew: Boolean(p.is_new ?? p.isNew ?? false),
@@ -107,15 +120,16 @@ export const allProducts: Product[] = []
 export const getProductBySlug = (_slug: string) => undefined
 
 export const brands = [
-  { name: 'Apple', count: 24, logo: '🍎' },
-  { name: 'Samsung', count: 32, logo: '⚡' },
-  { name: 'ASUS', count: 18, logo: '⊕' },
-  { name: 'Lenovo', count: 15, logo: 'L' },
-  { name: 'HP', count: 12, logo: 'H' },
-  { name: 'Dell', count: 10, logo: 'D' },
-  { name: 'Acer', count: 8, logo: 'A' },
-  { name: 'MSI', count: 6, logo: 'M' },
-  { name: 'Xiaomi', count: 14, logo: 'X' },
-  { name: 'OnePlus', count: 10, logo: '1+' },
-  { name: 'Google', count: 8, logo: 'G' },
+  { name: 'Apple', slug: 'apple', count: 24, mark: 'A' },
+  { name: 'Samsung', slug: 'samsung', count: 32, mark: 'S' },
+  { name: 'ASUS', slug: 'asus', count: 18, mark: 'AS' },
+  { name: 'Lenovo', slug: 'lenovo', count: 15, mark: 'L' },
+  { name: 'HP', slug: 'hp', count: 12, mark: 'HP' },
+  { name: 'Dell', slug: 'dell', count: 10, mark: 'D' },
+  { name: 'Acer', slug: 'acer', count: 8, mark: 'AC' },
+  { name: 'MSI', slug: 'msi', count: 6, mark: 'MSI' },
+  { name: 'Xiaomi', slug: 'xiaomi', count: 14, mark: 'MI' },
+  { name: 'OnePlus', slug: 'oneplus', count: 10, mark: '1+' },
+  { name: 'Google', slug: 'google', count: 8, mark: 'G' },
+  { name: 'Microsoft', slug: 'microsoft', count: 7, mark: 'MS' },
 ]

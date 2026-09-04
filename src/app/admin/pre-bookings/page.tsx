@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatBDT } from "@/lib/currency";
 
 
 interface PreBooking {
@@ -24,7 +25,7 @@ interface PreBooking {
   };
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function PreBookingsAdminPage() {
   const [bookings, setBookings] = useState<PreBooking[]>([]);

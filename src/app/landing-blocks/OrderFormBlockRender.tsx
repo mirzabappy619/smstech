@@ -194,11 +194,11 @@ export default function OrderFormBlockRender({
 
 	if (submitStatus === "success") {
 		return (
-			<section className="py-16 px-4 bg-white">
+			<section className="py-16 px-4 bg-surface">
 				<div className="max-w-4xl mx-auto text-center">
-					<div className="bg-green-50 border-2 border-green-500 rounded-lg p-8">
+					<div className="bg-verified-soft border-2 border-verified rounded-lg p-8">
 						<svg
-							className="w-16 h-16 text-green-500 mx-auto mb-4"
+							className="w-16 h-16 text-verified mx-auto mb-4"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24">
@@ -209,13 +209,13 @@ export default function OrderFormBlockRender({
 								d="M5 13l4 4L19 7"
 							/>
 						</svg>
-						<h3 className="text-2xl font-bold text-gray-900 mb-2">
+						<h3 className="text-2xl font-bold text-ink mb-2">
 							Order Submitted!
 						</h3>
-						<p className="text-gray-700 mb-6">{successMessage}</p>
+						<p className="text-ink mb-6">{successMessage}</p>
 						<button
 							onClick={() => setSubmitStatus(null)}
-							className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+							className="bg-accent text-on-accent px-6 py-2 rounded-lg hover:bg-accent-hover">
 							Place Another Order
 						</button>
 					</div>
@@ -225,12 +225,12 @@ export default function OrderFormBlockRender({
 	}
 
 	return (
-		<section className="py-16 px-4 bg-white">
+		<section className="py-16 px-4 bg-surface">
 			<div className="max-w-4xl mx-auto">
 				<div className="text-center mb-12">
-					<h2 className="text-4xl font-bold mb-4 text-gray-900">{title}</h2>
+					<h2 className="text-4xl font-bold mb-4 text-ink">{title}</h2>
 					{subtitle && (
-						<p className="text-xl text-gray-600 max-w-3xl mx-auto">
+						<p className="text-xl text-ink-2 max-w-3xl mx-auto">
 							{subtitle}
 						</p>
 					)}
@@ -241,7 +241,7 @@ export default function OrderFormBlockRender({
 					className="space-y-8">
 					{/* Product Selection */}
 					<div>
-						<h3 className="text-2xl font-semibold mb-4 text-gray-900">
+						<h3 className="text-2xl font-semibold mb-4 text-ink">
 							Select Product
 						</h3>
 						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -266,15 +266,15 @@ export default function OrderFormBlockRender({
 											className="w-full h-40 object-cover rounded-lg mb-3"
 										/>
 									)}
-									<h4 className="font-semibold text-lg text-gray-900 mb-1">
+									<h4 className="font-semibold text-lg text-ink mb-1">
 										{product.name}
 									</h4>
 									{product.description && (
-										<p className="text-sm text-gray-600 mb-2">
+										<p className="text-sm text-ink-2 mb-2">
 											{product.description}
 										</p>
 									)}
-									<p className="text-xl font-bold text-blue-600">
+									<p className="text-xl font-bold text-accent">
 										${product.price}
 									</p>
 								</div>
@@ -287,7 +287,7 @@ export default function OrderFormBlockRender({
 						<div>
 							<label
 								htmlFor="quantity"
-								className="block text-lg font-medium text-gray-900 mb-2">
+								className="block text-lg font-medium text-ink mb-2">
 								Quantity
 							</label>
 							<input
@@ -301,14 +301,14 @@ export default function OrderFormBlockRender({
 										quantity: parseInt(e.target.value) || 1,
 									})
 								}
-								className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+								className="w-32 px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-accent/15 focus:border-accent text-ink bg-surface"
 							/>
 						</div>
 					)}
 
 					{/* Customer Information */}
 					<div>
-						<h3 className="text-2xl font-semibold mb-4 text-gray-900">
+						<h3 className="text-2xl font-semibold mb-4 text-ink">
 							Customer Information
 						</h3>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,7 +316,7 @@ export default function OrderFormBlockRender({
 								<div>
 									<label
 										htmlFor="firstName"
-										className="block text-sm font-medium text-gray-700 mb-1">
+										className="block text-sm font-medium text-ink mb-1">
 										First Name *
 									</label>
 									<input
@@ -327,7 +327,7 @@ export default function OrderFormBlockRender({
 											setFormState({ ...formState, firstName: e.target.value })
 										}
 										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+										className="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-accent/15 focus:border-accent text-ink bg-surface"
 									/>
 								</div>
 							)}
@@ -336,7 +336,7 @@ export default function OrderFormBlockRender({
 								<div>
 									<label
 										htmlFor="lastName"
-										className="block text-sm font-medium text-gray-700 mb-1">
+										className="block text-sm font-medium text-ink mb-1">
 										Last Name *
 									</label>
 									<input
@@ -347,7 +347,7 @@ export default function OrderFormBlockRender({
 											setFormState({ ...formState, lastName: e.target.value })
 										}
 										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+										className="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-accent/15 focus:border-accent text-ink bg-surface"
 									/>
 								</div>
 							)}
@@ -356,7 +356,7 @@ export default function OrderFormBlockRender({
 								<div>
 									<label
 										htmlFor="email"
-										className="block text-sm font-medium text-gray-700 mb-1">
+										className="block text-sm font-medium text-ink mb-1">
 										Email *
 									</label>
 									<input
@@ -367,7 +367,7 @@ export default function OrderFormBlockRender({
 											setFormState({ ...formState, email: e.target.value })
 										}
 										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+										className="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-accent/15 focus:border-accent text-ink bg-surface"
 									/>
 								</div>
 							)}
@@ -376,7 +376,7 @@ export default function OrderFormBlockRender({
 								<div>
 									<label
 										htmlFor="phone"
-										className="block text-sm font-medium text-gray-700 mb-1">
+										className="block text-sm font-medium text-ink mb-1">
 										Phone *
 									</label>
 									<input
@@ -387,7 +387,7 @@ export default function OrderFormBlockRender({
 											setFormState({ ...formState, phone: e.target.value })
 										}
 										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+										className="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-accent/15 focus:border-accent text-ink bg-surface"
 									/>
 								</div>
 							)}
@@ -396,7 +396,7 @@ export default function OrderFormBlockRender({
 								<div className="md:col-span-2">
 									<label
 										htmlFor="address"
-										className="block text-sm font-medium text-gray-700 mb-1">
+										className="block text-sm font-medium text-ink mb-1">
 										Shipping Address *
 									</label>
 									<textarea
@@ -407,7 +407,7 @@ export default function OrderFormBlockRender({
 											setFormState({ ...formState, address: e.target.value })
 										}
 										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+										className="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-accent/15 focus:border-accent text-ink bg-surface"
 									/>
 								</div>
 							)}
@@ -416,12 +416,12 @@ export default function OrderFormBlockRender({
 
 					{/* Total Price */}
 					{selectedProduct && (
-						<div className="bg-gray-50 p-6 rounded-lg">
+						<div className="bg-bg p-6 rounded-lg">
 							<div className="flex justify-between items-center text-2xl font-bold">
-								<span className="text-gray-900">Total:</span>
-								<span className="text-blue-600">৳{Math.round(totalPrice)}</span>
+								<span className="text-ink">Total:</span>
+								<span className="text-accent">৳{Math.round(totalPrice)}</span>
 							</div>
-							<p className="text-sm text-gray-600 mt-2">
+							<p className="text-sm text-ink-2 mt-2">
 								Payment Method: Cash on Delivery
 							</p>
 						</div>
@@ -429,7 +429,7 @@ export default function OrderFormBlockRender({
 
 					{/* Error Message */}
 					{submitStatus === "error" && (
-						<div className="bg-red-50 border border-red-500 text-red-700 px-4 py-3 rounded-lg">
+						<div className="bg-danger-soft border border-danger text-danger px-4 py-3 rounded-lg">
 							{errorMessage || "Failed to submit order. Please try again."}
 						</div>
 					)}
@@ -438,7 +438,7 @@ export default function OrderFormBlockRender({
 					<button
 						type="submit"
 						disabled={isSubmitting || !selectedProduct}
-						className="w-full bg-blue-600 text-white py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 transition-colors">
+						className="w-full bg-accent text-on-accent py-4 rounded-lg text-lg font-semibold hover:bg-accent-hover disabled:opacity-50 transition-colors">
 						{isSubmitting ? "Submitting Order..." : "Place Order"}
 					</button>
 				</form>

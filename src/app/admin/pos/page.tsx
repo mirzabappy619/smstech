@@ -63,10 +63,11 @@ interface Warehouse {
   code: string;
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 import { useRBAC } from "@/lib/rbac/rbac-context";
+import { formatBDT } from "@/lib/currency";
 
 export default function PosTerminalPage() {
   const { activeBranch, branchContext } = useRBAC();
@@ -595,6 +596,16 @@ export default function PosTerminalPage() {
             <span className="text-xl">⚡</span>
             <span className="font-extrabold text-lg text-zinc-900 dark:text-white tracking-tight">SMSTech POS</span>
           </div>
+
+          <div className="h-5 w-px bg-zinc-200 dark:border-zinc-700" />
+
+          {/* Today's takings live in the sales register */}
+          <Link
+            href="/admin/pos/orders"
+            className="px-2.5 py-1 rounded-lg text-xs font-bold text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            Sales register
+          </Link>
 
           <div className="h-5 w-px bg-zinc-200 dark:border-zinc-700" />
 

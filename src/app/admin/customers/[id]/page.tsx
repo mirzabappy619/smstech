@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { formatBDT } from "@/lib/currency";
 
 interface CustomerDetail {
 	id: string;
@@ -48,7 +49,7 @@ interface CustomerDetail {
 	}>;
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function CustomerDetailPage() {
 	const params = useParams();

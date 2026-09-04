@@ -1,165 +1,332 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Check, Minus, Plus, Scale, X } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { allProducts } from '../../data/products'
-import { useState } from 'react'
+import { normalizeProduct, type Product } from '../../data/products'
+import Container from '../../components/ui/container'
+import { Breadcrumbs } from '../../components/CollectionView'
+import Price, { formatBDT } from '../../components/ui/price'
+import Rating from '../../components/ui/rating'
+import { CONDITION_META, resolveCondition } from '../../components/ui/condition'
 
-const fmt = (n: number) => '৳' + (Number(n) || 0).toLocaleString('en-BD')
-
-const BRANCHES = [
-  'Multiplan Branch (Instant)',
-  'Banani Branch (Instant)',
-  'IDB Bhaban Branch (30m)',
-  'Uttara Branch (2h)',
-  'Chattogram Branch (24h)'
+const SPEC_ROWS: { label: string; key: string }[] = [
+  { label: 'Processor / chipset', key: 'Processor' },
+  { label: 'Memory', key: 'RAM' },
+  { label: 'Storage', key: 'Storage' },
+  { label: 'Graphics', key: 'GPU' },
+  { label: 'Display', key: 'Display' },
+  { label: 'Operating system', key: 'OS' },
 ]
 
 export default function Compare() {
   const { compareList, removeFromCompare, addToCompare } = useApp()
   const [search, setSearch] = useState('')
+  const [catalogue, setCatalogue] = useState<Product[]>([])
 
-  const suggestions = allProducts
-    .filter((p) => !compareList.find((c) => c.id === p.id) && p.name.toLowerCase().includes(search.toLowerCase()))
-    .slice(0, 5)
+  // The compare tray lets you add devices inline, so it needs the catalogue.
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/v1/products?show_all=true&limit=100')
+        const json = await res.json()
+        if (json.success && Array.isArray(json.data)) {
+          setCatalogue(json.data.map(normalizeProduct))
+        }
+      } catch (e) {
+        console.error('Failed to load catalogue for comparison:', e)
+      }
+    }
+    load()
+  }, [])
 
-  // Standard Spec Categories
-  const standardSpecs = [
-    { label: 'Processor / Chipset', key: 'Processor' },
-    { label: 'RAM / Memory', key: 'RAM' },
-    { label: 'Storage Capacity', key: 'Storage' },
-    { label: 'Graphics / GPU', key: 'GPU' },
-    { label: 'Display & Screen', key: 'Display' },
-    { label: 'Operating System', key: 'OS' },
-  ]
+  const suggestions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return catalogue
+      .filter(
+        (p) =>
+          !compareList.some((c) => c.id === p.id) &&
+          (p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)),
+      )
+      .slice(0, 6)
+  }, [search, catalogue, compareList])
+
+  const cheapest = compareList.length
+    ? Math.min(...compareList.map((p) => p.price))
+    : 0
+
+  const labelCell = 'sticky left-0 z-10 bg-surface-2 px-4 py-3 text-left text-[13px] font-medium text-ink'
+  const valueCell = 'px-4 py-3 align-top text-[13px] text-ink-2'
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Side-by-Side Hardware Comparison</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Compare up to 4 laptops, phones, or pre-owned devices across Processor, GPU, Battery, and Price.</p>
-      </div>
+    <Container className="py-8 md:py-10">
+      <Breadcrumbs items={[{ label: 'Compare' }]} />
+
+      <header className="mb-8 max-w-2xl">
+        <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+          Compare devices
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+          Put up to four devices side by side — specification, condition grade, warranty term and
+          where each one is physically in stock.
+        </p>
+      </header>
 
       {compareList.length === 0 ? (
-        <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="text-6xl mb-4">⚖️</div>
-          <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">No products in compare tray</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">Add devices from any product page or catalog to compare side-by-side.</p>
-          <div className="flex gap-3 justify-center">
-            <Link href="/laptops" className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700 shadow-md">
-              Browse Laptops
+        <div className="rounded-xl border border-line bg-surface px-6 py-20 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-line bg-surface-2 text-ink-3">
+            <Scale className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <h2 className="mt-4 font-display text-lg font-semibold text-ink">
+            Your comparison is empty
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-ink-2">
+            Add devices from any listing using the compare icon on the product card.
+          </p>
+          <div className="mt-6 flex justify-center gap-2">
+            <Link
+              href="/laptops"
+              className="inline-flex h-10 items-center rounded-lg bg-accent px-4 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+            >
+              Browse laptops
             </Link>
-            <Link href="/smartphones" className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 font-bold rounded-xl text-sm hover:border-blue-300 dark:hover:border-blue-500 text-slate-700 dark:text-slate-200">
-              Browse Phones
+            <Link
+              href="/smartphones"
+              className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+            >
+              Browse phones
             </Link>
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
-          <table className="w-full border-collapse">
+        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+          <table className="w-full min-w-[720px] border-collapse">
+            <caption className="sr-only">Device comparison</caption>
             <thead>
               <tr>
-                <td className="w-48 pr-4 align-top">
-                  {compareList.length < 4 && (
-                    <div className="p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center min-h-48 flex flex-col items-center justify-center gap-2 bg-slate-50 dark:bg-slate-800/50">
-                      <span className="text-2xl text-blue-600 font-black">+</span>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 font-bold">Add Another Device</p>
+                <th scope="col" className="sticky left-0 z-10 w-52 bg-surface p-4 align-top">
+                  {compareList.length < 4 ? (
+                    <div className="rounded-lg border border-dashed border-line-2 bg-surface-2 p-3 text-left">
+                      <span className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+                        <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        Add a device
+                      </span>
                       <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search MacBook, ROG..."
-                        className="w-full mt-2 px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg text-xs font-semibold focus:outline-none focus:border-blue-500"
+                        placeholder="Search the catalogue…"
+                        className="mt-2.5 h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-[13px] font-normal text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
                       />
-                      {search && (
-                        <div className="w-full border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-lg">
+                      {suggestions.length > 0 && (
+                        <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
                           {suggestions.map((s) => (
-                            <button
-                              key={s.id}
-                              onClick={() => { addToCompare(s); setSearch('') }}
-                              className="w-full text-left px-2 py-2 text-xs hover:bg-blue-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 last:border-0 text-slate-900 dark:text-white font-bold"
-                            >
-                              {s.brand} {s.name}
-                            </button>
+                            <li key={s.id}>
+                              <button
+                                onClick={() => {
+                                  addToCompare(s)
+                                  setSearch('')
+                                }}
+                                className="w-full border-b border-line px-2.5 py-2 text-left text-xs font-normal text-ink transition-colors last:border-0 hover:bg-surface-2"
+                              >
+                                {s.brand} {s.name}
+                              </button>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
+                      )}
+                      {search.trim() && suggestions.length === 0 && (
+                        <p className="mt-2 text-xs font-normal text-ink-3">No matches.</p>
                       )}
                     </div>
+                  ) : (
+                    <p className="text-left text-xs font-normal text-ink-3">
+                      Comparison is full. Remove one to add another.
+                    </p>
                   )}
-                </td>
+                </th>
+
                 {compareList.map((p) => (
-                  <td key={p.id} className="px-3 align-top min-w-[220px]">
-                    <div className="border border-slate-100 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
-                      <div className="relative">
-                        <button
-                          onClick={() => removeFromCompare(p.id)}
-                          className="absolute top-2 right-2 w-6 h-6 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-300 hover:text-red-500 text-xs font-bold shadow-sm z-10"
-                        >×</button>
-                        <img src={p.image} alt={p.name} className="w-full h-36 object-cover bg-slate-100 dark:bg-slate-900" />
+                  <th key={p.id} scope="col" className="min-w-[220px] p-4 align-top">
+                    <div className="relative text-left">
+                      <button
+                        onClick={() => removeFromCompare(p.id)}
+                        className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 transition-colors hover:border-danger-line hover:bg-danger-soft hover:text-danger"
+                        aria-label={`Remove ${p.name} from comparison`}
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2} />
+                      </button>
+                      <Link href={`/product/${p.slug}`}>
+                        <img
+                          src={p.image}
+                          alt=""
+                          className="h-28 w-full rounded-lg border border-line bg-surface-2 object-contain p-2"
+                        />
+                      </Link>
+                      <p className="eyebrow mt-3">{p.brand}</p>
+                      <Link
+                        href={`/product/${p.slug}`}
+                        className="mt-1 line-clamp-2 block text-[13.5px] font-semibold leading-snug text-ink hover:text-accent"
+                      >
+                        {p.name}
+                      </Link>
+                      <div className="mt-2">
+                        <Price price={p.price} original={p.originalPrice} size="sm" />
                       </div>
-                      <div className="p-3.5 space-y-1.5">
-                        <p className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider">{p.brand}</p>
-                        <p className="text-xs font-extrabold text-slate-900 dark:text-white line-clamp-2">{p.name}</p>
-                        <p className="text-base font-black text-slate-900 dark:text-white pt-1">{fmt(p.price)}</p>
-                        <Link
-                          href={`/product/${p.slug}`}
-                          className="block mt-2 text-center py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-                        >
-                          View Details
-                        </Link>
-                      </div>
+                      {p.price === cheapest && compareList.length > 1 && (
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-md border border-verified-line bg-verified-soft px-1.5 py-0.5 text-[11px] font-medium text-verified">
+                          <Check className="h-3 w-3" strokeWidth={2.5} />
+                          Lowest price
+                        </span>
+                      )}
+                      <Link
+                        href={`/product/${p.slug}`}
+                        className="mt-3 flex h-9 items-center justify-center rounded-lg bg-accent text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-hover"
+                      >
+                        View details
+                      </Link>
                     </div>
-                  </td>
+                  </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {/* Price & Rating */}
-              <tr className="bg-slate-50 dark:bg-slate-800/60 font-bold">
-                <td className="py-3 pr-4 pl-3 text-slate-700 dark:text-slate-300 font-extrabold">Rating & Reviews</td>
+
+            <tbody className="divide-y divide-line border-t border-line">
+              <tr>
+                <th scope="row" className={labelCell}>
+                  Condition
+                </th>
+                {compareList.map((p) => {
+                  const meta = CONDITION_META[resolveCondition(p)]
+                  return (
+                    <td key={p.id} className={valueCell}>
+                      <span
+                        className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium ${
+                          meta.tone === 'verified'
+                            ? 'border-verified-line bg-verified-soft text-verified'
+                            : 'border-certified-line bg-certified-soft text-certified'
+                        }`}
+                      >
+                        {meta.label}
+                      </span>
+                    </td>
+                  )
+                })}
+              </tr>
+
+              <tr>
+                <th scope="row" className={labelCell}>
+                  Rating
+                </th>
                 {compareList.map((p) => (
-                  <td key={p.id} className="px-3 py-3 font-bold text-amber-600">
-                    ⭐ {p.rating} <span className="text-slate-400 font-normal">({p.reviews} reviews)</span>
+                  <td key={p.id} className={valueCell}>
+                    {p.reviews > 0 ? (
+                      <Rating value={p.rating} count={p.reviews} />
+                    ) : (
+                      <span className="text-ink-3">No reviews yet</span>
+                    )}
                   </td>
                 ))}
               </tr>
 
-              {/* Standard Specifications */}
-              {standardSpecs.map(({ label, key }) => (
-                <tr key={key} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                  <td className="py-3 pr-4 pl-3 font-extrabold text-slate-900 dark:text-white">{label}</td>
+              {SPEC_ROWS.map(({ label, key }) => (
+                <tr key={key}>
+                  <th scope="row" className={labelCell}>
+                    {label}
+                  </th>
                   {compareList.map((p) => (
-                    <td key={p.id} className="px-3 py-3 text-slate-700 dark:text-slate-300 font-medium">
-                      {p.specs[key] || '—'}
+                    <td key={p.id} className={valueCell}>
+                      {p.specs[key] || <span className="text-ink-3">—</span>}
                     </td>
                   ))}
                 </tr>
               ))}
 
-              {/* Warranty */}
-              <tr className="bg-slate-50 dark:bg-slate-800/60">
-                <td className="py-3 pr-4 pl-3 font-extrabold text-slate-900 dark:text-white">Official Warranty</td>
+              <tr>
+                <th scope="row" className={labelCell}>
+                  Battery health
+                </th>
                 {compareList.map((p) => (
-                  <td key={p.id} className="px-3 py-3 font-bold text-blue-600 dark:text-blue-400">
-                    🛡️ {p.warranty}
+                  <td key={p.id} className={`${valueCell} tnum`}>
+                    {p.batteryHealth != null ? (
+                      `${p.batteryHealth}%`
+                    ) : resolveCondition(p) === 'new' ? (
+                      <span className="text-ink-3">New — 100%</span>
+                    ) : (
+                      <span className="text-ink-3">—</span>
+                    )}
                   </td>
                 ))}
               </tr>
 
-              {/* Multi-Branch Stock Table */}
-              {BRANCHES.map((branch, i) => (
-                <tr key={i}>
-                  <td className="py-3 pr-4 pl-3 text-slate-500 font-semibold">{branch}</td>
-                  {compareList.map((p) => (
-                    <td key={p.id} className="px-3 py-3 font-bold text-emerald-600 dark:text-emerald-400">
-                      ✓ Available In-Store
+              <tr>
+                <th scope="row" className={labelCell}>
+                  Warranty
+                </th>
+                {compareList.map((p) => (
+                  <td key={p.id} className={valueCell}>
+                    {p.warranty}
+                  </td>
+                ))}
+              </tr>
+
+              <tr>
+                <th scope="row" className={labelCell}>
+                  Availability
+                </th>
+                {compareList.map((p) => {
+                  const where = [
+                    p.storeAvailability?.online && 'Online',
+                    p.storeAvailability?.store1 && 'Store 01',
+                    p.storeAvailability?.store2 && 'Store 02',
+                  ].filter(Boolean) as string[]
+
+                  return (
+                    <td key={p.id} className={valueCell}>
+                      {p.stock === 'out_of_stock' ? (
+                        <span className="inline-flex items-center gap-1 text-danger">
+                          <Minus className="h-3.5 w-3.5" strokeWidth={2} />
+                          Out of stock
+                        </span>
+                      ) : where.length > 0 ? (
+                        <ul className="space-y-1">
+                          {where.map((w) => (
+                            <li key={w} className="inline-flex items-center gap-1 text-verified">
+                              <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              {w}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-ink-3">Ask us</span>
+                      )}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                  )
+                })}
+              </tr>
+
+              <tr>
+                <th scope="row" className={labelCell}>
+                  You save
+                </th>
+                {compareList.map((p) => {
+                  const saving = Math.max(0, p.originalPrice - p.price)
+                  return (
+                    <td key={p.id} className={`${valueCell} tnum`}>
+                      {saving > 0 ? (
+                        <span className="font-medium text-verified">{formatBDT(saving)}</span>
+                      ) : (
+                        <span className="text-ink-3">—</span>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
             </tbody>
           </table>
         </div>
       )}
-    </div>
+    </Container>
   )
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { ContactBlockData } from "../landing-page-types";
 import { useState } from "react";
+import { CheckCircle2, Mail, Phone } from "lucide-react";
+import { ContactBlockData } from "../landing-page-types";
 
 interface ContactBlockRenderProps {
 	data: ContactBlockData;
@@ -20,134 +21,129 @@ export default function ContactBlockRender({ data }: ContactBlockRenderProps) {
 
 		// Simulate form submission
 		await new Promise((resolve) => setTimeout(resolve, 1000));
-		
+
 		setIsSubmitting(false);
 		setSubmitStatus("success");
 		setFormData({ name: "", email: "", message: "" });
-		
+
 		setTimeout(() => setSubmitStatus(null), 5000);
 	};
 
+	const field =
+		"h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15";
+	const labelCls = "mb-1.5 block text-[13px] font-medium text-ink";
+
 	return (
-		<section className="py-16 px-4 bg-gray-50">
-			<div className="max-w-4xl mx-auto">
-				<div className="text-center mb-12">
-					<h2 className="text-4xl font-bold mb-4 text-gray-900">{title}</h2>
+		<section className="bg-bg px-6 py-20">
+			<div className="mx-auto max-w-4xl">
+				<div className="mx-auto mb-12 max-w-2xl text-center">
+					<h2 className="font-display text-[28px] font-semibold tracking-tight text-ink md:text-[36px]">
+						{title}
+					</h2>
 					{description && (
-						<p className="text-xl text-gray-600 max-w-3xl mx-auto">
-							{description}
-						</p>
+						<p className="mt-3 text-[15px] leading-relaxed text-ink-2">{description}</p>
 					)}
 				</div>
 
-				<div className={showForm ? "grid md:grid-cols-2 gap-8" : ""}>
-					<div className={showForm ? "" : "text-center"}>
-						<div className="bg-white rounded-lg shadow-lg p-8 space-y-6">
-							<div className="flex items-center justify-center md:justify-start">
-								<svg
-									className="w-6 h-6 text-blue-600 mr-3"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-									/>
-								</svg>
+				<div className={showForm ? "grid gap-4 md:grid-cols-2" : "mx-auto max-w-md"}>
+					<ul className="grid h-fit gap-px overflow-hidden rounded-xl border border-line bg-line">
+						{phoneNumber && (
+							<li className="bg-surface">
 								<a
 									href={`tel:${phoneNumber}`}
-									className="text-2xl font-semibold text-gray-900 hover:text-blue-600"
+									className="flex items-center gap-3.5 px-5 py-4 transition-colors hover:bg-surface-2"
 								>
-									{phoneNumber}
+									<Phone className="h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+									<span className="min-w-0">
+										<span className="block text-xs text-ink-3">Call us</span>
+										<span className="tnum block truncate text-[15px] font-medium text-ink">
+											{phoneNumber}
+										</span>
+									</span>
 								</a>
-							</div>
-
-							{email && (
-								<div className="flex items-center justify-center md:justify-start">
-									<svg
-										className="w-6 h-6 text-blue-600 mr-3"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											strokeLinecap="round"
-											strokeLinejoin="round"
-											strokeWidth={2}
-											d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-										/>
-									</svg>
-									<a
-										href={`mailto:${email}`}
-										className="text-xl text-gray-900 hover:text-blue-600"
-									>
-										{email}
-									</a>
-								</div>
-							)}
-						</div>
-					</div>
+							</li>
+						)}
+						{email && (
+							<li className="bg-surface">
+								<a
+									href={`mailto:${email}`}
+									className="flex items-center gap-3.5 px-5 py-4 transition-colors hover:bg-surface-2"
+								>
+									<Mail className="h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+									<span className="min-w-0">
+										<span className="block text-xs text-ink-3">Email us</span>
+										<span className="block truncate text-[15px] font-medium text-ink">
+											{email}
+										</span>
+									</span>
+								</a>
+							</li>
+						)}
+					</ul>
 
 					{showForm && (
-						<div className="bg-white rounded-lg shadow-lg p-8">
-							<form onSubmit={handleSubmit} className="space-y-4">
-								<div>
-									<label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-										Name
-									</label>
-									<input
-										type="text"
-										id="name"
-										value={formData.name}
-										onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-								<div>
-									<label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-										Email
-									</label>
-									<input
-										type="email"
-										id="email"
-										value={formData.email}
-										onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-								<div>
-									<label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
-										Message
-									</label>
-									<textarea
-										id="message"
-										rows={4}
-										value={formData.message}
-										onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-										required
-										className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-								<button
-									type="submit"
-									disabled={isSubmitting}
-									className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
-								>
-									{isSubmitting ? "Sending..." : "Send Message"}
-								</button>
-								{submitStatus === "success" && (
-									<p className="text-green-600 text-center">Message sent successfully!</p>
-								)}
-								{submitStatus === "error" && (
-									<p className="text-red-600 text-center">Failed to send message. Please try again.</p>
-								)}
-							</form>
-						</div>
+						<form
+							onSubmit={handleSubmit}
+							className="space-y-4 rounded-xl border border-line bg-surface p-6"
+						>
+							<div>
+								<label htmlFor="lp-contact-name" className={labelCls}>
+									Name
+								</label>
+								<input
+									type="text"
+									id="lp-contact-name"
+									value={formData.name}
+									onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+									required
+									className={field}
+								/>
+							</div>
+							<div>
+								<label htmlFor="lp-contact-email" className={labelCls}>
+									Email
+								</label>
+								<input
+									type="email"
+									id="lp-contact-email"
+									value={formData.email}
+									onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+									required
+									className={field}
+								/>
+							</div>
+							<div>
+								<label htmlFor="lp-contact-message" className={labelCls}>
+									Message
+								</label>
+								<textarea
+									id="lp-contact-message"
+									rows={4}
+									value={formData.message}
+									onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+									required
+									className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15"
+								/>
+							</div>
+							<button
+								type="submit"
+								disabled={isSubmitting}
+								className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-accent text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-50"
+							>
+								{isSubmitting ? "Sending…" : "Send message"}
+							</button>
+							{submitStatus === "success" && (
+								<p className="flex items-center justify-center gap-1.5 text-[13px] text-verified">
+									<CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
+									Message sent.
+								</p>
+							)}
+							{submitStatus === "error" && (
+								<p className="text-center text-[13px] text-danger">
+									That didn&rsquo;t send. Please try again.
+								</p>
+							)}
+						</form>
 					)}
 				</div>
 			</div>

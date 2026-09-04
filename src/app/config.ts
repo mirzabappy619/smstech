@@ -1,3 +1,5 @@
+import { CURRENCY_SYMBOLS, DEFAULT_CURRENCY, currencySymbol, formatCurrency } from '@/lib/currency';
+
 // Application Configuration
 // Centralizes all configuration with environment variable support
 
@@ -49,25 +51,20 @@ export const appConfig = {
 // CURRENCY & PRICING CONFIG
 // ==============================================
 export const currencyConfig = {
-  default: process.env.NEXT_PUBLIC_DEFAULT_CURRENCY || 'BDT',
+  default: process.env.NEXT_PUBLIC_DEFAULT_CURRENCY || DEFAULT_CURRENCY,
   supported: ['BDT', 'USD', 'EUR'],
-  symbol: '৳',
-  symbols: {
-    BDT: '৳',
-    USD: '$',
-    EUR: '€',
-  } as Record<string, string>,
-  
+  symbol: currencySymbol(DEFAULT_CURRENCY),
+  // Symbols live in one place — see src/lib/currency.ts
+  symbols: CURRENCY_SYMBOLS,
+
   // Formatting
   locale: 'en-BD',
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 };
 
-export function formatCurrency(amount: number, _currency = currencyConfig.default): string {
-  // Intl renders BDT as "BDT 1,000" — we prefer the ৳ symbol instead
-  return `৳${Math.round(amount).toLocaleString('en-BD')}`;
-}
+// Re-exported from the canonical module so there is one implementation.
+export { formatCurrency, currencySymbol, CURRENCY_SYMBOLS };
 
 // ==============================================
 // TAX CONFIG

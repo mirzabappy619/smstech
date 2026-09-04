@@ -182,25 +182,21 @@ export default async function LandingPage({ params, searchParams }: PageProps) {
 
 	const blocks = landingPage.blocks || [];
 
-	console.log("Landing page blocks count:", blocks.length);
-	console.log(
-		"Block types:",
-		blocks.map((b) => b.blockType),
-	);
-
 	return (
-		<main className="min-h-screen">
+		<main className="min-h-screen bg-bg">
 			{isPreview && (
-				<div className="bg-yellow-500 text-black px-4 py-2 text-center font-semibold">
-					Preview Mode - This page is not published
+				<div className="border-b border-certified-line bg-certified-soft px-4 py-2 text-center text-[13px] font-medium text-certified">
+					Preview — this page is not published yet
 				</div>
 			)}
 			{blocks.length === 0 ? (
-				<div className="flex items-center justify-center min-h-screen">
+				<div className="flex min-h-screen items-center justify-center px-6">
 					<div className="text-center">
-						<h1 className="text-2xl font-bold mb-2">No Content Yet</h1>
-						<p className="text-gray-600">
-							This landing page doesn&apos;t have any blocks yet.
+						<h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
+							Nothing here yet
+						</h1>
+						<p className="mt-2 text-[14px] text-ink-2">
+							This landing page doesn&apos;t have any content blocks.
 						</p>
 					</div>
 				</div>

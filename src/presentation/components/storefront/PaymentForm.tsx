@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/lib/currency';
 
 interface PaymentFormProps {
   clientSecret: string;
@@ -46,12 +47,9 @@ export function PaymentForm({ clientSecret, amount, currency, onSuccess, onError
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
 
-  const formatAmount = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.toUpperCase(),
-    }).format(amount / 100);
-  };
+  // Amounts arrive in the currency's minor unit (poisha / cents).
+  const formatAmount = (amount: number, currency: string) =>
+    formatCurrency(amount / 100, currency);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

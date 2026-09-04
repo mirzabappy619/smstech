@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { formatBDT } from "@/lib/currency";
 
 interface Customer {
 	id: string;
@@ -401,7 +402,7 @@ export default function CustomersPage() {
 
 											<td className="px-6 py-4 whitespace-nowrap">
 												<p className="font-bold text-zinc-900 dark:text-white">{customer.total_orders || 0} Orders</p>
-												<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">৳{Math.round(customer.total_spent || 0).toLocaleString()}</p>
+												<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{formatBDT(customer.total_spent || 0)}</p>
 											</td>
 
 											<td className="px-6 py-4 whitespace-nowrap text-right">
@@ -475,7 +476,7 @@ export default function CustomersPage() {
 										</div>
 										<div className="text-right shrink-0">
 											<p className="font-bold text-xs text-zinc-900 dark:text-white">{customer.total_orders || 0} Orders</p>
-											<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">৳{Math.round(customer.total_spent || 0).toLocaleString()}</p>
+											<p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{formatBDT(customer.total_spent || 0)}</p>
 										</div>
 									</div>
 

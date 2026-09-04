@@ -46,10 +46,14 @@ const createOrderSchema = z.object({
 		lastName: z.string().optional(),
 		first_name: z.string().optional(),
 		last_name: z.string().optional(),
+		// The storefront posts a single free-text `address`; older callers use
+		// address1 / address_line1. All three are accepted.
+		address: z.string().optional(),
 		address1: z.string().optional(),
 		address2: z.string().optional(),
 		address_line1: z.string().optional(),
 		address_line2: z.string().optional(),
+		area: z.string().optional(),
 		city: z.string().optional().default(""),
 		state: z.string().optional().default(""),
 		postalCode: z.string().optional(),
@@ -59,12 +63,29 @@ const createOrderSchema = z.object({
 			message: BD_PHONE_ERROR_MESSAGE,
 		}),
 		email: z.string().email().optional(),
+		delivery_type: z.enum(["home", "pickup"]).optional(),
+		pickup_store: z.string().optional().nullable(),
 	}),
 	billing_address: z.any().optional(),
-	shipping_method: z.string().min(1),
+	// Optional: store pickup and plain home delivery are inferred from
+	// shipping_address.delivery_type when the caller omits it.
+	shipping_method: z.string().min(1).optional(),
+	// Must stay in step with the methods offered at checkout and in
+	// /api/v1/admin/orders — a narrower list here silently 400s real orders.
 	payment_method: z
-		.enum(["card", "cash_on_delivery", "paypal"])
-		.default("card"),
+		.enum([
+			"card",
+			"cash_on_delivery",
+			"bkash",
+			"nagad",
+			"bank_transfer",
+			"partial_advance_cod",
+			"paypal",
+		])
+		.default("cash_on_delivery"),
+	// Deposit taken up front, with the rest collected on delivery.
+	advance_deducted: z.number().min(0).optional(),
+	due_amount: z.number().min(0).optional(),
 	coupon_code: z.string().optional().nullable(),
 	notes: z.string().optional(),
 	source: z.string().optional(),
@@ -157,15 +178,19 @@ export async function POST(request: NextRequest) {
 		const {
 			shipping_address,
 			billing_address,
-			shipping_method,
 			payment_method,
 			coupon_code,
 			notes,
 			source,
 			create_payment_intent,
+			advance_deducted,
 			fbc,
 			fbp,
 		} = validation.data;
+
+		const isPickup = shipping_address.delivery_type === "pickup";
+		const shipping_method =
+			validation.data.shipping_method || (isPickup ? "store_pickup" : "home_delivery");
 
 		// Normalize address fields (support both camelCase, snake_case, and single name field)
 		const fullName = shipping_address.name || "";
@@ -179,9 +204,13 @@ export async function POST(request: NextRequest) {
 				shipping_address.firstName || shipping_address.first_name || derivedFirstName,
 			last_name: shipping_address.lastName || shipping_address.last_name || derivedLastName,
 			address_line1:
-				shipping_address.address1 || shipping_address.address_line1 || "",
+				shipping_address.address1 ||
+				shipping_address.address_line1 ||
+				shipping_address.address ||
+				"",
 			address_line2:
 				shipping_address.address2 || shipping_address.address_line2 || "",
+			area: shipping_address.area || "",
 			city: shipping_address.city || "",
 			state: shipping_address.state || "",
 			postal_code:
@@ -189,6 +218,8 @@ export async function POST(request: NextRequest) {
 			country: shipping_address.country || "BD",
 			phone: shipping_address.phone ? normalizeBDPhone(shipping_address.phone) : "",
 			email: shipping_address.email || "",
+			delivery_type: shipping_address.delivery_type || "home",
+			pickup_store: shipping_address.pickup_store || null,
 		};
 
 		// If no items provided, get from cart
@@ -251,9 +282,11 @@ export async function POST(request: NextRequest) {
 			.in("id", productIds);
 
 		if (productsError || !products) {
+			// Swallowing this made a missing column look like a generic 500.
+			console.error("Order product lookup failed:", productsError);
 			return errorResponse(
 				"PRODUCTS_FETCH_FAILED",
-				"Failed to fetch products",
+				productsError?.message || "Failed to fetch products",
 				500,
 			);
 		}
@@ -305,9 +338,11 @@ export async function POST(request: NextRequest) {
 			};
 		});
 
-		// Calculate shipping — look up price from store settings
+		// Calculate shipping — look up price from store settings.
+		// Store pickup is never charged; checkout shows it as free.
 		let shippingAmount = 0;
 		try {
+			if (isPickup) throw { __pickup: true };
 			const settings = await readStoreSettings(adminSupabase);
 			const methods = settings.shipping_methods;
 
@@ -319,7 +354,9 @@ export async function POST(request: NextRequest) {
 				shippingAmount = Number(settings.default_shipping_cost ?? 0) || 0;
 			}
 		} catch (err) {
-			console.error("Shipping calculation error:", err);
+			if (!(err && typeof err === "object" && "__pickup" in err)) {
+				console.error("Shipping calculation error:", err);
+			}
 			shippingAmount = 0;
 		}
 
@@ -361,6 +398,13 @@ export async function POST(request: NextRequest) {
 				500,
 			);
 		}
+
+		// A deposit can never exceed the server-computed total.
+		const advancePaid = Math.min(
+			Math.max(Number(advance_deducted) || 0, 0),
+			totalAmount,
+		);
+		const dueAmount = totalAmount - advancePaid;
 
 		// Generate order number
 		const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -418,6 +462,10 @@ export async function POST(request: NextRequest) {
 				shipping_amount: shippingAmount,
 				discount_amount: discountAmount,
 				total: totalAmount,
+				// Totals are always recomputed server-side; the client only says
+				// how much of it was taken up front.
+				advance_deducted: advancePaid,
+				due_amount: dueAmount,
 				currency: "BDT",
 				shipping_method,
 				shipping_address: normalizedShippingAddress,

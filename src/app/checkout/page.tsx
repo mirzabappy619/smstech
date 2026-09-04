@@ -3,7 +3,24 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import {
+  ArrowLeft,
+  Banknote,
+  Check,
+  CreditCard,
+  Lock,
+  RotateCcw,
+  ShieldCheck,
+  ShoppingBag,
+  Smartphone,
+  Store,
+  Truck,
+  Zap,
+} from 'lucide-react'
 import { useApp } from '../../store/AppContext'
+import { stores } from '../../data/stores'
+import Container from '../../components/ui/container'
+import { formatBDT } from '../../components/ui/price'
 import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE } from '@/lib/bd-phone-validator'
 import {
   trackMetaInitiateCheckout,
@@ -11,39 +28,57 @@ import {
   getMetaCookie,
 } from '@/presentation/components/meta-pixel'
 
-const fmt = (n: number) => '৳' + (Number(n) || 0).toLocaleString('en-BD')
+const STEPS = ['Your details', 'Delivery', 'Payment'] as const
 
-const STORES = [
-  { id: '1', name: 'Multiplan Branch (Elephant Road)', addr: 'Level-3, Shop 309, Multiplan Center, Dhaka (01781485588)', timing: '10am–8pm (Instant Ready)' },
-  { id: '2', name: 'Banani Branch (Road 11)', addr: 'House 45, Road 11, Block D, Banani, Dhaka (01781485589)', timing: '10am–9pm (Instant Ready)' },
-  { id: '3', name: 'IDB Bhaban Branch (Agargaon)', addr: 'Shop 102, BCS Computer City, IDB Bhaban, Dhaka (01781485590)', timing: '10am–8pm (30m Transfer)' },
-  { id: '4', name: 'Uttara Branch (Sector 3)', addr: 'Plot 12, Rabindra Sarani, Sector 3, Uttara, Dhaka (01781485591)', timing: '10am–8pm (2h Express)' },
-  { id: '5', name: 'Chattogram Branch (GEC Circle)', addr: 'Central Plaza, GEC Circle, Chattogram (01781485592)', timing: '10am–8pm (Pre-Order / 24h)' },
-]
+const FREE_DELIVERY_THRESHOLD = 100000
+const DELIVERY_FEE = 120
 
-const steps = ['Customer & OTP', 'Delivery Method', 'Payment & Advance', 'Confirmation']
+type PaymentMethod = 'cod' | 'advance_split' | 'bkash' | 'nagad' | 'card'
+
+/**
+ * Turn an API error envelope into something a customer can act on. Validation
+ * failures carry a per-field `details` map; everything else has a message.
+ */
+function describeOrderError(json: any): string | null {
+  const err = json?.error
+  if (!err) return null
+
+  const details = err.details
+  if (details && typeof details === 'object') {
+    const first = Object.values(details).flat()[0]
+    if (typeof first === 'string') {
+      const field = Object.keys(details)[0]?.replace(/_/g, ' ')
+      return field ? `${field}: ${first}` : first
+    }
+  }
+
+  return typeof err.message === 'string' ? err.message : null
+}
 
 export default function Checkout() {
   const { cart, cartTotal } = useApp()
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', city: 'Dhaka', area: '' })
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: 'Dhaka',
+    area: '',
+  })
   const [delivery, setDelivery] = useState<'home' | 'pickup'>('home')
-  const [selectedStore, setSelectedStore] = useState('1')
-  const [payment, setPayment] = useState<'cod' | 'bkash' | 'nagad' | 'card' | 'advance_split'>('cod')
-  const [otpSent, setOtpSent] = useState(false)
-  const [otpCode, setOtpCode] = useState('')
-  const [otpVerified, setOtpVerified] = useState(false)
-  const [otpError, setOtpError] = useState<string | null>(null)
+  const [selectedStore, setSelectedStore] = useState(stores[0]?.id ?? '1')
+  const [payment, setPayment] = useState<PaymentMethod>('cod')
   const [formError, setFormError] = useState<string | null>(null)
   const initiateCheckoutTracked = useRef(false)
 
-  const delivery_fee = delivery === 'pickup' || cartTotal > 100000 ? 0 : 120
-  const finalTotal = cartTotal + delivery_fee
-  const splitAdvanceAmount = Math.round(finalTotal * 0.10) // 10% advance deposit for unit reservation
+  const deliveryFee =
+    delivery === 'pickup' || cartTotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE
+  const finalTotal = cartTotal + deliveryFee
+  const splitAdvanceAmount = Math.round(finalTotal * 0.1)
 
-  // Track InitiateCheckout on checkout mount
   useEffect(() => {
     if (initiateCheckoutTracked.current || cart.length === 0) return
     initiateCheckoutTracked.current = true
@@ -63,29 +98,10 @@ export default function Checkout() {
     } catch {}
   }, [cart, finalTotal])
 
-  const handleSendOtp = () => {
-    if (!form.phone.trim() || !isValidBDPhone(form.phone)) {
-      setFormError(BD_PHONE_ERROR_MESSAGE)
-      return
-    }
-    setFormError(null)
-    setOtpSent(true)
-    setOtpError(null)
-  }
-
-  const handleVerifyOtp = () => {
-    if (otpCode === '1234' || otpCode.length >= 4) {
-      setOtpVerified(true)
-      setOtpError(null)
-    } else {
-      setOtpError('Invalid OTP code. For demo testing, enter 1234')
-    }
-  }
-
   const handlePlaceOrder = async () => {
     setLoading(true)
     try {
-      const chosenStore = STORES.find(s => s.id === selectedStore)
+      const chosenStore = stores.find((s) => s.id === selectedStore)
       const fbc = getMetaCookie('_fbc')
       const fbp = getMetaCookie('_fbp')
 
@@ -94,25 +110,34 @@ export default function Checkout() {
         customer_email: form.email || 'customer@smstech.bd',
         customer_phone: form.phone || '01700000000',
         shipping_address: {
-          address: delivery === 'pickup' ? `In-Store Pickup at ${chosenStore?.name}` : form.address,
-          city: form.city,
+          name: form.name,
+          phone: form.phone,
+          email: form.email || undefined,
+          address_line1:
+            delivery === 'pickup'
+              ? `In-store pickup at ${chosenStore?.name ?? 'SMSTech'}`
+              : form.address,
           area: form.area,
+          city: form.city,
+          country: 'BD',
           delivery_type: delivery,
-          pickup_store: delivery === 'pickup' ? chosenStore?.name : null,
+          pickup_store: delivery === 'pickup' ? (chosenStore?.name ?? null) : null,
         },
+        shipping_method: delivery === 'pickup' ? 'store_pickup' : 'home_delivery',
         items: cart.map((i) => ({
           product_id: i.product.id,
-          product_name: i.product.name,
           quantity: i.quantity,
-          unit_price: i.product.price,
-          variant: i.variant || null,
         })),
-        payment_method: payment === 'advance_split' ? 'partial_advance_cod' : (payment === 'cod' ? 'cash_on_delivery' : payment),
+        payment_method:
+          payment === 'advance_split'
+            ? 'partial_advance_cod'
+            : payment === 'cod'
+              ? 'cash_on_delivery'
+              : payment,
         advance_deducted: payment === 'advance_split' ? splitAdvanceAmount : 0,
-        due_amount: payment === 'advance_split' ? (finalTotal - splitAdvanceAmount) : (payment === 'cod' ? finalTotal : 0),
-        subtotal: cartTotal,
-        shipping_fee: delivery_fee,
-        total_amount: finalTotal,
+        // Subtotal, shipping and total are deliberately not sent — the server
+        // recomputes them from live prices so the client cannot set its own.
+        create_payment_intent: false,
         source: 'storefront',
         fbc: fbc || null,
         fbp: fbp || null,
@@ -125,9 +150,21 @@ export default function Checkout() {
       })
 
       const json = await res.json().catch(() => null)
-      const createdOrderId = json?.data?.order?.id || json?.order?.id || `ORD-${Date.now()}`
 
-      // Track Meta Pixel & CAPI Purchase with matching eventId
+      // The order used to be treated as placed no matter what came back, so a
+      // rejected request still sent the customer to the confirmation page and
+      // the order never reached the admin panel. Fail loudly instead.
+      if (!res.ok || json?.success === false) {
+        throw new Error(
+          describeOrderError(json) || 'We could not place your order. Please try again.',
+        )
+      }
+
+      const createdOrderId = json?.data?.order?.id || json?.order?.id
+      if (!createdOrderId) {
+        throw new Error('We could not place your order. Please try again.')
+      }
+
       try {
         trackMetaPurchase({
           eventId: createdOrderId,
@@ -153,8 +190,8 @@ export default function Checkout() {
           ? `/order-success?order=${encodeURIComponent(createdOrderNumber)}`
           : '/order-success',
       )
-    } catch {
-      router.push('/order-success')
+    } catch (err: any) {
+      setFormError(err?.message || 'We could not place your order. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -162,6 +199,7 @@ export default function Checkout() {
 
   const next = () => {
     setFormError(null)
+
     if (step === 0) {
       if (!form.name.trim()) {
         setFormError('Please enter your full name.')
@@ -171,326 +209,476 @@ export default function Checkout() {
         setFormError(BD_PHONE_ERROR_MESSAGE)
         return
       }
-      if (delivery === 'home' && !form.address.trim()) {
-        setFormError('Please enter your delivery address.')
-        return
-      }
     }
 
-    if (step === steps.length - 2) {
+    if (step === 1 && delivery === 'home' && !form.address.trim()) {
+      setFormError('Please enter your delivery address.')
+      return
+    }
+
+    if (step === STEPS.length - 1) {
       handlePlaceOrder()
       return
     }
+
     setStep(step + 1)
   }
 
+  const field =
+    'h-11 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent/15'
+  const labelCls = 'mb-1.5 block text-[13px] font-medium text-ink'
+
+  if (cart.length === 0) {
+    return (
+      <Container className="py-24">
+        <div className="mx-auto max-w-md text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-line bg-surface-2 text-ink-3">
+            <ShoppingBag className="h-6 w-6" strokeWidth={1.75} />
+          </span>
+          <h1 className="mt-5 font-display text-2xl font-semibold tracking-tight text-ink">
+            There&rsquo;s nothing to check out
+          </h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
+            Add a device to your cart and come back.
+          </p>
+          <Link
+            href="/laptops"
+            className="mt-6 inline-flex h-11 items-center rounded-lg bg-accent px-5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+          >
+            Browse devices
+          </Link>
+        </div>
+      </Container>
+    )
+  }
+
+  const paymentOptions: {
+    value: PaymentMethod
+    Icon: typeof Banknote
+    title: string
+    desc: string
+  }[] = [
+    {
+      value: 'cod',
+      Icon: Banknote,
+      title: 'Cash on delivery',
+      desc: 'Inspect the device at the door, then pay the courier in full.',
+    },
+    {
+      value: 'advance_split',
+      Icon: Zap,
+      title: `Reserve with ${formatBDT(splitAdvanceAmount)} advance`,
+      desc: `Pay 10% now to lock the unit, then ${formatBDT(finalTotal - splitAdvanceAmount)} on delivery.`,
+    },
+    {
+      value: 'bkash',
+      Icon: Smartphone,
+      title: 'bKash',
+      desc: 'Pay in full through the official bKash gateway.',
+    },
+    {
+      value: 'nagad',
+      Icon: Smartphone,
+      title: 'Nagad',
+      desc: 'Pay in full through Nagad mobile banking.',
+    },
+    {
+      value: 'card',
+      Icon: CreditCard,
+      title: 'Card or bank EMI',
+      desc: 'Visa and Mastercard, with 3–12 month EMI on qualifying banks.',
+    },
+  ]
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
-      {/* Steps Breadcrumb */}
-      <div className="flex items-center gap-2 mb-10 overflow-x-auto pb-2">
-        {steps.map((s, i) => (
-          <div key={s} className="flex items-center gap-2 shrink-0">
-            <div className={`flex items-center gap-2 ${i <= step ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-700 border-2 transition-all
-                ${i < step ? 'border-blue-600 bg-blue-600 text-white' :
-                  i === step ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 font-extrabold' :
-                  'border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'}`}>
-                {i < step ? '✓' : i + 1}
-              </div>
-              <span className="text-xs font-bold hidden sm:block">{s}</span>
-            </div>
-            {i < steps.length - 1 && (
-              <div className={`h-0.5 w-8 sm:w-16 ${i < step ? 'bg-blue-600 dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
-            )}
-          </div>
+    <Container className="py-8 md:py-10">
+      <h1 className="mb-8 font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+        Checkout
+      </h1>
+
+      {/* Progress */}
+      <ol className="mb-10 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {STEPS.map((s, i) => (
+          <li key={s} className="flex shrink-0 items-center gap-2">
+            <span
+              className={`flex items-center gap-2 ${i <= step ? 'text-ink' : 'text-ink-3'}`}
+              aria-current={i === step ? 'step' : undefined}
+            >
+              <span
+                className={`tnum flex h-7 w-7 items-center justify-center rounded-full border text-[13px] font-medium ${
+                  i < step
+                    ? 'border-verified bg-verified text-white'
+                    : i === step
+                      ? 'border-ink bg-inverse text-inverse-ink'
+                      : 'border-line text-ink-3'
+                }`}
+              >
+                {i < step ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : i + 1}
+              </span>
+              <span className="text-[13px] font-medium">{s}</span>
+            </span>
+            {i < STEPS.length - 1 && <span className="h-px w-8 bg-line sm:w-14" />}
+          </li>
         ))}
-      </div>
+      </ol>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Main Form */}
-        <div className="lg:col-span-2">
-          {/* STEP 0: Customer Info & OTP Express */}
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-7 xl:col-span-8">
+          {formError && (
+            <p className="mb-4 rounded-lg border border-danger-line bg-danger-soft px-4 py-3 text-[13.5px] text-danger">
+              {formError}
+            </p>
+          )}
+
+          {/* Step 0 — details */}
           {step === 0 && (
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4 shadow-sm">
-              <div className="flex justify-between items-center">
-                <h2 className="font-extrabold text-slate-900 dark:text-white">Customer Identification & Express Verification</h2>
-                {otpVerified && (
-                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded-full text-xs font-black">
-                    ✓ Verified Phone
-                  </span>
-                )}
+            <section className="overflow-hidden rounded-xl border border-line bg-surface">
+              <div className="border-b border-line px-6 py-4">
+                <h2 className="font-display text-base font-semibold tracking-tight text-ink">
+                  Your details
+                </h2>
+                <p className="mt-0.5 text-[13px] text-ink-3">
+                  We use your phone to confirm the order and arrange delivery.
+                </p>
               </div>
-
-              {formError && (
-                <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs font-semibold rounded-xl flex items-center gap-2">
-                  <span>⚠️</span>
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <div className="grid sm:grid-cols-2 gap-4 text-xs">
+              <div className="grid gap-4 p-6 sm:grid-cols-2">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Full Name *</label>
+                  <label htmlFor="co-name" className={labelCls}>
+                    Full name <span className="text-danger">*</span>
+                  </label>
                   <input
+                    id="co-name"
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-medium focus:outline-none focus:border-blue-500"
-                    placeholder="e.g. Shakib Ahmed"
+                    placeholder="Shakib Ahmed"
+                    className={field}
                   />
                 </div>
-
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Phone Number (bKash / OTP) *</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-bold focus:outline-none focus:border-blue-500"
-                      placeholder="01712345678"
-                    />
-                    {!otpVerified && (
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs shrink-0 hover:bg-blue-700 shadow-sm"
-                      >
-                        {otpSent ? 'Resend' : 'Send OTP'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {otpSent && !otpVerified && (
-                  <div className="sm:col-span-2 p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl space-y-2">
-                    <p className="font-bold text-blue-900 dark:text-blue-200">Enter 4-Digit Verification Code</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        maxLength={6}
-                        value={otpCode}
-                        onChange={e => setOtpCode(e.target.value)}
-                        placeholder="Enter 1234"
-                        className="w-36 px-3 py-2 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700 rounded-xl font-mono text-center font-black tracking-widest"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleVerifyOtp}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold"
-                      >
-                        Verify OTP
-                      </button>
-                    </div>
-                    {otpError && <p className="text-red-600 text-[11px] font-bold">{otpError}</p>}
-                  </div>
-                )}
-
-                <div className="sm:col-span-2">
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Email Address (for Digital Warranty Receipt)</label>
+                  <label htmlFor="co-phone" className={labelCls}>
+                    Phone number <span className="text-danger">*</span>
+                  </label>
                   <input
+                    id="co-phone"
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="01712345678"
+                    className={field}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="co-email" className={labelCls}>
+                    Email address
+                  </label>
+                  <input
+                    id="co-email"
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-medium focus:outline-none focus:border-blue-500"
-                    placeholder="customer@email.com"
+                    placeholder="you@example.com"
+                    className={field}
                   />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Delivery Street Address</label>
-                  <input
-                    type="text"
-                    value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl font-medium focus:outline-none focus:border-blue-500"
-                    placeholder="House, Road, Area (Leave empty for In-Store Pickup)"
-                  />
+                  <p className="mt-1.5 text-xs text-ink-3">
+                    Your warranty certificate and inspection checksheet are sent here.
+                  </p>
                 </div>
               </div>
-            </div>
+            </section>
           )}
 
-          {/* STEP 1: Delivery Method & Branch Selector */}
+          {/* Step 1 — delivery */}
           {step === 1 && (
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-5 shadow-sm">
-              <h2 className="font-extrabold text-slate-900 dark:text-white">Choose Delivery / Pickup Method</h2>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {[
-                  ['home', '🚚', 'Courier Delivery', 'RedX / Steadfast / Pathao express delivery to your door (24–48h)'],
-                  ['pickup', '🏪', 'In-Store Branch Pickup', 'Pick up directly at any of our official store counters today'],
-                ].map(([val, icon, title, desc]) => (
-                  <label
-                    key={val}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
-                      delivery === val
-                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:border-blue-500 shadow-sm'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-blue-200'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-extrabold text-sm text-slate-900 dark:text-white">{icon} {title}</span>
+            <section className="overflow-hidden rounded-xl border border-line bg-surface">
+              <div className="border-b border-line px-6 py-4">
+                <h2 className="font-display text-base font-semibold tracking-tight text-ink">
+                  How would you like it?
+                </h2>
+              </div>
+
+              <div className="space-y-5 p-6">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      {
+                        val: 'home' as const,
+                        Icon: Truck,
+                        title: 'Courier delivery',
+                        desc: 'To your door in 24–48 hours within Dhaka, 2–4 days elsewhere.',
+                      },
+                      {
+                        val: 'pickup' as const,
+                        Icon: Store,
+                        title: 'Store pickup',
+                        desc: 'Collect from the showroom once it clears final inspection.',
+                      },
+                    ]
+                  ).map(({ val, Icon, title, desc }) => (
+                    <label
+                      key={val}
+                      className={`cursor-pointer rounded-xl border p-4 transition-colors ${
+                        delivery === val
+                          ? 'border-ink bg-surface-2'
+                          : 'border-line hover:border-line-2'
+                      }`}
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <Icon className="h-4 w-4 shrink-0 text-ink-2" strokeWidth={2} />
                         <input
                           type="radio"
+                          name="delivery"
                           value={val}
                           checked={delivery === val}
-                          onChange={() => setDelivery(val as any)}
-                          className="accent-blue-600"
+                          onChange={() => setDelivery(val)}
+                          className="mt-0.5 accent-[var(--accent)]"
                         />
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              {delivery === 'pickup' && (
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Select Pickup Branch
-                  </h3>
-                  <div className="space-y-2">
-                    {STORES.map((s) => (
-                      <label
-                        key={s.id}
-                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start justify-between ${
-                          selectedStore === s.id
-                            ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100'
-                            : 'border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        <div className="space-y-0.5">
-                          <p className="font-bold text-xs text-slate-900 dark:text-white">{s.name}</p>
-                          <p className="text-[11px] text-slate-500">{s.addr}</p>
-                          <span className="inline-block text-[10px] font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
-                            {s.timing}
-                          </span>
-                        </div>
-                        <input
-                          type="radio"
-                          value={s.id}
-                          checked={selectedStore === s.id}
-                          onChange={() => setSelectedStore(s.id)}
-                          className="accent-blue-600 mt-1"
-                        />
-                      </label>
-                    ))}
-                  </div>
+                      </span>
+                      <span className="mt-3 block text-[14px] font-medium text-ink">{title}</span>
+                      <span className="mt-1 block text-[13px] leading-relaxed text-ink-2">
+                        {desc}
+                      </span>
+                    </label>
+                  ))}
                 </div>
-              )}
-            </div>
+
+                {delivery === 'home' ? (
+                  <div className="grid gap-4 border-t border-line pt-5 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label htmlFor="co-address" className={labelCls}>
+                        Street address <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        id="co-address"
+                        type="text"
+                        value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                        placeholder="House, road, and any landmark"
+                        className={field}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="co-city" className={labelCls}>
+                        City
+                      </label>
+                      <input
+                        id="co-city"
+                        type="text"
+                        value={form.city}
+                        onChange={(e) => setForm({ ...form, city: e.target.value })}
+                        className={field}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="co-area" className={labelCls}>
+                        Area
+                      </label>
+                      <input
+                        id="co-area"
+                        type="text"
+                        value={form.area}
+                        onChange={(e) => setForm({ ...form, area: e.target.value })}
+                        placeholder="Dhanmondi, Uttara…"
+                        className={field}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-t border-line pt-5">
+                    <p className="eyebrow mb-3">Pickup location</p>
+                    <div className="space-y-2">
+                      {stores.map((s) => (
+                        <label
+                          key={s.id}
+                          className={`flex cursor-pointer items-start justify-between gap-3 rounded-xl border p-4 transition-colors ${
+                            selectedStore === s.id
+                              ? 'border-ink bg-surface-2'
+                              : 'border-line hover:border-line-2'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-[14px] font-medium text-ink">{s.name}</span>
+                            <span className="mt-0.5 block text-[13px] leading-relaxed text-ink-2">
+                              {s.address}
+                            </span>
+                            <span className="mt-1.5 block text-xs text-ink-3">{s.hours}</span>
+                          </span>
+                          <input
+                            type="radio"
+                            name="pickup-store"
+                            value={s.id}
+                            checked={selectedStore === s.id}
+                            onChange={() => setSelectedStore(s.id)}
+                            className="mt-1 shrink-0 accent-[var(--accent)]"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           )}
 
-          {/* STEP 2: Payment Method & Split Advance Option */}
+          {/* Step 2 — payment */}
           {step === 2 && (
-            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-6 space-y-4 shadow-sm">
-              <h2 className="font-extrabold text-slate-900 dark:text-white">Payment Options & Partial Advance</h2>
-              <div className="space-y-3">
-                {[
-                  ['cod', '💵', 'Full Cash on Delivery (COD)', 'Pay 100% amount to courier upon delivery inspection'],
-                  ['advance_split', '⚡', `Lock Unit with 10% Advance (${fmt(splitAdvanceAmount)})`, `Pay ${fmt(splitAdvanceAmount)} online via bKash/Card now, pay remaining ${fmt(finalTotal - splitAdvanceAmount)} on delivery`],
-                  ['bkash', '📱', 'bKash Tokenized Direct Checkout', 'Instant automated payment via official bKash Payment Gateway'],
-                  ['nagad', '📲', 'Nagad Mobile Banking', 'Fast digital payment via Nagad gateway'],
-                  ['card', '💳', 'Visa / Mastercard / Amex & Bank EMI', 'Encrypted card gateway with 3 to 12 months 0% EMI options'],
-                ].map(([val, icon, title, desc]) => (
+            <section className="overflow-hidden rounded-xl border border-line bg-surface">
+              <div className="border-b border-line px-6 py-4">
+                <h2 className="font-display text-base font-semibold tracking-tight text-ink">
+                  How would you like to pay?
+                </h2>
+              </div>
+              <div className="space-y-2 p-6">
+                {paymentOptions.map(({ value, Icon, title, desc }) => (
                   <label
-                    key={val}
-                    className={`flex items-start gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                      payment === val
-                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:border-blue-500 shadow-sm'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-blue-200'
+                    key={value}
+                    className={`flex cursor-pointer items-start gap-3.5 rounded-xl border p-4 transition-colors ${
+                      payment === value ? 'border-ink bg-surface-2' : 'border-line hover:border-line-2'
                     }`}
                   >
                     <input
                       type="radio"
-                      value={val}
-                      checked={payment === val}
-                      onChange={() => setPayment(val as any)}
-                      className="mt-1 accent-blue-600"
+                      name="payment"
+                      value={value}
+                      checked={payment === value}
+                      onChange={() => setPayment(value)}
+                      className="mt-1 shrink-0 accent-[var(--accent)]"
                     />
-                    <div>
-                      <p className="font-extrabold text-xs text-slate-900 dark:text-white">{icon} {title}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{desc}</p>
-                    </div>
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" strokeWidth={2} />
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-medium text-ink">{title}</span>
+                      <span className="mt-0.5 block text-[13px] leading-relaxed text-ink-2">
+                        {desc}
+                      </span>
+                    </span>
                   </label>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Navigation Controls */}
-          <div className="flex justify-between mt-6">
+          {/* Navigation */}
+          <div className="mt-6 flex items-center justify-between gap-3">
             {step > 0 ? (
               <button
                 onClick={() => setStep(step - 1)}
-                className="px-6 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-blue-300 transition-colors"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
               >
-                ← Back
+                <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+                Back
               </button>
             ) : (
               <Link
                 href="/cart"
-                className="px-6 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-blue-300 transition-colors"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
               >
-                ← Cart
+                <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+                Back to cart
               </Link>
             )}
+
             <button
               onClick={next}
               disabled={loading}
-              className="px-8 py-2.5 bg-blue-600 text-white font-extrabold rounded-xl text-xs hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-600/30 disabled:opacity-50"
+              className="inline-flex h-11 items-center rounded-lg bg-accent px-6 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-50"
             >
-              {loading ? 'Submitting Order...' : step === 2 ? 'Confirm & Place Order →' : 'Continue →'}
+              {loading
+                ? 'Placing order…'
+                : step === STEPS.length - 1
+                  ? `Place order — ${formatBDT(finalTotal)}`
+                  : 'Continue'}
             </button>
           </div>
         </div>
 
-        {/* Order summary sidebar */}
-        <div>
-          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-5 sticky top-24 space-y-4 shadow-sm">
-            <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">Order Summary</h3>
-            <div className="space-y-3 max-h-60 overflow-y-auto">
+        {/* Summary */}
+        <div className="lg:col-span-5 xl:col-span-4">
+          <div className="sticky top-24 overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="border-b border-line px-5 py-4">
+              <h2 className="font-display text-base font-semibold tracking-tight text-ink">
+                Order summary
+              </h2>
+            </div>
+
+            <ul className="max-h-72 divide-y divide-line overflow-y-auto">
               {cart.map((item) => (
-                <div key={item.product.id} className="flex gap-3">
-                  <img src={item.product.image} alt={item.product.name} className="w-12 h-12 object-cover rounded-xl bg-slate-100 dark:bg-slate-900 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">{item.product.name}</p>
-                    {item.variant && <p className="text-[10px] text-slate-500">{item.variant}</p>}
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">Qty: {item.quantity}</p>
+                <li
+                  key={`${item.product.id}-${item.variant ?? ''}`}
+                  className="flex gap-3 px-5 py-3.5"
+                >
+                  <img
+                    src={item.product.image}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-contain p-1"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">
+                      {item.product.name}
+                    </p>
+                    {item.variant && (
+                      <p className="mt-0.5 truncate text-[11px] text-ink-3">{item.variant}</p>
+                    )}
+                    <p className="tnum mt-0.5 text-[11px] text-ink-3">Qty {item.quantity}</p>
                   </div>
-                  <p className="text-xs font-black text-slate-900 dark:text-white shrink-0">{fmt(item.product.price * item.quantity)}</p>
-                </div>
+                  <p className="tnum shrink-0 text-[13px] font-medium text-ink">
+                    {formatBDT(item.product.price * item.quantity)}
+                  </p>
+                </li>
               ))}
-            </div>
+            </ul>
 
-            <div className="border-t border-slate-100 dark:border-slate-700/80 pt-3 space-y-2 text-xs">
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Subtotal</span>
-                <span className="font-bold text-slate-900 dark:text-white">{fmt(cartTotal)}</span>
+            <dl className="space-y-2.5 border-t border-line px-5 py-4 text-[13.5px]">
+              <div className="flex justify-between">
+                <dt className="text-ink-2">Subtotal</dt>
+                <dd className="tnum font-medium text-ink">{formatBDT(cartTotal)}</dd>
               </div>
-              <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                <span>Delivery Fee</span>
-                <span className={`font-bold ${delivery_fee === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
-                  {delivery_fee === 0 ? 'FREE' : fmt(delivery_fee)}
-                </span>
+              <div className="flex justify-between">
+                <dt className="text-ink-2">Delivery</dt>
+                <dd className={`tnum font-medium ${deliveryFee === 0 ? 'text-verified' : 'text-ink'}`}>
+                  {deliveryFee === 0 ? 'Free' : formatBDT(deliveryFee)}
+                </dd>
               </div>
-
               {payment === 'advance_split' && (
-                <div className="flex justify-between text-blue-600 font-extrabold pt-1">
-                  <span>Pay Now (10% Advance):</span>
-                  <span>{fmt(splitAdvanceAmount)}</span>
-                </div>
+                <>
+                  <div className="flex justify-between border-t border-line pt-2.5">
+                    <dt className="text-ink-2">Pay now (10%)</dt>
+                    <dd className="tnum font-medium text-accent-ink">
+                      {formatBDT(splitAdvanceAmount)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-ink-2">Pay on delivery</dt>
+                    <dd className="tnum font-medium text-ink">
+                      {formatBDT(finalTotal - splitAdvanceAmount)}
+                    </dd>
+                  </div>
+                </>
               )}
-
-              <div className="flex justify-between font-black text-base pt-2 border-t border-slate-100 dark:border-slate-700/80 text-slate-900 dark:text-white">
-                <span>Total Amount</span>
-                <span className="text-blue-600 dark:text-blue-400">{fmt(finalTotal)}</span>
+              <div className="flex items-baseline justify-between border-t border-line pt-3">
+                <dt className="font-display text-base font-semibold text-ink">Total</dt>
+                <dd className="tnum font-display text-lg font-semibold tracking-tight text-ink">
+                  {formatBDT(finalTotal)}
+                </dd>
               </div>
-            </div>
+            </dl>
+
+            <ul className="space-y-2 border-t border-line bg-surface-2 px-5 py-4 text-xs text-ink-3">
+              <li className="flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                Encrypted checkout
+              </li>
+              <li className="flex items-center gap-2">
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                Warranty registered in your name
+              </li>
+              <li className="flex items-center gap-2">
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                7-day returns, no restocking fee
+              </li>
+            </ul>
           </div>
         </div>
       </div>
-    </div>
+    </Container>
   )
 }

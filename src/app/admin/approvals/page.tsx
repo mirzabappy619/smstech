@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRBAC } from "@/lib/rbac/rbac-context";
+import { formatBDT } from "@/lib/currency";
 
 interface ApprovalAction {
 	id: string;
@@ -47,7 +48,7 @@ interface CashCloseApproval {
 	actions: ApprovalAction[];
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 const STATUS_STYLES: Record<string, string> = {
 	pending: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",

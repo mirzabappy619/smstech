@@ -33,9 +33,11 @@ export default function VideoBlockRender({ data }: VideoBlockRenderProps) {
 
 	if (!videoId) {
 		return (
-			<section className="py-16 px-4 bg-red-50">
-				<div className="max-w-4xl mx-auto text-center">
-					<p className="text-red-600">Invalid YouTube URL</p>
+			<section className="bg-bg px-6 py-16">
+				<div className="mx-auto max-w-3xl rounded-xl border border-danger-line bg-danger-soft px-6 py-8 text-center">
+					<p className="text-[13.5px] text-danger">
+						This video block has an invalid YouTube URL.
+					</p>
 				</div>
 			</section>
 		);
@@ -44,23 +46,23 @@ export default function VideoBlockRender({ data }: VideoBlockRenderProps) {
 	const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=${autoplay ? 1 : 0}&controls=${showControls ? 1 : 0}`;
 
 	return (
-		<section className="py-16 px-4 bg-gray-50">
-			<div className="max-w-4xl mx-auto">
-				<h2 className="text-4xl font-bold text-center mb-4 text-gray-900">
-					{title}
-				</h2>
-				{description && (
-					<p className="text-xl text-center mb-8 text-gray-600">
-						{description}
-					</p>
-				)}
-				<div className="relative w-full aspect-video rounded-lg overflow-hidden shadow-2xl">
+		<section className="bg-bg px-6 py-20">
+			<div className="mx-auto max-w-4xl">
+				<div className="mx-auto mb-8 max-w-2xl text-center">
+					<h2 className="font-display text-[28px] font-semibold tracking-tight text-ink md:text-[36px]">
+						{title}
+					</h2>
+					{description && (
+						<p className="mt-3 text-[15px] leading-relaxed text-ink-2">{description}</p>
+					)}
+				</div>
+				<div className="relative aspect-video w-full overflow-hidden rounded-xl border border-line bg-surface-2">
 					<iframe
 						src={embedUrl}
 						title={title}
 						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
 						allowFullScreen
-						className="absolute top-0 left-0 w-full h-full"
+						className="absolute left-0 top-0 h-full w-full"
 					/>
 				</div>
 			</div>

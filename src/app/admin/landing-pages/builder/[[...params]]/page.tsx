@@ -258,7 +258,7 @@ function LandingPageBuilder({ params }: PageProps) {
 							highlighted: false,
 						},
 					],
-					currency: "USD",
+					currency: "BDT",
 				} as PricingBlockData;
 
 			case "why_us":
@@ -1316,7 +1316,7 @@ function PricingBlockConfig({
 				</label>
 				<input
 					type="text"
-					value={data.currency || "USD"}
+					value={data.currency || "BDT"}
 					onChange={(e) => onUpdate({ ...data, currency: e.target.value })}
 					className="w-full px-3 py-2 border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg"
 				/>

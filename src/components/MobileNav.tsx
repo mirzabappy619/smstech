@@ -2,71 +2,65 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Heart, Home, LayoutGrid, Search, ShoppingBag } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 
 export default function MobileNav() {
-  const { cartCount, wishlist } = useApp()
+  const { cartCount, wishlist, setSearchOpen, setCartOpen } = useApp()
   const pathname = usePathname()
 
   const items = [
-    { label: 'Home', href: '/', icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-      </svg>
-    )},
-    { label: 'Categories', href: '/laptops', icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
-        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-      </svg>
-    )},
-    { label: 'Search', href: '#', search: true, icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
-        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-      </svg>
-    )},
-    { label: 'Wishlist', href: '/wishlist', badge: wishlist.length, icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-      </svg>
-    )},
-    { label: 'Cart', href: '/cart', badge: cartCount, icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" />
-        <path d="M16 10a4 4 0 0 1-8 0" />
-      </svg>
-    )},
+    { label: 'Home', href: '/', Icon: Home },
+    { label: 'Shop', href: '/laptops', Icon: LayoutGrid },
+    { label: 'Search', action: 'search' as const, Icon: Search },
+    { label: 'Saved', href: '/wishlist', badge: wishlist.length, Icon: Heart },
+    { label: 'Cart', action: 'cart' as const, badge: cartCount, Icon: ShoppingBag },
   ]
 
-  const { setSearchOpen: openSearch } = useApp()
+  const cell =
+    'relative flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-medium transition-colors'
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 transition-colors">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+      aria-label="Primary"
+    >
       <div className="flex">
-        {items.map((item) => {
-          const active = !item.search && pathname === item.href
-          return item.search ? (
-            <button
-              key={item.label}
-              onClick={() => openSearch(true)}
-              className="flex-1 flex flex-col items-center gap-1 py-2.5 text-slate-500 dark:text-slate-400"
-            >
-              {item.icon}
-              <span className="text-[10px] font-600">{item.label}</span>
-            </button>
-          ) : (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex-1 flex flex-col items-center gap-1 py-2.5 relative
-                ${active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}
-            >
-              {item.icon}
-              <span className="text-[10px] font-600">{item.label}</span>
-              {item.badge != null && item.badge > 0 && (
-                <span className="absolute top-1 right-4 w-4 h-4 bg-blue-600 text-white text-[9px] font-700 rounded-full flex items-center justify-center">
-                  {item.badge}
-                </span>
+        {items.map(({ label, href, action, badge, Icon }) => {
+          const active = href ? pathname === href : false
+          const tone = active ? 'text-accent' : 'text-ink-3'
+
+          const content = (
+            <>
+              <span className="relative">
+                <Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
+                {badge != null && badge > 0 && (
+                  <span className="tnum absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-semibold text-on-accent">
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                )}
+              </span>
+              {label}
+            </>
+          )
+
+          if (action) {
+            return (
+              <button
+                key={label}
+                onClick={() => (action === 'search' ? setSearchOpen(true) : setCartOpen(true))}
+                className={`${cell} ${tone}`}
+              >
+                {content}
+              </button>
+            )
+          }
+
+          return (
+            <Link key={label} href={href!} className={`${cell} ${tone}`}>
+              {content}
+              {active && (
+                <span className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-accent" />
               )}
             </Link>
           )

@@ -1,31 +1,56 @@
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
+import Container from '../../components/ui/container'
+import { Breadcrumbs } from '../../components/CollectionView'
 import { brands } from '../../data/products'
+
+export const metadata = {
+  title: 'Brands',
+  description:
+    'Every laptop and smartphone brand stocked at SMSTech — new and certified pre-owned.',
+}
 
 export default function Brands() {
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-800 text-slate-900 dark:text-white mb-2">Shop by Brand</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Authorized reseller of leading technology brands</p>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+    <Container className="py-8 md:py-10">
+      <Breadcrumbs items={[{ label: 'Brands' }]} />
+
+      <header className="mb-10 max-w-2xl">
+        <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+          Brands we stock
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+          New stock comes through authorised distributors. Pre-owned stock is inspected, graded and
+          logged against its serial number — whatever the badge on the lid says.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {brands.map((brand) => (
           <Link
-            key={brand.name}
-            href={`/brand/${brand.name.toLowerCase()}`}
-            className="group flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border border-slate-100 dark:border-slate-700/80 hover:border-blue-200 dark:hover:border-blue-500 hover:shadow-lg transition-all bg-white dark:bg-slate-800"
+            key={brand.slug}
+            href={`/brand/${brand.slug}`}
+            className="group flex flex-col justify-between rounded-xl border border-line bg-surface p-6 transition-[border-color,box-shadow] hover:border-line-2 hover:shadow-md"
           >
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-900 group-hover:bg-blue-50 dark:group-hover:bg-blue-950 flex items-center justify-center text-3xl font-800 text-slate-600 dark:text-slate-300 transition-colors">
-              {brand.logo}
+            <span className="flex h-14 w-14 items-center justify-center rounded-xl border border-line bg-surface-2 font-display text-base font-bold tracking-tight text-ink-2 transition-colors group-hover:border-accent-line group-hover:bg-accent-soft group-hover:text-accent-ink">
+              {brand.mark}
+            </span>
+            <div className="mt-6">
+              <p className="font-display text-[15px] font-semibold tracking-tight text-ink">
+                {brand.name}
+              </p>
+              <p className="tnum mt-0.5 text-xs text-ink-3">{brand.count} listings</p>
             </div>
-            <div className="text-center">
-              <p className="font-700 text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{brand.name}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{brand.count} products</p>
-            </div>
-            <span className="text-xs text-blue-600 dark:text-blue-400 font-600 opacity-0 group-hover:opacity-100 transition-opacity">Explore →</span>
+            <span className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-3 transition-colors group-hover:text-accent">
+              Browse
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
+              />
+            </span>
           </Link>
         ))}
       </div>
-    </div>
+    </Container>
   )
 }

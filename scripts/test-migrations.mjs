@@ -27,6 +27,7 @@ const MIGRATIONS = [
 	"supabase/migrations/022_product_preorder.sql",
 	"supabase/migrations/023_cash_close_approval_pipeline.sql",
 	"supabase/migrations/024_performance_indexes.sql",
+	"supabase/migrations/025_users_role_rbac_keys.sql",
 ];
 
 let passed = 0;
@@ -522,6 +523,7 @@ async function main() {
 	"supabase/migrations/022_product_preorder.sql",
 	"supabase/migrations/023_cash_close_approval_pipeline.sql",
 		"supabase/migrations/024_performance_indexes.sql",
+	"supabase/migrations/025_users_role_rbac_keys.sql",
 	]) {
 		try {
 			await db.exec(fs.readFileSync(file, "utf8"));

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRBAC } from "@/lib/rbac/rbac-context";
+import { formatBDT } from "@/lib/currency";
 
 interface DashboardStats {
 	totalOrders: number;
@@ -53,7 +54,7 @@ interface DashboardData {
 	lowStockProducts: LowStockProduct[];
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function AdminDashboard() {
 	// Branch scope comes from the global switcher in the admin header (no local picker)

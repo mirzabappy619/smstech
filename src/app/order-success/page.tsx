@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { CheckCircle2, Mail, RotateCcw, ShieldCheck, Truck } from 'lucide-react'
+import Container from '../../components/ui/container'
 
 // The order number comes from the checkout redirect. It was previously invented
 // here with Math.random(), which both broke hydration (server and client rolled
@@ -12,7 +14,7 @@ async function OrderNumber({
   const { order } = await searchParams
   if (!order) return null
   return (
-    <p className="font-700 text-blue-600 dark:text-blue-400 text-lg mb-8">
+    <p className="tnum mt-4 inline-flex items-center rounded-lg border border-line bg-surface-2 px-4 py-2 font-display text-base font-semibold tracking-tight text-ink">
       {order.startsWith('#') ? order : `#${order}`}
     </p>
   )
@@ -23,50 +25,78 @@ export default function OrderSuccess({
 }: {
   searchParams: Promise<{ order?: string }>
 }) {
-
   return (
-    <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-      <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-950/60 rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg viewBox="0 0 24 24" className="w-10 h-10 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2.5}>
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      </div>
-      <h1 className="text-3xl font-800 text-slate-900 dark:text-white mb-2">Order Confirmed!</h1>
-      <p className="text-slate-500 dark:text-slate-400 mb-2">Thank you for shopping with SMSTech.</p>
-      <Suspense fallback={<div className="h-7 mb-8" />}>
-        <OrderNumber searchParams={searchParams} />
-      </Suspense>
+    <Container className="py-16 md:py-24">
+      <div className="mx-auto max-w-xl text-center">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-verified-line bg-verified-soft text-verified">
+          <CheckCircle2 className="h-7 w-7" strokeWidth={1.75} />
+        </span>
 
-      <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-6 text-left space-y-3 mb-8 border border-slate-100 dark:border-slate-700/80 transition-colors">
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Delivery method</span>
-          <span className="font-600 text-slate-900 dark:text-white">Home Delivery</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Expected delivery</span>
-          <span className="font-600 text-slate-900 dark:text-white">2–3 business days</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Payment</span>
-          <span className="font-600 text-slate-900 dark:text-white">Cash on Delivery</span>
-        </div>
-      </div>
+        <h1 className="mt-6 font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+          Order confirmed
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+          Thank you. Your order is in our system and we&rsquo;ve started the final inspection.
+        </p>
 
-      <div className="p-4 bg-blue-50 dark:bg-blue-950/60 rounded-2xl border border-blue-100 dark:border-blue-900 mb-8 text-sm text-blue-800 dark:text-blue-300">
-        📦 Your order has been recorded into the SMSTech system. You will receive tracking updates shortly.
-      </div>
+        <Suspense fallback={<div className="mt-4 h-10" />}>
+          <OrderNumber searchParams={searchParams} />
+        </Suspense>
 
-      <div className="flex flex-wrap gap-3 justify-center">
-        <Link href="/track-order" className="px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl font-600 text-slate-700 dark:text-slate-200 hover:border-blue-300 dark:hover:border-blue-500 transition-colors text-sm">
-          Track Order
-        </Link>
-        <Link href="/admin/orders" className="px-6 py-3 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 rounded-xl font-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors text-sm">
-          View in Admin Orders
-        </Link>
-        <Link href="/" className="px-6 py-3 bg-blue-600 text-white font-700 rounded-xl hover:bg-blue-700 transition-colors text-sm">
-          Continue Shopping
-        </Link>
+        <ol className="mt-10 space-y-px overflow-hidden rounded-xl border border-line bg-line text-left">
+          {[
+            {
+              Icon: ShieldCheck,
+              t: 'Final inspection',
+              s: 'We re-check the device and record its serial or IMEI against your order.',
+            },
+            {
+              Icon: Mail,
+              t: 'Confirmation sent',
+              s: 'You’ll get the order details and warranty certificate by email and SMS.',
+            },
+            {
+              Icon: Truck,
+              t: 'Dispatch',
+              s: 'Dhaka metro within 24–48 hours; 2–4 business days elsewhere.',
+            },
+            {
+              Icon: RotateCcw,
+              t: 'Seven days to change your mind',
+              s: 'Return in original condition for a full refund, no restocking fee.',
+            },
+          ].map(({ Icon, t, s }) => (
+            <li key={t} className="flex gap-3.5 bg-surface px-5 py-4">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+              <div>
+                <p className="text-[14px] font-medium text-ink">{t}</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">{s}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-2">
+          <Link
+            href="/"
+            className="inline-flex h-11 items-center rounded-lg bg-accent px-5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+          >
+            Continue shopping
+          </Link>
+          <Link
+            href="/track-order"
+            className="inline-flex h-11 items-center rounded-lg border border-line px-5 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+          >
+            Track this order
+          </Link>
+          <Link
+            href="/account"
+            className="inline-flex h-11 items-center rounded-lg border border-line px-5 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+          >
+            My account
+          </Link>
+        </div>
       </div>
-    </div>
+    </Container>
   )
 }

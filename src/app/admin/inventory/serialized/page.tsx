@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { formatBDT } from "@/lib/currency";
 
 interface SerializedUnit {
   id: string;
@@ -44,7 +45,7 @@ interface WarehouseOption {
   code: string;
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function SerializedInventoryPage() {
   const [units, setUnits] = useState<SerializedUnit[]>([]);

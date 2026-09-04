@@ -31,7 +31,7 @@ export abstract class Entity<T> {
 export class Money {
   constructor(
     public readonly amount: number,
-    public readonly currency: string = 'USD'
+    public readonly currency: string = 'BDT'
   ) {
     if (amount < 0) throw new Error('Amount cannot be negative');
   }
@@ -55,6 +55,10 @@ export class Money {
   }
 
   format(): string {
+    // Intl renders BDT as "BDT 1,000"; the store shows the ৳ sign instead.
+    if (this.currency === 'BDT') {
+      return `৳${this.amount.toLocaleString('en-BD')}`;
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: this.currency,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { formatBDT } from "@/lib/currency";
 
 interface ProductOption {
   id: string;
@@ -16,7 +17,7 @@ interface Warehouse {
   code: string;
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function ProcurementPage() {
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy");

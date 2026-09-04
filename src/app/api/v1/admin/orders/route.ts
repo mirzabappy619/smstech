@@ -54,6 +54,15 @@ export async function GET(request: NextRequest) {
 		const limit = Math.min(Math.max(1, parseInt(searchParams.get("limit") || "100")), 200);
 		const status = searchParams.get("status");
 		const search = searchParams.get("search")?.trim() || "";
+		// Channel + till filters, used by the POS sales list. `invoice_type`
+		// is the reliable channel marker — `source` is inconsistent on older rows.
+		const invoiceType = searchParams.get("invoice_type");
+		const warehouseId = searchParams.get("warehouse_id");
+		const shiftId = searchParams.get("shift_id");
+		const paymentMethod = searchParams.get("payment_method");
+		const paymentStatus = searchParams.get("payment_status");
+		const dateFrom = searchParams.get("from");
+		const dateTo = searchParams.get("to");
 
 		let query = supabase
 			.from("orders")
@@ -62,6 +71,38 @@ export async function GET(request: NextRequest) {
 
 		if (status && status !== "all") {
 			query = query.eq("status", status);
+		}
+
+		if (invoiceType && invoiceType !== "all") {
+			// Comma-separated so the POS list can ask for pos + pre_booking.
+			const types = invoiceType.split(",").map((t) => t.trim()).filter(Boolean);
+			query = types.length > 1 ? query.in("invoice_type", types) : query.eq("invoice_type", types[0]);
+		}
+
+		if (warehouseId && warehouseId !== "all") {
+			query = query.eq("warehouse_id", warehouseId);
+		}
+
+		if (shiftId && shiftId !== "all") {
+			query = query.eq("shift_id", shiftId);
+		}
+
+		if (paymentMethod && paymentMethod !== "all") {
+			query = query.eq("payment_method", paymentMethod);
+		}
+
+		if (paymentStatus && paymentStatus !== "all") {
+			query = query.eq("payment_status", paymentStatus);
+		}
+
+		if (dateFrom) {
+			query = query.gte("created_at", dateFrom);
+		}
+
+		if (dateTo) {
+			// `to` arrives as a plain date; include the whole day.
+			const end = dateTo.length === 10 ? `${dateTo}T23:59:59.999Z` : dateTo;
+			query = query.lte("created_at", end);
 		}
 
 		if (search) {

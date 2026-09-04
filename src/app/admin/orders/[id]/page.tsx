@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
+import { formatCurrency as formatMoney, DEFAULT_CURRENCY } from "@/lib/currency";
 
 interface OrderItem {
 	id: string;
@@ -105,7 +106,7 @@ export default function OrderDetailPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 	const [downloadingSlip, setDownloadingSlip] = useState(false);
-	const [storeCurrency, setStoreCurrency] = useState("USD");
+	const [storeCurrency, setStoreCurrency] = useState(DEFAULT_CURRENCY);
 
 	const [showCourierModal, setShowCourierModal] = useState(false);
 	const [courierProvider, setCourierProvider] = useState<'pathao' | 'steadfast'>('pathao');
@@ -136,7 +137,7 @@ export default function OrderDetailPage() {
 			});
 			if (res.ok) {
 				const data = await res.json();
-				setStoreCurrency(data.currency_code || 'USD');
+				setStoreCurrency(data.currency_code || DEFAULT_CURRENCY);
 			}
 		} catch (err) {
 			console.error('Failed to fetch store currency:', err);
@@ -190,7 +191,7 @@ export default function OrderDetailPage() {
 				tax_amount: data.tax_amount ?? 0,
 				shipping_amount: data.shipping_amount ?? 0,
 				discount_amount: data.discount_amount ?? 0,
-				currency: data.currency || "USD",
+				currency: data.currency || DEFAULT_CURRENCY,
 				shipping_method: data.shipping_method,
 				tracking_number: data.tracking_number,
 				created_at: data.created_at,
@@ -463,12 +464,7 @@ export default function OrderDetailPage() {
 		}
 	};
 
-	const formatCurrency = (amount: number) => {
-		return new Intl.NumberFormat("en-US", {
-			style: "currency",
-			currency: storeCurrency,
-		}).format(amount);
-	};
+	const formatCurrency = (amount: number) => formatMoney(amount, storeCurrency);
 
 	const formatDate = (dateString: string) => {
 		return new Date(dateString).toLocaleDateString("en-US", {
@@ -1232,7 +1228,7 @@ export default function OrderDetailPage() {
 								<div className="p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl space-y-1 text-xs">
 									<div className="flex justify-between font-bold text-zinc-900 dark:text-white">
 										<span>Recipient: {order.shipping_address?.name || `${order.shipping_address?.first_name || ""} ${order.shipping_address?.last_name || ""}`.trim() || order.customer?.first_name || "Customer"}</span>
-										<span className="text-blue-600 font-bold">COD: ৳ {Math.round(order.payment_status === 'pending' || order.payment_method === 'cash_on_delivery' ? (order.total_amount || order.subtotal) : 0)}</span>
+										<span className="text-blue-600 font-bold">COD: {formatCurrency(order.payment_status === 'pending' || order.payment_method === 'cash_on_delivery' ? (order.total_amount || order.subtotal) : 0)}</span>
 									</div>
 									<p className="text-zinc-600 dark:text-zinc-400">📱 {order.shipping_address?.phone || order.customer?.phone || "No phone"}</p>
 									<p className="text-zinc-500 dark:text-zinc-500 truncate">📍 {order.shipping_address?.address_line1}, {order.shipping_address?.city}</p>

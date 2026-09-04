@@ -89,7 +89,7 @@ export const createProductSchema = z.object({
   brandId: uuidSchema.optional(),
   basePrice: moneySchema.positive(),
   compareAtPrice: moneySchema.optional(),
-  currency: z.string().length(3).default('USD'),
+  currency: z.string().length(3).default('BDT'),
   images: z.array(urlSchema).default([]),
   tags: z.array(z.string().max(50)).default([]),
   seoTitle: z.string().max(60).optional(),

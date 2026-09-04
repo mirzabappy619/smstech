@@ -616,15 +616,15 @@ export default function EditProductPage() {
               <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-4">Pricing</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className={lbl}>Base Price * (USD)</label>
+                  <label className={lbl}>Base Price * (৳)</label>
                   <input type="number" name="base_price" value={formData.base_price} onChange={handleInputChange} required step="0.01" min="0" className={input} placeholder="0.00" />
                 </div>
                 <div>
-                  <label className={lbl}>Compare At Price (USD)</label>
+                  <label className={lbl}>Compare At Price (৳)</label>
                   <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleInputChange} step="0.01" min="0" className={input} placeholder="0.00" />
                 </div>
                 <div>
-                  <label className={lbl}>Cost Price (USD)</label>
+                  <label className={lbl}>Cost Price (৳)</label>
                   <input type="number" name="cost_price" value={formData.cost_price} onChange={handleInputChange} step="0.01" min="0" className={input} placeholder="0.00" />
                 </div>
               </div>
@@ -953,7 +953,7 @@ export default function EditProductPage() {
 
                         {/* Price — inline editable */}
                         <div className="hidden md:flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                          <span className="text-xs text-zinc-400">$</span>
+                          <span className="text-xs text-zinc-400">৳</span>
                           <input
                             type="number"
                             value={variation.price}
@@ -1028,7 +1028,7 @@ export default function EditProductPage() {
                               />
                             </div>
                             <div>
-                              <label className={lbl}>Price (USD)</label>
+                              <label className={lbl}>Price (৳)</label>
                               <input
                                 type="number"
                                 value={variation.price}

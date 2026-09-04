@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatBDT } from "@/lib/currency";
 
 
 interface LedgerEntry {
@@ -27,7 +28,7 @@ interface CustomerWithDue {
   loyalty_tier: string;
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function AccountingLedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);

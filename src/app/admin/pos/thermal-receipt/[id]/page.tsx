@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { formatBDT } from "@/lib/currency";
 
 interface OrderDetail {
   id: string;
@@ -28,7 +29,7 @@ interface OrderDetail {
   }>;
 }
 
-const fmt = (n: number) => "৳" + (Number(n) || 0).toLocaleString("en-BD");
+const fmt = (n: number) => formatBDT(n);
 
 export default function ThermalReceiptPage() {
   const params = useParams();

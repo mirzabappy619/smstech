@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatBDT } from "@/lib/currency";
 
 interface Coupon {
 	id: string;
@@ -412,12 +413,12 @@ export default function CouponsPage() {
 											<div className="text-sm font-semibold text-zinc-900 dark:text-white">
 												{coupon.discount_type === "percentage"
 													? `${coupon.discount_value}%`
-												: `BDT ${coupon.discount_value}`}{" "}
+													: formatBDT(coupon.discount_value)}{" "}
 												off
 											</div>
 											{coupon.min_purchase_amount && (
 												<div className="text-xs text-zinc-500">
-													Min: BDT {coupon.min_purchase_amount}
+													Min: {formatBDT(coupon.min_purchase_amount)}
 												</div>
 											)}
 										</td>

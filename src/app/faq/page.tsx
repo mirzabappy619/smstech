@@ -2,82 +2,234 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { ChevronDown, MessageCircle, Search, Store } from 'lucide-react'
+import Container from '../../components/ui/container'
+import { Breadcrumbs } from '../../components/CollectionView'
 
-const categories = ['All', 'Orders', 'Delivery', 'Payments', 'Warranty', 'Returns', 'Store Pickup', 'Authenticity']
+const categories = [
+  'All',
+  'Condition & grading',
+  'Warranty',
+  'Returns',
+  'Delivery',
+  'Payments',
+  'Orders',
+  'Store pickup',
+]
 
-const faqs = [
-  { cat: 'Authenticity', q: 'Are your products genuine?', a: 'Yes. Every product at SMSTech is 100% genuine, sourced from authorized brand distributors and official channels. We do not sell grey market or refurbished products unless explicitly stated.' },
-  { cat: 'Warranty', q: 'What warranty do your products have?', a: 'Warranty varies by brand and product. Most laptops carry 1–2 year official manufacturer warranties, and smartphones typically carry 1 year. The exact warranty for each product is listed on its product page.' },
-  { cat: 'Store Pickup', q: 'Can I order online and pick up from a store?', a: 'Yes! Select "Store Pickup" during checkout and choose Store 01 or Store 02. Your order will be ready for pickup within a few hours and you\'ll receive an SMS notification.' },
-  { cat: 'Delivery', q: 'How long does delivery take?', a: 'Within Dhaka metro: 24–48 hours. Outside Dhaka: typically 2–4 business days depending on the destination. Express delivery options may be available for certain areas.' },
-  { cat: 'Payments', q: 'What payment methods are supported?', a: 'We accept: Cash on Delivery (COD), bKash, Nagad, Rocket, Visa and Mastercard debit/credit cards, and bank transfer. Payment options are shown at checkout.' },
-  { cat: 'Orders', q: 'How can I check product availability at a specific store?', a: 'Each product page shows real-time availability for Store 01, Store 02, and online delivery under the "Store Availability" tab. You can also call us directly to confirm.' },
-  { cat: 'Returns', q: 'What is your return policy?', a: 'We accept returns within 7 days of purchase for products in original, unused condition with all original packaging. Warranty claims are handled separately through the brand\'s service center.' },
-  { cat: 'Orders', q: 'Can I cancel or modify my order?', a: 'Orders can be cancelled or modified before dispatch. Contact us immediately via phone or email. Once shipped, changes are not possible but returns can be arranged post-delivery.' },
-  { cat: 'Delivery', q: 'Is delivery available outside Dhaka?', a: 'Yes. We deliver across Bangladesh through our courier partners. Delivery times and charges vary by location. Free delivery is available on qualifying orders.' },
-  { cat: 'Warranty', q: 'What happens if my product has a defect?', a: 'Contact us immediately. For genuine manufacturing defects within the warranty period, we\'ll help facilitate the warranty claim with the brand\'s authorized service center.' },
+const faqs: { cat: string; q: string; a: string }[] = [
+  {
+    cat: 'Condition & grading',
+    q: 'What do your condition grades actually mean?',
+    a: 'We use five grades. Brand New is factory sealed. Open Box (A+) has been opened but never used, with no cosmetic marks. Grade A is excellent — light use, nothing visible at arm’s length, battery health 90% or better. Grade B has minor cosmetic marks that do not affect use, battery health 85% or better. Grade C has visible chassis wear but is fully tested and functionally sound. The grade appears on every listing, on the product card, and in your cart.',
+  },
+  {
+    cat: 'Condition & grading',
+    q: 'Do you publish battery health on used devices?',
+    a: 'Yes. We measure capacity against the original design capacity on every pre-owned device, and the figure appears on the listing. If a listing does not show one yet, contact us and we will send that specific unit’s reading before you order. Batteries are consumables, so they are not covered by the hardware warranty.',
+  },
+  {
+    cat: 'Condition & grading',
+    q: 'What is checked in the 32-point inspection?',
+    a: 'Display (dead pixels, backlight bleed, brightness uniformity), chassis and hinges, every key and the trackpad, all ports, Wi-Fi, Bluetooth and cellular radios, storage health via SMART data, sustained thermal load, and measured battery capacity. It is done by hand on every unit, not sampled across a batch.',
+  },
+  {
+    cat: 'Condition & grading',
+    q: 'What if the device does not match its published grade?',
+    a: 'Send it back. If a pre-owned device differs from its published grade in any way, we refund in full and cover the return shipping as well.',
+  },
+  {
+    cat: 'Warranty',
+    q: 'What warranty comes with my purchase?',
+    a: 'Brand new devices carry the full manufacturer warranty — typically 1–2 years for laptops and 1 year for smartphones — registered in your name at the point of sale. Certified pre-owned devices ship with six months of SMSTech cover on hardware faults. The exact term is stated on every product page.',
+  },
+  {
+    cat: 'Warranty',
+    q: 'How do I make a warranty claim?',
+    a: 'Bring the device to either store with your order number, or contact us to arrange a collection. For new devices we can either handle the claim through the brand’s authorised service network or point you to it directly. For pre-owned devices we diagnose and repair in-house.',
+  },
+  {
+    cat: 'Warranty',
+    q: 'What is not covered?',
+    a: 'Accidental damage, liquid ingress, unauthorised repairs, and normal battery capacity decline. Cosmetic marks already disclosed in the listing grade are also not defects.',
+  },
+  {
+    cat: 'Returns',
+    q: 'What is your return policy?',
+    a: 'Seven days from delivery. Return the device in its original condition with all accessories and packaging for a full refund. There is no restocking fee. Warranty claims run separately for the full term stated on the product page.',
+  },
+  {
+    cat: 'Orders',
+    q: 'Are your products genuine?',
+    a: 'Yes. New stock is sourced through authorised brand distributors, and every pre-owned unit is logged against its serial number or IMEI before listing. If a device ever fails an authenticity check, we refund in full.',
+  },
+  {
+    cat: 'Orders',
+    q: 'Can I cancel or change my order?',
+    a: 'Yes, any time before dispatch — call or email us and we will amend it. Once the device has been handed to the courier we cannot change it, but the seven-day return still applies after delivery.',
+  },
+  {
+    cat: 'Orders',
+    q: 'How do I know whether a device is in stock at a particular store?',
+    a: 'The Availability tab on each product page shows whether that unit is held online, at Store 01 or at Store 02. You can also call either store to confirm before travelling.',
+  },
+  {
+    cat: 'Delivery',
+    q: 'How long does delivery take?',
+    a: 'Dhaka metro is typically 24–48 hours. Outside Dhaka is 2–4 business days depending on the destination. Delivery is free on orders above ৳1,00,000.',
+  },
+  {
+    cat: 'Delivery',
+    q: 'Do you deliver outside Dhaka?',
+    a: 'Yes, nationwide through our courier partners. Charges and timings vary by location and are calculated at checkout.',
+  },
+  {
+    cat: 'Payments',
+    q: 'What payment methods do you accept?',
+    a: 'Cash on delivery, bKash, Nagad, Rocket, Visa and Mastercard debit and credit cards, and bank transfer. Bank EMI is available on qualifying purchases.',
+  },
+  {
+    cat: 'Store pickup',
+    q: 'Can I order online and collect in store?',
+    a: 'Yes. Choose Store Pickup at checkout and select your branch. We notify you by SMS once the device has passed its final inspection and is ready — usually the same day.',
+  },
 ]
 
 export default function FAQ() {
   const [activeCategory, setActiveCategory] = useState('All')
-  const [openItem, setOpenItem] = useState<number | null>(null)
+  const [openItem, setOpenItem] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
-  const filtered = activeCategory === 'All' ? faqs : faqs.filter((f) => f.cat === activeCategory)
+  const q = query.trim().toLowerCase()
+  const filtered = faqs.filter((f) => {
+    const matchesCat = activeCategory === 'All' || f.cat === activeCategory
+    const matchesQuery = !q || f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q)
+    return matchesCat && matchesQuery
+  })
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-800 text-slate-900 dark:text-white mb-2">Frequently Asked Questions</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Find answers to common questions about shopping at SMSTech.</p>
-      </div>
+    <Container className="py-8 md:py-12">
+      <Breadcrumbs items={[{ label: 'FAQ' }]} />
 
-      {/* Categories */}
-      <div className="flex flex-wrap gap-2 mb-8 justify-center">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => { setActiveCategory(cat); setOpenItem(null) }}
-            className={`px-4 py-2 rounded-full text-sm font-600 transition-all
-              ${activeCategory === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
+      <div className="mx-auto max-w-3xl">
+        <header className="mb-8">
+          <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+            Frequently asked questions
+          </h1>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+            Grading, warranty, returns and delivery — the things worth knowing before you buy a
+            device this expensive.
+          </p>
+        </header>
 
-      {/* Accordion */}
-      <div className="space-y-3">
-        {filtered.map((item, i) => (
-          <div key={i} className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800/80 rounded-2xl overflow-hidden hover:border-blue-200 dark:hover:border-blue-500 transition-colors">
+        <div className="relative mb-5">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
+            strokeWidth={2}
+          />
+          <label htmlFor="faq-search" className="sr-only">
+            Search questions
+          </label>
+          <input
+            id="faq-search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setOpenItem(null)
+            }}
+            placeholder="Search questions…"
+            className="h-11 w-full rounded-lg border border-line bg-surface-2 pl-10 pr-3 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent/15"
+          />
+        </div>
+
+        <div className="mb-8 flex flex-wrap gap-2">
+          {categories.map((cat) => (
             <button
-              onClick={() => setOpenItem(openItem === i ? null : i)}
-              className="w-full flex items-center justify-between px-6 py-4 text-left"
+              key={cat}
+              onClick={() => {
+                setActiveCategory(cat)
+                setOpenItem(null)
+              }}
+              className={`rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                activeCategory === cat
+                  ? 'border-ink bg-inverse text-inverse-ink'
+                  : 'border-line text-ink-2 hover:border-line-2 hover:text-ink'
+              }`}
             >
-              <div>
-                <span className="text-xs font-700 text-blue-600 dark:text-blue-400 uppercase tracking-wide mr-3">{item.cat}</span>
-                <span className="font-600 text-slate-900 dark:text-white text-sm">{item.q}</span>
-              </div>
-              <svg viewBox="0 0 24 24" className={`w-5 h-5 text-slate-400 dark:text-slate-500 shrink-0 ml-4 transition-transform ${openItem === i ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              {cat}
             </button>
-            {openItem === i && (
-              <div className="px-6 pb-5">
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{item.a}</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <div className="mt-12 bg-blue-50 dark:bg-blue-950/60 rounded-2xl p-8 text-center border border-blue-100 dark:border-blue-900">
-        <h3 className="font-700 text-slate-900 dark:text-white mb-2">Still have questions?</h3>
-        <p className="text-slate-600 dark:text-slate-300 text-sm mb-4">Our team is happy to help. Reach out through any of the options below.</p>
-        <div className="flex gap-3 justify-center">
-          <Link href="/contact" className="px-5 py-2.5 bg-blue-600 text-white font-600 rounded-xl text-sm hover:bg-blue-700 transition-colors">Contact Us</Link>
-          <Link href="/stores" className="px-5 py-2.5 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-600 rounded-xl text-sm hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors">Visit a Store</Link>
+        {filtered.length === 0 ? (
+          <p className="rounded-xl border border-line bg-surface px-6 py-14 text-center text-[13.5px] text-ink-2">
+            No questions match that search.{' '}
+            <Link href="/contact" className="font-medium text-accent">
+              Ask us directly
+            </Link>{' '}
+            and we&rsquo;ll answer within a few hours.
+          </p>
+        ) : (
+          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+            {filtered.map((item) => {
+              const open = openItem === item.q
+              return (
+                <div key={item.q}>
+                  <h2>
+                    <button
+                      onClick={() => setOpenItem(open ? null : item.q)}
+                      aria-expanded={open}
+                      className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-surface-2"
+                    >
+                      <span className="min-w-0">
+                        <span className="eyebrow block">{item.cat}</span>
+                        <span className="mt-1 block text-[14.5px] font-medium tracking-tight text-ink">
+                          {item.q}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`mt-1 h-4 w-4 shrink-0 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`}
+                        strokeWidth={2}
+                      />
+                    </button>
+                  </h2>
+                  {open && (
+                    <div className="animate-fade-in px-5 pb-5">
+                      <p className="max-w-2xl text-[13.5px] leading-relaxed text-ink-2">{item.a}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="mt-10 rounded-xl border border-line bg-surface-2 p-6 text-center">
+          <h2 className="font-display text-base font-semibold tracking-tight text-ink">
+            Still not answered?
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] leading-relaxed text-ink-2">
+            Ask us anything about a specific unit — its grade, its battery, what it comes with. We
+            reply within a few hours, seven days a week.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/contact"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+            >
+              <MessageCircle className="h-4 w-4" strokeWidth={2} />
+              Contact us
+            </Link>
+            <Link
+              href="/stores"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-4 text-sm font-medium text-ink transition-colors hover:border-line-2"
+            >
+              <Store className="h-4 w-4" strokeWidth={2} />
+              Visit a store
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
+    </Container>
   )
 }

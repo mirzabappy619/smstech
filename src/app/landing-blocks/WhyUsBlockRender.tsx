@@ -10,28 +10,34 @@ export default function WhyUsBlockRender({ data }: WhyUsBlockRenderProps) {
 	const { title, subtitle, reasons } = data;
 
 	return (
-		<section className="py-16 px-4 bg-white">
-			<div className="max-w-7xl mx-auto">
-				<div className="text-center mb-12">
-					<h2 className="text-4xl font-bold mb-4 text-gray-900">{title}</h2>
+		<section className="border-y border-line bg-surface px-6 py-20">
+			<div className="mx-auto max-w-[1280px]">
+				<div className="mx-auto mb-12 max-w-2xl text-center">
+					<h2 className="font-display text-[28px] font-semibold tracking-tight text-ink md:text-[36px]">
+						{title}
+					</h2>
 					{subtitle && (
-						<p className="text-xl text-gray-600 max-w-3xl mx-auto">
-							{subtitle}
-						</p>
+						<p className="mt-3 text-[15px] leading-relaxed text-ink-2">{subtitle}</p>
 					)}
 				</div>
 
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{reasons.map((reason, index) => (
 						<div
 							key={index}
-							className="flex flex-col items-center text-center p-6 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 hover:shadow-lg transition-all"
+							className="rounded-xl border border-line bg-bg p-7 transition-colors hover:border-line-2"
 						>
-							<div className="text-6xl mb-4">{reason.icon}</div>
-							<h3 className="text-xl font-semibold mb-3 text-gray-900">
+							{reason.icon && (
+								<span className="flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-surface text-lg">
+									{reason.icon}
+								</span>
+							)}
+							<h3 className="mt-4 text-[15px] font-semibold tracking-tight text-ink">
 								{reason.title}
 							</h3>
-							<p className="text-gray-600">{reason.description}</p>
+							<p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-2">
+								{reason.description}
+							</p>
 						</div>
 					))}
 				</div>

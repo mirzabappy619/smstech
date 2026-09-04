@@ -2,140 +2,162 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-
-const stores = [
-  {
-    id: '1',
-    name: 'SMSTech — Multiplan Branch',
-    address: 'Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205',
-    phone: '01781485588 / 01723249598',
-    email: 'info@smstech.bd',
-    hours: '10:00 AM – 8:00 PM (Everyday)',
-    products: ['Laptops', 'Smartphones', 'Accessories', 'MacBooks', 'Pre-Owned Laptops'],
-    lat: 23.7388, lng: 90.3872,
-    distance: 'Elephant Road, Dhaka',
-  },
-]
-
-const filters = ['All Stores', 'Laptops', 'Smartphones', 'Pre-Owned', 'Open Now']
+import { ArrowUpRight, Clock, Mail, MapPin, Phone, ShieldCheck } from 'lucide-react'
+import Container from '../../components/ui/container'
+import { Breadcrumbs } from '../../components/CollectionView'
+import { stores } from '../../data/stores'
 
 export default function Stores() {
-  const [activeFilter, setActiveFilter] = useState('All Stores')
   const [activeStore, setActiveStore] = useState(stores[0])
 
   return (
-    <div>
-      {/* Header */}
-      <div className="bg-slate-900 dark:bg-slate-950 py-16 text-center transition-colors">
-        <h1 className="text-3xl md:text-4xl font-800 text-white mb-3">Visit SMSTech Store</h1>
-        <p className="text-slate-400 max-w-md mx-auto text-sm">
-          Prefer to shop in person? Visit our store at Multiplan Computer City Market for expert guidance before you buy.
+    <Container className="py-8 md:py-12">
+      <Breadcrumbs items={[{ label: 'Stores' }]} />
+
+      <header className="mb-10 max-w-2xl">
+        <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+          Visit us in person
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+          For a purchase this size, most people would rather hold the thing first. Come in, compare
+          configurations side by side, and ask the person who inspected the device.
         </p>
-      </div>
+      </header>
 
-      {/* Filter pills */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700/80 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex gap-2 overflow-x-auto">
-          {filters.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-600 transition-all
-                ${activeFilter === f ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Store list */}
-          <div className="space-y-5">
-            {stores.map((store) => (
-              <div
+      <div className="grid gap-8 lg:grid-cols-2">
+        {/* Store list */}
+        <div className="space-y-4">
+          {stores.map((store) => {
+            const active = activeStore.id === store.id
+            return (
+              <button
                 key={store.id}
                 onClick={() => setActiveStore(store)}
-                className={`rounded-2xl border-2 p-6 cursor-pointer transition-all hover:shadow-md ${activeStore.id === store.id ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/40 dark:border-blue-500' : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800'}`}
+                aria-pressed={active}
+                className={`block w-full overflow-hidden rounded-xl border bg-surface text-left transition-colors ${
+                  active ? 'border-ink' : 'border-line hover:border-line-2'
+                }`}
               >
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-800 text-lg text-slate-900 dark:text-white">{store.name}</h2>
-                      <span className="text-xs px-2.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-700 rounded-full">Open Now</span>
+                <div className="border-b border-line px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="font-display text-lg font-semibold tracking-tight text-ink">
+                        {store.name}
+                      </h2>
+                      <p className="mt-0.5 text-[13px] text-ink-3">{store.area}</p>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{store.distance}</p>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-verified-line bg-verified-soft px-2 py-0.5 text-[11px] font-medium text-verified">
+                      <span className="h-1.5 w-1.5 rounded-full bg-verified" />
+                      Open today
+                    </span>
                   </div>
                 </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-start gap-2.5 text-slate-700 dark:text-slate-200">
-                    <span className="text-base shrink-0 mt-0.5">📍</span>
-                    <span className="font-600 leading-relaxed">{store.address}</span>
+
+                <dl className="space-y-3 px-5 py-4 text-[13.5px]">
+                  <div className="flex gap-3">
+                    <dt className="sr-only">Address</dt>
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+                    <dd className="leading-relaxed text-ink">{store.address}</dd>
                   </div>
-                  <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
-                    <span className="text-base shrink-0">📞</span>
-                    <span className="font-700 text-blue-600 dark:text-blue-400">{store.phone}</span>
+                  <div className="flex gap-3">
+                    <dt className="sr-only">Phone</dt>
+                    <Phone className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+                    <dd className="tnum text-ink">{store.phone}</dd>
                   </div>
-                  <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-200">
-                    <span className="text-base shrink-0">🕐</span>
-                    <span className="font-600">{store.hours}</span>
+                  <div className="flex gap-3">
+                    <dt className="sr-only">Email</dt>
+                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+                    <dd className="text-ink">{store.email}</dd>
                   </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {store.products.map((p) => (
-                    <span key={p} className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-xs font-600 rounded-lg">{p}</span>
+                  <div className="flex gap-3">
+                    <dt className="sr-only">Opening hours</dt>
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+                    <dd className="text-ink">{store.hours}</dd>
+                  </div>
+                </dl>
+
+                <div className="flex flex-wrap gap-1.5 px-5 pb-4">
+                  {store.stocks.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-2"
+                    >
+                      {s}
+                    </span>
                   ))}
                 </div>
-                <div className="flex gap-3 mt-5">
+
+                <div className="flex gap-2 border-t border-line p-4">
                   <a
-                    href={`https://www.google.com/maps?q=${encodeURIComponent(store.name + ' ' + store.address)}`}
+                    href={`https://www.google.com/maps?q=${encodeURIComponent(store.mapQuery)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 py-2.5 text-center text-sm font-700 border-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-hover"
                   >
-                    Get Directions
+                    Get directions
+                    <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2} />
                   </a>
-                  <Link href="/contact" className="flex-1 py-2.5 text-center text-sm font-700 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
-                    Contact Store
-                  </Link>
+                  <a
+                    href={`tel:${store.phone.split('/')[0].trim()}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line text-[13px] font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+                  >
+                    <Phone className="h-3.5 w-3.5" strokeWidth={2} />
+                    Call the store
+                  </a>
                 </div>
-              </div>
-            ))}
+              </button>
+            )
+          })}
+
+          <div className="flex items-start gap-3 rounded-xl border border-line bg-surface-2 p-5">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-verified" strokeWidth={2} />
+            <p className="text-[13px] leading-relaxed text-ink-2">
+              <strong className="font-medium text-ink">Reserve before you travel.</strong> Order
+              online with Store Pickup and we&rsquo;ll hold the exact unit — inspected, graded and
+              ready — so you don&rsquo;t make the trip for something that has already sold.
+            </p>
+          </div>
+        </div>
+
+        {/* Map */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <div className="h-80 overflow-hidden rounded-xl border border-line bg-surface-2 lg:h-[460px]">
+            <iframe
+              title={`${activeStore.name} location`}
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(activeStore.mapQuery)}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+              className="h-full w-full border-0"
+              loading="lazy"
+            />
           </div>
 
-          {/* Map & Store Info Card */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-lg h-80 lg:h-[420px] relative bg-slate-100 dark:bg-slate-900">
-              <iframe
-                title="SMSTech Multiplan Store Location"
-                src="https://maps.google.com/maps?q=Computer+City+Center+Multiplan+Dhaka&t=&z=16&ie=UTF8&iwloc=&output=embed"
-                className="w-full h-full border-0"
-                loading="lazy"
-              />
+          <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="border-b border-line px-5 py-3.5">
+              <h2 className="font-display text-[15px] font-semibold tracking-tight text-ink">
+                What you can do in store
+              </h2>
             </div>
-
-            {/* Store hours */}
-            <div className="mt-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/80 p-5 transition-colors">
-              <h3 className="font-700 text-slate-900 dark:text-white mb-3 text-sm">Store Hours &amp; Information</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Opening Hours</span>
-                  <span className="font-600 text-slate-900 dark:text-white">10:00 AM – 8:00 PM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Hotline / Contact</span>
-                  <span className="font-700 text-blue-600 dark:text-blue-400">01781485588, 01723249598</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Location</span>
-                  <span className="font-600 text-slate-900 dark:text-white">Multiplan Center, Level-3, Shop 309</span>
-                </div>
-              </div>
+            <ul className="divide-y divide-line text-[13.5px]">
+              {[
+                'Inspect any device, including graded pre-owned stock, before paying',
+                'Compare two configurations of the same model side by side',
+                'Collect an online order the same day it clears inspection',
+                'Bring in a device for a warranty claim or diagnosis',
+              ].map((t) => (
+                <li key={t} className="px-5 py-3 leading-relaxed text-ink-2">
+                  {t}
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-line bg-surface-2 px-5 py-3.5">
+              <Link href="/contact" className="text-[13px] font-medium text-accent">
+                Questions before you visit? Contact us →
+              </Link>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Container>
   )
 }

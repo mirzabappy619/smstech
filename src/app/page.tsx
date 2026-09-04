@@ -2,45 +2,172 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import {
+  ArrowRight,
+  BadgeCheck,
+  BatteryCharging,
+  ChevronDown,
+  ClipboardCheck,
+  Clock,
+  Cpu,
+  MapPin,
+  Package,
+  Phone,
+  RotateCcw,
+  ShieldCheck,
+  Store,
+  Truck,
+} from 'lucide-react'
 import ProductCard from '../components/ProductCard'
 import HeroSlider from '../components/HeroSlider'
+import Container from '../components/ui/container'
+import SectionHeading from '../components/ui/section'
+import { ProductGridSkeleton } from '../components/ui/skeleton'
+import { isPreOwned } from '../components/ui/condition'
 import { brands, normalizeProduct, Product } from '../data/products'
+import { stores } from '../data/stores'
 
-const categories = [
-  { name: 'Laptops', desc: 'For work, study & gaming', count: 48, href: '/laptops', img: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=300&h=200&fit=crop&auto=format', color: 'from-blue-50 to-blue-100 dark:from-blue-950/60 dark:to-blue-900/60' },
-  { name: 'Smartphones', desc: 'Latest Android & iOS', count: 64, href: '/smartphones', img: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=300&h=200&fit=crop&auto=format', color: 'from-violet-50 to-violet-100 dark:from-violet-950/60 dark:to-violet-900/60' },
-  { name: 'Gaming Laptops', desc: 'Built to dominate', count: 18, href: '/laptops?cat=gaming', img: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=300&h=200&fit=crop&auto=format', color: 'from-red-50 to-red-100 dark:from-red-950/60 dark:to-red-900/60' },
-  { name: 'MacBooks', desc: 'Apple performance', count: 12, href: '/laptops?brand=apple', img: 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=300&h=200&fit=crop&auto=format', color: 'from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900' },
-  { name: 'iPhones', desc: 'Premium iOS experience', count: 14, href: '/smartphones?brand=apple', img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop&auto=format', color: 'from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900' },
-  { name: 'Android Phones', desc: 'Samsung, Xiaomi & more', count: 50, href: '/smartphones?cat=android', img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=300&h=200&fit=crop&auto=format', color: 'from-emerald-50 to-emerald-100 dark:from-emerald-950/60 dark:to-emerald-900/60' },
-  { name: 'Accessories', desc: 'Cases, cables & more', count: 92, href: '#', img: 'https://images.unsplash.com/photo-1585060544812-6b45742d762f?w=300&h=200&fit=crop&auto=format', color: 'from-amber-50 to-amber-100 dark:from-amber-950/60 dark:to-amber-900/60' },
+const fallbackCategories = [
+  {
+    name: 'Laptops',
+    desc: 'Work, study and gaming machines',
+    count: 48,
+    href: '/laptops',
+    img: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=600&h=450&fit=crop&auto=format',
+  },
+  {
+    name: 'Smartphones',
+    desc: 'Flagship and mid-range handsets',
+    count: 64,
+    href: '/smartphones',
+    img: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=600&h=450&fit=crop&auto=format',
+  },
+  {
+    name: 'Gaming laptops',
+    desc: 'RTX and Radeon, built to sustain',
+    count: 18,
+    href: '/laptops?cat=gaming',
+    img: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=600&h=450&fit=crop&auto=format',
+  },
+  {
+    name: 'MacBook',
+    desc: 'Apple silicon, new and pre-owned',
+    count: 12,
+    href: '/laptops?brand=apple',
+    img: 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=600&h=450&fit=crop&auto=format',
+  },
+  {
+    name: 'iPhone',
+    desc: 'Sealed units and graded pre-owned',
+    count: 14,
+    href: '/smartphones?brand=apple',
+    img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&h=450&fit=crop&auto=format',
+  },
+  {
+    name: 'Android',
+    desc: 'Samsung, Xiaomi, OnePlus, Pixel',
+    count: 50,
+    href: '/smartphones?cat=android',
+    img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=600&h=450&fit=crop&auto=format',
+  },
 ]
 
 const laptopTabs = ['Gaming', 'Business', 'Student', 'Creator', 'Premium', 'MacBook']
 const phoneTabs = ['iPhone', 'Samsung', 'Xiaomi', 'OnePlus', 'Google']
 
+const inspectionSteps = [
+  {
+    icon: ClipboardCheck,
+    step: '01',
+    title: 'Sourced and logged',
+    body: 'Each device is bought through authorised channels or verified trade-ins, then logged against its serial or IMEI.',
+  },
+  {
+    icon: Cpu,
+    step: '02',
+    title: '32-point inspection',
+    body: 'Display, chassis, ports, keyboard, thermals, storage health and every radio are tested by hand, not sampled.',
+  },
+  {
+    icon: BatteryCharging,
+    step: '03',
+    title: 'Graded and published',
+    body: 'We assign a grade from A to C, publish the measured battery capacity, and photograph any cosmetic marks.',
+  },
+  {
+    icon: ShieldCheck,
+    step: '04',
+    title: 'Warranty attached',
+    body: 'New devices carry full manufacturer warranty; pre-owned units ship with six months of SMSTech cover.',
+  },
+]
+
 const reviews = [
-  { name: 'Rahim Hossain', product: 'ASUS ROG Strix G16', rating: 5, text: 'Excellent service and genuine product. The laptop performs exactly as advertised. The SMSTech team was very helpful in choosing the right spec.', city: 'Dhaka' },
-  { name: 'Priya Das', product: 'iPhone 17 Pro', rating: 5, text: 'Got my phone with full Apple warranty. Very smooth ordering process and fast delivery. Will definitely buy again from SMSTech.', city: 'Chittagong' },
-  { name: 'Karim Ahmed', product: 'MacBook Air M3', rating: 5, text: 'Visited the physical store and the staff helped me pick the right configuration. Great experience overall. Highly recommended!', city: 'Dhaka' },
-  { name: 'Tasnim Akter', product: 'Samsung Galaxy S26', rating: 4, text: 'Good prices and authentic products. The comparison feature on the website really helped me decide between two models.', city: 'Rajshahi' },
-  { name: 'Sabbir Khan', product: 'Lenovo LOQ 15', rating: 5, text: 'Ordered online and picked up from Store 02. Super convenient. The laptop came sealed with official warranty card.', city: 'Dhaka' },
+  {
+    name: 'Rahim Hossain',
+    product: 'ASUS ROG Strix G16',
+    rating: 5,
+    text: 'The spec sheet on the site matched the machine exactly. No surprises, no missing accessories, and the team talked me out of a model I did not need.',
+    city: 'Dhaka',
+  },
+  {
+    name: 'Priya Das',
+    product: 'iPhone 17 Pro',
+    rating: 5,
+    text: 'Sealed unit with full Apple warranty registered to my name. Ordering was straightforward and it arrived the next morning.',
+    city: 'Chittagong',
+  },
+  {
+    name: 'Karim Ahmed',
+    product: 'MacBook Air M3',
+    rating: 5,
+    text: 'I went into the Multiplan store to compare two configurations side by side. Being able to hold the machine before buying made the decision easy.',
+    city: 'Dhaka',
+  },
+  {
+    name: 'Tasnim Akter',
+    product: 'Samsung Galaxy S26',
+    rating: 4,
+    text: 'Bought a Grade A pre-owned handset. The listed battery health was accurate and the cosmetic photos were honest about a small mark.',
+    city: 'Rajshahi',
+  },
 ]
 
 const faqs = [
-  { q: 'Are your products genuine?', a: 'Yes — all products at SMSTech are 100% genuine, sourced from authorized brand distributors and channels.' },
-  { q: 'What warranty do your products have?', a: 'Warranty varies by brand and product. Most laptops carry 1–2 year manufacturer warranties; smartphones typically carry 1 year. Warranty details are shown on each product page.' },
-  { q: 'Can I order online and pick up from a store?', a: 'Absolutely. Select "Store Pickup" at checkout and choose your preferred SMSTech store. You\'ll receive a notification when your order is ready.' },
-  { q: 'How long does delivery take?', a: 'Dhaka metro deliveries are typically completed within 24–48 hours. Outside Dhaka may take 2–4 business days depending on location.' },
-  { q: 'What payment methods are supported?', a: 'We accept Cash on Delivery, bKash, Nagad, debit/credit cards (Visa/Mastercard), and online payment gateways.' },
+  {
+    q: 'How do you grade pre-owned devices?',
+    a: 'Every pre-owned device passes a 32-point inspection covering the display, chassis, ports, keyboard, thermals, storage health and all radios. We then assign a grade — A+ (open box, unused), A (excellent, no marks visible at arm’s length), B (minor cosmetic marks) or C (visible wear, fully functional) — and publish the measured battery capacity alongside it.',
+  },
+  {
+    q: 'What warranty comes with my purchase?',
+    a: 'Brand new devices carry the full manufacturer warranty, typically 1–2 years for laptops and 1 year for smartphones. Certified pre-owned devices ship with six months of SMSTech cover on hardware faults. The exact term is stated on every product page.',
+  },
+  {
+    q: 'Are the products genuine?',
+    a: 'Yes. New stock is sourced through authorised brand distributors, and every pre-owned unit is logged against its serial number or IMEI before listing. If a device ever fails an authenticity check, we refund in full.',
+  },
+  {
+    q: 'Can I order online and collect from a store?',
+    a: 'Yes. Choose Store Pickup at checkout and select your preferred SMSTech branch. We will notify you as soon as the device is inspected and ready — usually the same day.',
+  },
+  {
+    q: 'How long does delivery take?',
+    a: 'Dhaka metro orders are typically delivered within 24–48 hours. Outside Dhaka takes 2–4 business days depending on the location.',
+  },
+  {
+    q: 'What if I change my mind?',
+    a: 'You have seven days from delivery to return a device in its original condition for a refund. Warranty claims are handled separately and run for the full term stated on the product page.',
+  },
 ]
+
 export default function Home() {
   const [laptopTab, setLaptopTab] = useState('Gaming')
   const [phoneTab, setPhoneTab] = useState('iPhone')
   const [countdown, setCountdown] = useState({ h: 11, m: 43, s: 22 })
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [openFaq, setOpenFaq] = useState<number | null>(0)
   const [allDbProducts, setAllDbProducts] = useState<Product[]>([])
-  const [dbCategories, setDbCategories] = useState(categories)
+  const [dbCategories, setDbCategories] = useState(fallbackCategories)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadDb() {
@@ -61,14 +188,18 @@ export default function Home() {
           const catJson = await catRes.json()
           if (catJson.success && Array.isArray(catJson.data) && catJson.data.length > 0) {
             const mapped = catJson.data.map((c: any, index: number) => {
-              const fallback = categories[index % categories.length]
+              const fallback = fallbackCategories[index % fallbackCategories.length]
               return {
                 name: c.name,
                 desc: c.description || fallback.desc,
                 count: c.product_count || fallback.count,
-                href: c.slug === 'laptops' ? '/laptops' : c.slug === 'smartphones' ? '/smartphones' : `/search?category=${encodeURIComponent(c.slug)}`,
+                href:
+                  c.slug === 'laptops'
+                    ? '/laptops'
+                    : c.slug === 'smartphones'
+                      ? '/smartphones'
+                      : `/search?category=${encodeURIComponent(c.slug)}`,
                 img: c.image_url || fallback.img,
-                color: fallback.color,
               }
             })
             if (mapped.length > 0) setDbCategories(mapped)
@@ -76,6 +207,8 @@ export default function Home() {
         }
       } catch (e) {
         console.error('Failed to load homepage data from db:', e)
+      } finally {
+        setLoading(false)
       }
     }
     loadDb()
@@ -85,419 +218,618 @@ export default function Home() {
     const t = setInterval(() => {
       setCountdown((prev) => {
         let { h, m, s } = prev
-        s--; if (s < 0) { s = 59; m-- } if (m < 0) { m = 59; h-- } if (h < 0) { h = 23 }
+        s--
+        if (s < 0) {
+          s = 59
+          m--
+        }
+        if (m < 0) {
+          m = 59
+          h--
+        }
+        if (h < 0) {
+          h = 23
+        }
         return { h, m, s }
       })
     }, 1000)
     return () => clearInterval(t)
   }, [])
 
-  const laptops = allDbProducts.filter((p) => p.category === 'laptop' || p.subcategory === 'macbook' || p.subcategory === 'gaming')
-  const smartphones = allDbProducts.filter((p) => p.category === 'smartphone' || p.subcategory === 'flagship' || p.subcategory === 'mid-range')
-  const preOwnedLaptops = allDbProducts.filter((p) => p.subcategory === 'pre-owned' || p.badges.includes('Pre-Owned'))
+  const laptops = allDbProducts.filter(
+    (p) => p.category === 'laptop' || p.subcategory === 'macbook' || p.subcategory === 'gaming',
+  )
+  const smartphones = allDbProducts.filter(
+    (p) =>
+      p.category === 'smartphone' ||
+      p.subcategory === 'flagship' ||
+      p.subcategory === 'mid-range',
+  )
+  const preOwned = allDbProducts.filter(isPreOwned)
 
-  const filteredLaptops = laptops.filter((l) => {
-    if (laptopTab === 'MacBook') return l.brand === 'Apple'
-    if (laptopTab === 'Premium') return l.price >= 200000
-    return l.subcategory === laptopTab.toLowerCase()
-  }).slice(0, 4)
+  const filteredLaptops = laptops
+    .filter((l) => {
+      if (laptopTab === 'MacBook') return l.brand === 'Apple'
+      if (laptopTab === 'Premium') return l.price >= 200000
+      return l.subcategory === laptopTab.toLowerCase()
+    })
+    .slice(0, 4)
 
-  const filteredPhones = smartphones.filter((p) => {
-    const tab = phoneTab.toLowerCase()
-    if (tab === 'iphone') return p.brand === 'Apple'
-    if (tab === 'samsung') return p.brand === 'Samsung'
-    if (tab === 'xiaomi') return p.brand === 'Xiaomi'
-    if (tab === 'oneplus') return p.brand === 'OnePlus'
-    if (tab === 'google') return p.brand === 'Google'
-    return true
-  }).slice(0, 4)
+  const filteredPhones = smartphones
+    .filter((p) => {
+      const tab = phoneTab.toLowerCase()
+      if (tab === 'iphone') return p.brand === 'Apple'
+      if (tab === 'samsung') return p.brand === 'Samsung'
+      if (tab === 'xiaomi') return p.brand === 'Xiaomi'
+      if (tab === 'oneplus') return p.brand === 'OnePlus'
+      if (tab === 'google') return p.brand === 'Google'
+      return true
+    })
+    .slice(0, 4)
 
-  const dealProducts = allDbProducts.filter((p) => p.badges.includes('Hot Deal') || p.originalPrice > p.price).slice(0, 4)
+  const deals = allDbProducts
+    .filter((p) => p.badges.includes('Hot Deal') || p.originalPrice > p.price)
+    .slice(0, 4)
+
+  const newArrivals = [...laptops, ...smartphones].filter((p) => p.isNew).slice(0, 4)
 
   const pad = (n: number) => String(n).padStart(2, '0')
 
+  const tabClass = (active: boolean) =>
+    `shrink-0 rounded-lg border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+      active
+        ? 'border-ink bg-inverse text-inverse-ink'
+        : 'border-line bg-surface text-ink-2 hover:border-line-2 hover:text-ink'
+    }`
+
   return (
-    <div>
-      {/* Hero Slider Carousel */}
+    <>
       <HeroSlider />
 
-      {/* Trust bar */}
-      <div className="bg-blue-600 dark:bg-blue-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-center gap-6 text-xs font-600">
-          {['✅ 100% Genuine Products', '🛡️ Official Warranty', '🚚 Fast Delivery', '🏪 2 Physical Stores', '💳 Flexible Payment'].map((t) => (
-            <span key={t}>{t}</span>
-          ))}
-        </div>
-      </div>
+      {/* Assurance strip */}
+      <section className="border-b border-line bg-surface-2">
+        <Container>
+          <ul className="grid grid-cols-2 divide-line md:grid-cols-4 md:divide-x">
+            {[
+              { Icon: BadgeCheck, t: 'Authenticity guaranteed', s: 'Serial & IMEI logged' },
+              { Icon: ShieldCheck, t: 'Warranty on everything', s: 'Including pre-owned' },
+              { Icon: Truck, t: 'Nationwide delivery', s: '24–48 hrs in Dhaka' },
+              { Icon: RotateCcw, t: '7-day returns', s: 'No restocking fee' },
+            ].map(({ Icon, t, s }) => (
+              <li key={t} className="flex items-center gap-3 px-1 py-5 md:justify-center md:px-4">
+                <Icon className="h-5 w-5 shrink-0 text-ink-3" strokeWidth={1.75} />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-ink">{t}</p>
+                  <p className="truncate text-xs text-ink-3">{s}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Container>
+      </section>
 
-      {/* Shop by Category */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <div className="flex items-end justify-between mb-8">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white">Shop by Category</h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Find exactly what you're looking for</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          {dbCategories.map((cat) => (
+      {/* Categories */}
+      <Container as="section" className="py-16 md:py-20">
+        <SectionHeading
+          eyebrow="Browse"
+          title="Shop by category"
+          lede="Every listing states its condition, warranty term and stock location up front."
+        />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          {dbCategories.slice(0, 6).map((cat) => (
             <Link
               key={cat.name}
               href={cat.href}
-              className={`group relative rounded-2xl bg-gradient-to-br ${cat.color} overflow-hidden border border-white/50 dark:border-slate-700/60 hover:shadow-lg hover:scale-105 transition-all duration-300 flex flex-col`}
+              className="group overflow-hidden rounded-xl border border-line bg-surface transition-[border-color,box-shadow] hover:border-line-2 hover:shadow-md"
             >
-              <div className="aspect-video overflow-hidden">
-                <img src={cat.img} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+              <div className="aspect-[4/3] overflow-hidden bg-surface-2">
+                <img
+                  src={cat.img}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
               </div>
-              <div className="p-3">
-                <h3 className="font-700 text-slate-900 dark:text-white text-sm leading-tight">{cat.name}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{cat.desc}</p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 font-600 mt-1">{cat.count} products →</p>
+              <div className="p-3.5">
+                <h3 className="text-sm font-semibold tracking-tight text-ink group-hover:text-accent">
+                  {cat.name}
+                </h3>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-ink-3">{cat.desc}</p>
+                <p className="tnum mt-2 text-xs text-ink-3">{cat.count} listings</p>
               </div>
             </Link>
           ))}
         </div>
-      </section>
+      </Container>
 
-      {/* Today's Best Deals */}
-      <section className="bg-slate-900 dark:bg-slate-950 py-16 transition-colors">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+      {/* Deals */}
+      <section className="border-y border-line bg-inverse text-inverse-ink">
+        <Container className="py-16 md:py-20">
+          <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-2xl md:text-3xl font-800 text-white">Today's Best Deals</h2>
-              <p className="text-slate-400 mt-1 text-sm">Exclusive savings on premium tech</p>
+              <p className="eyebrow" style={{ color: 'inherit', opacity: 0.55 }}>
+                Limited time
+              </p>
+              <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight md:text-[32px]">
+                Today&rsquo;s best prices
+              </h2>
+              <p className="mt-2 max-w-xl text-[15px] opacity-70">
+                Reduced units, open-box returns and end-of-line stock — all covered by the same
+                warranty and return terms.
+              </p>
             </div>
+
             <div className="flex items-center gap-3">
-              <span className="text-slate-400 text-sm font-600">Ends in</span>
+              <span className="flex items-center gap-1.5 text-[13px] opacity-60">
+                <Clock className="h-3.5 w-3.5" strokeWidth={2} />
+                Ends in
+              </span>
               <div className="flex gap-1.5">
-                {[pad(countdown.h), pad(countdown.m), pad(countdown.s)].map((v, i) => (
-                  <div key={i} className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                    <span className="font-800 text-white text-lg">{v}</span>
+                {(
+                  [
+                    [pad(countdown.h), 'hr'],
+                    [pad(countdown.m), 'min'],
+                    [pad(countdown.s), 'sec'],
+                  ] as const
+                ).map(([v, l]) => (
+                  <div
+                    key={l}
+                    className="flex h-14 w-14 flex-col items-center justify-center rounded-lg border border-white/15 bg-white/5"
+                  >
+                    <span className="tnum font-display text-lg font-semibold leading-none">
+                      {v}
+                    </span>
+                    <span className="mt-1 text-[10px] uppercase tracking-wider opacity-50">
+                      {l}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {dealProducts.map((p) => <ProductCard key={p.id} product={p} />)}
-          </div>
-          <div className="text-center mt-8">
-            <Link href="/deals" className="inline-block px-8 py-3 border border-slate-600 text-white font-600 rounded-xl hover:bg-white hover:text-slate-900 transition-all text-sm">
-              View All Deals →
+
+          {loading ? (
+            <ProductGridSkeleton />
+          ) : deals.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {deals.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-white/10 bg-white/5 px-5 py-10 text-center text-sm opacity-60">
+              No active deals right now — check back soon.
+            </p>
+          )}
+
+          <div className="mt-8 text-center">
+            <Link
+              href="/deals"
+              className="group inline-flex h-11 items-center gap-2 rounded-lg border border-white/20 px-6 text-sm font-medium transition-colors hover:bg-white/10"
+            >
+              View all deals
+              <ArrowRight
+                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
+              />
             </Link>
           </div>
-        </div>
+        </Container>
       </section>
 
-      {/* Laptop Showcase */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <div className="flex items-end justify-between mb-6">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white">Find Your Perfect Laptop</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Curated picks for every need</p>
-          </div>
-          <Link href="/laptops" className="text-blue-600 dark:text-blue-400 font-600 text-sm hover:underline hidden sm:block">View All →</Link>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
+      {/* Laptops */}
+      <Container as="section" className="py-16 md:py-20">
+        <SectionHeading
+          eyebrow="Laptops"
+          title="Find the right machine"
+          lede="Filtered by what you actually do with it, not by marketing tier."
+          href="/laptops"
+          linkLabel="All laptops"
+        />
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {laptopTabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setLaptopTab(tab)}
-              className={`shrink-0 px-4 py-2 rounded-xl text-sm font-600 transition-all
-                ${laptopTab === tab
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={tabClass(laptopTab === tab)}
             >
               {tab}
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {(filteredLaptops.length > 0 ? filteredLaptops : laptops.slice(0, 4)).map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        {loading ? (
+          <ProductGridSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {(filteredLaptops.length > 0 ? filteredLaptops : laptops.slice(0, 4)).map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        )}
+      </Container>
+
+      {/* How we verify — the trust centrepiece */}
+      <section id="verification" className="border-y border-line bg-surface">
+        <Container className="py-16 md:py-24">
+          <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
+            <div className="lg:col-span-5">
+              <p className="eyebrow">Our process</p>
+              <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-ink md:text-[34px] md:leading-[1.12]">
+                Buying used shouldn&rsquo;t mean buying blind
+              </h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-ink-2">
+                Most of the risk in second-hand electronics comes from missing information. So we
+                publish it — the grade, the battery capacity, the cosmetic marks and the warranty
+                term — on every single listing, before you commit.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  href="/laptops?cat=pre-owned"
+                  className="group inline-flex h-11 items-center gap-2 rounded-lg bg-accent px-5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+                >
+                  Browse certified pre-owned
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    strokeWidth={2}
+                  />
+                </Link>
+                <Link
+                  href="/about#grading"
+                  className="inline-flex h-11 items-center rounded-lg border border-line px-5 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+                >
+                  How grading works
+                </Link>
+              </div>
+            </div>
+
+            <ol className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:col-span-7">
+              {inspectionSteps.map(({ icon: Icon, step, title, body }) => (
+                <li key={step} className="bg-surface p-6">
+                  <div className="flex items-center justify-between">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-2 text-ink">
+                      <Icon className="h-4 w-4" strokeWidth={2} />
+                    </span>
+                    <span className="tnum font-display text-xs font-semibold tracking-widest text-ink-3">
+                      {step}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-[15px] font-semibold tracking-tight text-ink">
+                    {title}
+                  </h3>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </Container>
       </section>
 
-      {/* Smartphone Showcase */}
-      <section className="bg-slate-50 dark:bg-slate-900/60 py-16 transition-colors">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white">Latest Smartphones</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Flagship to mid-range, all genuine</p>
+      {/* Certified pre-owned */}
+      {(loading || preOwned.length > 0) && (
+        <Container as="section" className="py-16 md:py-20">
+          <SectionHeading
+            eyebrow="Certified pre-owned"
+            title="High-end devices, honestly graded"
+            lede="Inspected across 32 points, graded A to C, and covered for six months."
+            href="/laptops?cat=pre-owned"
+            linkLabel="All pre-owned"
+          />
+          {loading ? (
+            <ProductGridSkeleton />
+          ) : (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {preOwned.slice(0, 4).map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
             </div>
-            <Link href="/smartphones" className="text-blue-600 dark:text-blue-400 font-600 text-sm hover:underline hidden sm:block">View All →</Link>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+          )}
+        </Container>
+      )}
+
+      {/* Smartphones */}
+      <section className="border-y border-line bg-surface-2">
+        <Container className="py-16 md:py-20">
+          <SectionHeading
+            eyebrow="Smartphones"
+            title="Flagship to mid-range"
+            lede="Every pre-owned handset lists its measured battery capacity."
+            href="/smartphones"
+            linkLabel="All smartphones"
+          />
+          <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
             {phoneTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setPhoneTab(tab)}
-                className={`shrink-0 px-4 py-2 rounded-xl text-sm font-600 transition-all
-                  ${phoneTab === tab
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'}`}
+                className={tabClass(phoneTab === tab)}
               >
                 {tab}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {(filteredPhones.length > 0 ? filteredPhones : smartphones.slice(0, 4)).map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pre-Owned Laptops Section */}
-      {preOwnedLaptops.length > 0 && (
-        <section className="bg-slate-900 text-white py-16 transition-colors">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-800 rounded-full uppercase tracking-wide mb-2">
-                  Certified Quality
-                </span>
-                <h2 className="text-2xl md:text-3xl font-800 text-white">Certified Pre-Owned Laptops</h2>
-                <p className="text-slate-400 text-sm mt-1">High quality business laptops with 6 months warranty & original charger</p>
-              </div>
-              <Link href="/laptops?cat=pre-owned" className="text-amber-400 font-700 text-sm hover:underline hidden sm:block">
-                View Pre-Owned Laptops →
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {preOwnedLaptops.slice(0, 4).map((p) => (
+          {loading ? (
+            <ProductGridSkeleton />
+          ) : (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {(filteredPhones.length > 0 ? filteredPhones : smartphones.slice(0, 4)).map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}
             </div>
-          </div>
-        </section>
+          )}
+        </Container>
+      </section>
+
+      {/* New arrivals */}
+      {(loading || newArrivals.length > 0) && (
+        <Container as="section" className="py-16 md:py-20">
+          <SectionHeading
+            eyebrow="Just landed"
+            title="New arrivals"
+            href="/new-arrivals"
+            linkLabel="All new arrivals"
+          />
+          {loading ? (
+            <ProductGridSkeleton />
+          ) : (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {newArrivals.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </Container>
       )}
 
       {/* Brands */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white mb-2 text-center">Shop by Brand</h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-10">Authorized resellers of the world's leading technology brands</p>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
-          {brands.map((brand) => (
-            <Link
-              key={brand.name}
-              href={`/brand/${brand.name.toLowerCase()}`}
-              className="group flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-500 hover:shadow-md transition-all bg-white dark:bg-slate-800"
+      <section className="border-y border-line bg-surface">
+        <Container className="py-16 md:py-20">
+          <SectionHeading
+            align="center"
+            eyebrow="Authorised & verified"
+            title="Shop by brand"
+            lede="We stock the brands people actually keep for five years."
+          />
+          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4 lg:grid-cols-6">
+            {brands.map((brand) => (
+              <Link
+                key={brand.name}
+                href={`/brand/${brand.slug}`}
+                className="group flex flex-col items-center justify-center gap-2.5 bg-surface px-3 py-7 transition-colors hover:bg-surface-2"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-line bg-surface-2 font-display text-[13px] font-bold tracking-tight text-ink-2 transition-colors group-hover:border-accent-line group-hover:bg-accent-soft group-hover:text-accent-ink">
+                  {brand.mark}
+                </span>
+                <span className="text-[13px] font-medium text-ink">{brand.name}</span>
+                <span className="tnum text-[11px] text-ink-3">{brand.count} listings</span>
+              </Link>
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      {/* Stores */}
+      <Container as="section" className="py-16 md:py-20">
+        <SectionHeading
+          eyebrow="In person"
+          title="Come and hold it first"
+          lede="Inspect any device — including graded pre-owned stock — before you pay a taka."
+          href="/stores"
+          linkLabel="Store locator"
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          {stores.map((store) => (
+            <article
+              key={store.id}
+              className="overflow-hidden rounded-xl border border-line bg-surface"
             >
-              <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-900 group-hover:bg-blue-50 dark:group-hover:bg-blue-950 flex items-center justify-center text-xl font-800 text-slate-600 dark:text-slate-300 transition-colors">
-                {brand.logo}
-              </div>
-              <span className="text-sm font-600 text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{brand.name}</span>
-              <span className="text-xs text-slate-400 dark:text-slate-500">{brand.count} products</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* Why SMSTech */}
-      <section className="bg-blue-600 dark:bg-blue-700 py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-800 text-white text-center mb-2">Why Shop with SMSTech?</h2>
-          <p className="text-blue-200 text-sm text-center mb-12">We're here to make technology accessible and trustworthy</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {[
-              { icon: '✅', title: 'Authentic Products', desc: '100% genuine products from trusted brands and authorized channels.' },
-              { icon: '🛡️', title: 'Official Warranty', desc: 'Warranty support for eligible products — no grey market, no surprises.' },
-              { icon: '🏪', title: 'Two Physical Stores', desc: 'Visit us in person, inspect products and get expert assistance before you buy.' },
-              { icon: '🔒', title: 'Secure Shopping', desc: 'Safe and reliable online ordering with encrypted transactions.' },
-              { icon: '🚚', title: 'Fast Delivery', desc: 'Reliable delivery across Bangladesh — Dhaka metro within 24–48 hours.' },
-              { icon: '💬', title: 'Expert Support', desc: 'Get help choosing the right device for your needs from our knowledgeable team.' },
-            ].map((f) => (
-              <div key={f.title} className="bg-white/10 backdrop-blur rounded-2xl p-5 border border-white/20">
-                <div className="text-2xl mb-3">{f.icon}</div>
-                <h3 className="font-700 text-white mb-2">{f.title}</h3>
-                <p className="text-blue-100 text-sm leading-relaxed">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Store Locations */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white mb-2">Visit SMSTech</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Prefer to shop in person? Visit one of our stores.</p>
-        </div>
-        <div className="grid md:grid-cols-2 gap-6">
-          {[1, 2].map((n) => (
-            <div key={n} className="rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 overflow-hidden hover:shadow-lg transition-all">
-              <div className="h-48 bg-slate-100 dark:bg-slate-900 relative overflow-hidden">
+              <div className="relative aspect-[16/7] overflow-hidden bg-surface-2">
                 <img
-                  src={`https://images.unsplash.com/photo-154${n === 1 ? '7836114731' : '1807084-5c52b6b3adef'}?w=600&h=300&fit=crop&auto=format`}
-                  alt={`Store ${n}`}
-                  className="w-full h-full object-cover opacity-60"
+                  src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=900&h=500&fit=crop&auto=format"
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent flex items-end p-5">
-                  <span className="font-700 text-white text-lg">SMSTech — Store 0{n}</span>
+              </div>
+              <div className="p-5">
+                <h3 className="font-display text-base font-semibold tracking-tight text-ink">
+                  {store.name}
+                </h3>
+                <ul className="mt-3 space-y-2 text-[13px] text-ink-2">
+                  <li className="flex gap-2.5">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+                    <span className="leading-relaxed">{store.address}</span>
+                  </li>
+                  <li className="flex gap-2.5">
+                    <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+                    <span className="tnum">{store.phone}</span>
+                  </li>
+                  <li className="flex gap-2.5">
+                    <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+                    <span>{store.hours}</span>
+                  </li>
+                </ul>
+                <div className="mt-5 flex gap-2">
+                  <a
+                    href={`https://www.google.com/maps?q=${encodeURIComponent(store.mapQuery)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-line text-[13px] font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+                  >
+                    <MapPin className="h-3.5 w-3.5" strokeWidth={2} />
+                    Directions
+                  </a>
+                  <Link
+                    href="/stores"
+                    className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-accent text-[13px] font-medium text-on-accent transition-colors hover:bg-accent-hover"
+                  >
+                    <Store className="h-3.5 w-3.5" strokeWidth={2} />
+                    Store details
+                  </Link>
                 </div>
               </div>
-              <div className="p-5 space-y-3">
-                <div className="flex items-start gap-3">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">📍</span>
-                  <div>
-                    <p className="font-600 text-slate-900 dark:text-white text-sm">Dhaka, Bangladesh</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Exact address displayed in store locator</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-blue-600 dark:text-blue-400">📞</span>
-                  <p className="text-sm text-slate-700 dark:text-slate-300">+880 1XXX-XXXXXX</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-blue-600 dark:text-blue-400">🕐</span>
-                  <p className="text-sm text-slate-700 dark:text-slate-300">Sun–Thu 10am–8pm · Fri–Sat 12pm–8pm</p>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {['Laptops', 'Smartphones', 'Accessories'].map((c) => (
-                    <span key={c} className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-xs font-600 rounded-lg">{c}</span>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Link href="/stores" className="flex-1 py-2 text-center text-sm font-600 border border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors">
-                    Get Directions
-                  </Link>
-                  <Link href="/stores" className="flex-1 py-2 text-center text-sm font-600 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
-                    View Store
-                  </Link>
-                </div>
-              </div>
-            </div>
+            </article>
           ))}
-        </div>
-      </section>
 
-      {/* New Arrivals promo */}
-      <section className="bg-slate-50 dark:bg-slate-900/60 py-16 transition-colors">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-end justify-between mb-8">
+          {/* Pickup rather than a second address we cannot actually send anyone to */}
+          <article className="flex flex-col justify-between rounded-xl border border-line bg-surface-2 p-6">
             <div>
-              <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white">New Arrivals</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Just landed — fresh from the brands</p>
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink">
+                <Store className="h-4 w-4" strokeWidth={2} />
+              </span>
+              <h3 className="mt-4 font-display text-base font-semibold tracking-tight text-ink">
+                Reserve for in-store pickup
+              </h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+                Order online, choose Store Pickup, and we hold the exact unit for you — inspected,
+                graded and boxed. High-end pre-owned stock is one-of-one, so reserving is the only
+                way to be sure it is still there when you arrive.
+              </p>
             </div>
-            <Link href="/new-arrivals" className="text-blue-600 dark:text-blue-400 font-600 text-sm hover:underline">View All →</Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[...laptops, ...smartphones].filter((p) => p.isNew).slice(0, 4).map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Promo banner */}
-      <section className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-2 gap-5">
-          <div className="relative rounded-2xl overflow-hidden bg-slate-900 dark:bg-slate-950 p-8 flex flex-col justify-between min-h-48">
-            <img src="https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=600&h=300&fit=crop&auto=format" alt="Gaming" className="absolute inset-0 w-full h-full object-cover opacity-25" />
-            <div className="relative">
-              <span className="text-xs font-700 text-red-400 uppercase tracking-wide">🎮 Gaming</span>
-              <h3 className="text-2xl font-800 text-white mt-2">Gaming Starts Here.</h3>
-              <p className="text-slate-400 text-sm mt-1">RTX 4060 &amp; above · Up to ৳25,000 off</p>
-            </div>
-            <Link href="/laptops?cat=gaming" className="relative self-start mt-4 px-5 py-2.5 bg-red-500 text-white font-700 rounded-xl text-sm hover:bg-red-600 transition-colors">
-              Shop Gaming Laptops
+            <Link
+              href="/laptops"
+              className="group mt-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent"
+            >
+              Browse what is in stock
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
+              />
             </Link>
-          </div>
-          <div className="relative rounded-2xl overflow-hidden bg-blue-50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700 p-8 flex flex-col justify-between min-h-48">
-            <img src="https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=600&h=300&fit=crop&auto=format" alt="Smartphones" className="absolute inset-0 w-full h-full object-cover opacity-20" />
-            <div className="relative">
-              <span className="text-xs font-700 text-blue-600 dark:text-blue-400 uppercase tracking-wide">📱 Flagship</span>
-              <h3 className="text-2xl font-800 text-slate-900 dark:text-white mt-2">Your Next Smartphone Is Here.</h3>
-              <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">iPhone 17 · Galaxy S26 · OnePlus 13</p>
-            </div>
-            <Link href="/smartphones" className="relative self-start mt-4 px-5 py-2.5 bg-blue-600 text-white font-700 rounded-xl text-sm hover:bg-blue-700 transition-colors">
-              Shop Flagship Phones
-            </Link>
-          </div>
+          </article>
         </div>
-      </section>
+      </Container>
 
       {/* Reviews */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white text-center mb-2">Trusted by Our Customers</h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-10">Real experiences from real buyers</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-          {reviews.map((r, i) => (
-            <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/80 p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex mb-3">
-                {[1,2,3,4,5].map((s) => (
-                  <svg key={s} viewBox="0 0 12 12" className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400' : 'fill-slate-200 dark:fill-slate-700'}`}>
-                    <path d="M6 1l1.4 2.8L10.6 4.3 8.3 6.5l.5 3.2L6 8.1 3.2 9.7l.5-3.2L1.4 4.3l3.2-.5z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed mb-4">"{r.text}"</p>
-              <div className="pt-3 border-t border-slate-50 dark:border-slate-700/60">
-                <p className="font-700 text-slate-900 dark:text-white text-sm">{r.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{r.city}</p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-500">Purchased: {r.product}</p>
-                <span className="inline-block mt-1 text-[10px] px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded-full font-600">✓ Verified Purchase</span>
-              </div>
-            </div>
-          ))}
-        </div>
+      <section className="border-y border-line bg-surface-2">
+        <Container className="py-16 md:py-20">
+          <SectionHeading
+            eyebrow="Verified buyers"
+            title="What customers say"
+            lede="Reviews from confirmed orders only."
+          />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {reviews.map((r) => (
+              <figure
+                key={r.name}
+                className="flex flex-col rounded-xl border border-line bg-surface p-5"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="tnum font-display text-sm font-semibold text-ink">
+                    {r.rating}.0
+                  </span>
+                  <span className="text-xs text-ink-3">/ 5</span>
+                </div>
+                <blockquote className="mt-3 flex-1 text-[13.5px] leading-relaxed text-ink-2">
+                  {r.text}
+                </blockquote>
+                <figcaption className="mt-5 border-t border-line pt-4">
+                  <p className="text-[13px] font-medium text-ink">{r.name}</p>
+                  <p className="text-xs text-ink-3">{r.city}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-verified">
+                    <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                    Verified purchase · {r.product}
+                  </p>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </Container>
       </section>
 
       {/* FAQ */}
-      <section className="bg-slate-50 dark:bg-slate-900/60 py-16 transition-colors">
-        <div className="max-w-3xl mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-800 text-slate-900 dark:text-white text-center mb-2">Frequently Asked Questions</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-10">Got questions? We've got answers.</p>
-          <div className="space-y-3">
-            {faqs.map((f, i) => (
-              <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700/80 overflow-hidden">
-                <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full px-5 py-4 flex items-center justify-between text-left"
-                >
-                  <span className="font-600 text-slate-900 dark:text-white text-sm">{f.q}</span>
-                  <svg viewBox="0 0 24 24" className={`w-5 h-5 text-slate-400 dark:text-slate-500 shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-                {openFaq === i && (
-                  <div className="px-5 pb-4">
-                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{f.a}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link href="/faq" className="text-blue-600 dark:text-blue-400 font-600 text-sm hover:underline">View All FAQs →</Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Newsletter CTA */}
-      <section className="max-w-7xl mx-auto px-4 py-16">
-        <div className="bg-slate-900 dark:bg-slate-950 rounded-3xl p-10 text-center relative overflow-hidden transition-colors">
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #2563EB 0%, transparent 50%), radial-gradient(circle at 70% 50%, #7C3AED 0%, transparent 50%)' }} />
-          <div className="relative">
-            <h2 className="text-2xl md:text-3xl font-800 text-white mb-2">Stay Updated with the Latest Tech</h2>
-            <p className="text-slate-400 text-sm mb-8">Get notified about new arrivals, exclusive deals, and product launches.</p>
-            <div className="flex gap-2 max-w-md mx-auto">
-              <input
-                type="email"
-                placeholder="Enter your email address"
-                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 text-sm focus:outline-none focus:border-blue-400"
+      <Container as="section" className="py-16 md:py-20">
+        <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">
+          <div className="lg:col-span-4">
+            <p className="eyebrow">Answers</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-ink md:text-[32px]">
+              Questions worth asking
+            </h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+              Still unsure about something? Our team answers within a few hours, seven days a week.
+            </p>
+            <Link
+              href="/contact"
+              className="group mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent"
+            >
+              Talk to us
+              <ArrowRight
+                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
               />
-              <button className="px-5 py-3 bg-blue-600 text-white font-700 rounded-xl text-sm hover:bg-blue-700 transition-colors whitespace-nowrap">
-                Subscribe
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 mt-3">No spam. Unsubscribe anytime.</p>
+            </Link>
+          </div>
+
+          <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface lg:col-span-8">
+            {faqs.map((f, i) => {
+              const open = openFaq === i
+              return (
+                <div key={f.q}>
+                  <h3>
+                    <button
+                      onClick={() => setOpenFaq(open ? null : i)}
+                      aria-expanded={open}
+                      className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-surface-2"
+                    >
+                      <span className="text-[14.5px] font-medium tracking-tight text-ink">
+                        {f.q}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`}
+                        strokeWidth={2}
+                      />
+                    </button>
+                  </h3>
+                  {open && (
+                    <div className="animate-fade-in px-5 pb-5">
+                      <p className="max-w-2xl text-[13.5px] leading-relaxed text-ink-2">{f.a}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
-      </section>
-    </div>
+      </Container>
+
+      {/* Newsletter */}
+      <Container as="section" className="pb-20">
+        <div className="bg-grid overflow-hidden rounded-2xl border border-line bg-surface px-6 py-12 text-center md:px-12 md:py-16">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-surface-2 text-ink-2">
+            <Package className="h-4.5 w-4.5" strokeWidth={1.75} />
+          </span>
+          <h2 className="mx-auto mt-5 max-w-xl font-display text-2xl font-semibold tracking-tight text-ink md:text-[30px]">
+            Get first refusal on graded stock
+          </h2>
+          <p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-ink-2">
+            High-end pre-owned units sell within days. We email a short list when new inventory
+            passes inspection — nothing else.
+          </p>
+          <form
+            className="mx-auto mt-7 flex max-w-md flex-col gap-2 sm:flex-row"
+            onSubmit={(e) => e.preventDefault()}
+          >
+            <label htmlFor="newsletter-email" className="sr-only">
+              Email address
+            </label>
+            <input
+              id="newsletter-email"
+              type="email"
+              required
+              placeholder="you@example.com"
+              className="h-12 flex-1 rounded-lg border border-line bg-surface px-4 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus:ring-3 focus:ring-accent/15"
+            />
+            <button
+              type="submit"
+              className="inline-flex h-12 items-center justify-center rounded-lg bg-accent px-6 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+            >
+              Notify me
+            </button>
+          </form>
+          <p className="mt-3 text-xs text-ink-3">
+            Roughly one email a week. Unsubscribe in one click.
+          </p>
+        </div>
+      </Container>
+    </>
   )
 }

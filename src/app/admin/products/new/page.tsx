@@ -1087,7 +1087,7 @@ export default function NewProductPage() {
 																	className="inline-flex items-center gap-0.5"
 																	onClick={(e) => e.stopPropagation()}
 																>
-																	<span className="text-zinc-400">$</span>
+																	<span className="text-zinc-400">৳</span>
 																	<input
 																		type="number"
 																		value={variation.price}

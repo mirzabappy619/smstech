@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
+import Container from './ui/container'
 
 export type HeroSlide = {
   id: string
@@ -18,44 +20,52 @@ export type HeroSlide = {
 const fallbackSlides: HeroSlide[] = [
   {
     id: 'slide-1',
-    title: 'Next-Gen Laptops & Workstations',
-    subtitle: 'Experience unmatched speed with Apple M3, Intel 14th Gen & RTX 40-series gaming laptops.',
-    badge: '⚡ NEW ARRIVALS 2026',
-    image_url: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=1200&h=600&fit=crop&auto=format',
+    title: 'High-end laptops, without the guesswork',
+    subtitle:
+      'Apple M-series, Intel Core Ultra and RTX-class machines — every unit specified in full, warranty-backed and ready to ship today.',
+    badge: 'New arrivals',
+    image_url:
+      'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=1400&h=1000&fit=crop&auto=format',
     link_url: '/laptops',
-    button_text: 'Explore Laptops',
+    button_text: 'Shop laptops',
     sort_order: 1,
     is_active: true,
   },
   {
     id: 'slide-2',
-    title: 'Certified Pre-Owned Laptops',
-    subtitle: 'Premium business laptops from HP, Dell & Microsoft at unbeatable prices with 6 months warranty.',
-    badge: '🔥 PRE-OWNED DEALS',
-    image_url: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=1200&h=600&fit=crop&auto=format',
+    title: 'Certified pre-owned, honestly graded',
+    subtitle:
+      'Business-class ThinkPads, Latitudes and MacBooks put through a 32-point inspection, graded A to C, and covered for six months.',
+    badge: 'Certified pre-owned',
+    image_url:
+      'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=1400&h=1000&fit=crop&auto=format',
     link_url: '/laptops?cat=pre-owned',
-    button_text: 'Shop Pre-Owned',
+    button_text: 'Shop pre-owned',
     sort_order: 2,
     is_active: true,
   },
   {
     id: 'slide-3',
-    title: 'Flagship Smartphones & Accessories',
-    subtitle: 'Upgrade to iPhone 17 Pro & Galaxy S26 Ultra with official brand warranty & EMI options.',
-    badge: '📱 OFFICIAL WARRANTY',
-    image_url: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=1200&h=600&fit=crop&auto=format',
+    title: 'Flagship phones with battery health published',
+    subtitle:
+      'iPhone and Galaxy, new and pre-owned. We list the measured battery capacity on every used handset before you add it to your cart.',
+    badge: 'Smartphones',
+    image_url:
+      'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=1400&h=1000&fit=crop&auto=format',
     link_url: '/smartphones',
-    button_text: 'Browse Smartphones',
+    button_text: 'Shop smartphones',
     sort_order: 3,
     is_active: true,
   },
 ]
 
+const SLIDE_MS = 6500
+
 export default function HeroSlider() {
   const [slides, setSlides] = useState<HeroSlide[]>(fallbackSlides)
   const [current, setCurrent] = useState(0)
-  const [isPaused, setIsPaused] = useState(false)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const [paused, setPaused] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     async function loadSliders() {
@@ -65,142 +75,162 @@ export default function HeroSlider() {
         const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
         if (list.length > 0) {
           const active = list.filter((s: HeroSlide) => s.is_active !== false)
-          if (active.length > 0) {
-            setSlides(active)
-          }
+          if (active.length > 0) setSlides(active)
         }
       } catch {
-        // use fallback
+        // keep fallback
       }
     }
     loadSliders()
   }, [])
 
   useEffect(() => {
-    if (isPaused || slides.length <= 1) return
-    timerRef.current = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % slides.length)
-    }, 5000)
-
+    if (paused || slides.length <= 1) return
+    timerRef.current = setInterval(
+      () => setCurrent((prev) => (prev + 1) % slides.length),
+      SLIDE_MS,
+    )
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [isPaused, slides.length])
-
-  const nextSlide = () => setCurrent((prev) => (prev + 1) % slides.length)
-  const prevSlide = () => setCurrent((prev) => (prev - 1 + slides.length) % slides.length)
+  }, [paused, slides.length])
 
   if (slides.length === 0) return null
 
+  const go = (dir: 1 | -1) =>
+    setCurrent((prev) => (prev + dir + slides.length) % slides.length)
+
+  const slide = slides[current]
+
   return (
-    <div
-      className="relative bg-slate-950 overflow-hidden group transition-colors"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+    <section
+      className="relative border-b border-line bg-surface"
+      aria-roledescription="carousel"
+      aria-label="Featured collections"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
-      {/* Background Slides Stack */}
-      <div className="relative min-h-[420px] md:min-h-[480px] lg:min-h-[520px] flex items-center">
-        {slides.map((slide, index) => {
-          const isActive = index === current
-          return (
-            <div
-              key={slide.id}
-              className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-                isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
-              }`}
-            >
-              {/* Image & Dark Gradient Overlay */}
-              <div className="absolute inset-0">
-                <img
-                  src={slide.image_url}
-                  alt={slide.title}
-                  className="w-full h-full object-cover object-center opacity-40 scale-105 transition-transform duration-1000"
+      <Container className="relative">
+        <div className="grid items-center gap-8 py-12 md:min-h-[520px] md:grid-cols-2 md:gap-12 md:py-16">
+          {/* Copy */}
+          <div key={slide.id} className="animate-rise-in max-w-xl">
+            {slide.badge && (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-2">
+                {slide.badge}
+              </span>
+            )}
+
+            <h1 className="mt-5 font-display text-[34px] font-semibold leading-[1.08] tracking-[-0.03em] text-ink sm:text-5xl lg:text-[56px]">
+              {slide.title}
+            </h1>
+
+            <p className="mt-5 text-[15px] leading-relaxed text-ink-2 sm:text-base">
+              {slide.subtitle}
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                href={slide.link_url || '/laptops'}
+                className="group inline-flex h-12 items-center gap-2 rounded-lg bg-accent px-6 text-[15px] font-medium text-on-accent transition-colors hover:bg-accent-hover"
+              >
+                {slide.button_text || 'Shop now'}
+                <ArrowRight
+                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                  strokeWidth={2}
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80" />
-              </div>
+              </Link>
+              <Link
+                href="/stores"
+                className="inline-flex h-12 items-center rounded-lg border border-line bg-surface px-6 text-[15px] font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+              >
+                Visit a store
+              </Link>
+            </div>
 
-              {/* Slide Content */}
-              <div className="relative max-w-7xl mx-auto px-4 h-full flex flex-col justify-center py-16">
-                <div className="max-w-2xl space-y-4">
-                  {slide.badge && (
-                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600/90 text-white text-xs font-800 tracking-wider uppercase backdrop-blur-md border border-blue-400/40 shadow-lg shadow-blue-500/20">
-                      {slide.badge}
-                    </span>
-                  )}
-
-                  <h1 className="text-3xl md:text-5xl lg:text-6xl font-800 text-white leading-tight drop-shadow-md">
-                    {slide.title}
-                  </h1>
-
-                  <p className="text-slate-300 text-sm md:text-base leading-relaxed max-w-xl">
-                    {slide.subtitle}
-                  </p>
-
-                  <div className="pt-3 flex flex-wrap gap-4 items-center">
-                    <Link
-                      href={slide.link_url || '/laptops'}
-                      className="px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-700 text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-500/50 active:scale-95 transition-all flex items-center gap-2"
-                    >
-                      <span>{slide.button_text || 'Shop Now'}</span>
-                      <svg viewBox="0 0 20 20" className="w-4 h-4 fill-current" fill="currentColor">
-                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </Link>
-
-                    <Link
-                      href="/stores"
-                      className="px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white font-600 text-sm rounded-xl border border-white/20 backdrop-blur transition-all"
-                    >
-                      Visit Our Store
-                    </Link>
-                  </div>
+            {/* Proof points */}
+            <dl className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-line pt-6">
+              {[
+                { v: '32', l: 'Point inspection' },
+                { v: '6 mo', l: 'Pre-owned warranty' },
+                { v: '7 day', l: 'Return window' },
+              ].map((s) => (
+                <div key={s.l}>
+                  <dt className="tnum font-display text-xl font-semibold tracking-tight text-ink">
+                    {s.v}
+                  </dt>
+                  <dd className="mt-0.5 text-xs leading-snug text-ink-3">{s.l}</dd>
                 </div>
+              ))}
+            </dl>
+          </div>
+
+          {/* Media */}
+          <div className="relative">
+            <div className="bg-grid relative overflow-hidden rounded-2xl border border-line bg-surface-2">
+              <div className="relative aspect-[4/3] w-full md:aspect-[5/4]">
+                {slides.map((s, i) => (
+                  <img
+                    key={s.id}
+                    src={s.image_url}
+                    alt={i === current ? s.title : ''}
+                    aria-hidden={i !== current}
+                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-out ${
+                      i === current ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
-          )
-        })}
-      </div>
-
-      {/* Prev / Next Controls */}
-      {slides.length > 1 && (
-        <>
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-blue-600 text-white border border-white/20 backdrop-blur flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 hover:scale-110"
-            aria-label="Previous Slide"
-          >
-            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-current" strokeWidth={2.5}>
-              <path d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-blue-600 text-white border border-white/20 backdrop-blur flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 hover:scale-110"
-            aria-label="Next Slide"
-          >
-            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-current" strokeWidth={2.5}>
-              <path d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </>
-      )}
-
-      {/* Pagination Dot Indicators */}
-      {slides.length > 1 && (
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className={`h-2.5 rounded-full transition-all duration-300 ${
-                i === current ? 'w-8 bg-blue-500' : 'w-2.5 bg-white/40 hover:bg-white/70'
-              }`}
-              aria-label={`Go to slide ${i + 1}`}
-            />
-          ))}
+          </div>
         </div>
-      )}
-    </div>
+
+        {/* Controls — in flow so they never collide with the proof points */}
+        {slides.length > 1 && (
+          <div className="flex items-center justify-between gap-4 border-t border-line py-5">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => go(-1)}
+                aria-label="Previous slide"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:border-line-2 hover:bg-surface-2 hover:text-ink"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+              </button>
+              <button
+                onClick={() => go(1)}
+                aria-label="Next slide"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:border-line-2 hover:bg-surface-2 hover:text-ink"
+              >
+                <ChevronRight className="h-4 w-4" strokeWidth={2} />
+              </button>
+              <button
+                onClick={() => setPaused((p) => !p)}
+                aria-label={paused ? 'Resume autoplay' : 'Pause autoplay'}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:border-line-2 hover:bg-surface-2 hover:text-ink"
+              >
+                {paused ? (
+                  <Play className="h-3.5 w-3.5" strokeWidth={2} />
+                ) : (
+                  <Pause className="h-3.5 w-3.5" strokeWidth={2} />
+                )}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {slides.map((s, i) => (
+                <button
+                  key={s.id}
+                  onClick={() => setCurrent(i)}
+                  aria-label={`Go to slide ${i + 1}`}
+                  aria-current={i === current}
+                  className={`h-1 rounded-full transition-all duration-300 ${
+                    i === current ? 'w-8 bg-ink' : 'w-4 bg-line-2 hover:bg-ink-3'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </Container>
+    </section>
   )
 }

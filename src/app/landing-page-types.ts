@@ -124,7 +124,7 @@ export const pricingBlockSchema = z.object({
 	title: z.string().min(1).max(200),
 	subtitle: z.string().max(500).optional(),
 	plans: z.array(pricingPlanSchema).min(1).max(6),
-	currency: z.string().default("USD"),
+	currency: z.string().default("BDT"),
 });
 
 // ==============================================

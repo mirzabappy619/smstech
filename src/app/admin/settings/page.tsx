@@ -102,15 +102,17 @@ const defaultSettings: StoreSettings = {
 	},
 };
 
+// Taka first — it is the store default and the currency every price is
+// entered in. The rest remain selectable for a future multi-currency store.
 const currencies = [
-	{ code: "USD", name: "US Dollar" },
-	{ code: "EUR", name: "Euro" },
-	{ code: "GBP", name: "British Pound" },
-	{ code: "CAD", name: "Canadian Dollar" },
-	{ code: "AUD", name: "Australian Dollar" },
-	{ code: "JPY", name: "Japanese Yen" },
-	{ code: "INR", name: "Indian Rupee" },
-	{ code: "BDT", name: "Bangladeshi Taka" },
+	{ code: "BDT", name: "Bangladeshi Taka (৳)" },
+	{ code: "USD", name: "US Dollar ($)" },
+	{ code: "EUR", name: "Euro (€)" },
+	{ code: "GBP", name: "British Pound (£)" },
+	{ code: "INR", name: "Indian Rupee (₹)" },
+	{ code: "CAD", name: "Canadian Dollar (CA$)" },
+	{ code: "AUD", name: "Australian Dollar (A$)" },
+	{ code: "JPY", name: "Japanese Yen (¥)" },
 ];
 
 const timezones = [

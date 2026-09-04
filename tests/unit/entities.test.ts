@@ -23,9 +23,10 @@ describe('Money Value Object', () => {
     expect(money.currency).toBe('USD');
   });
 
-  it('should default to USD currency', () => {
+  it('should default to the store currency, BDT', () => {
     const money = new Money(50);
-    expect(money.currency).toBe('USD');
+    expect(money.currency).toBe('BDT');
+    expect(money.format()).toBe('৳50');
   });
 
   it('should throw error for negative amount', () => {

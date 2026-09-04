@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { formatCurrency } from "@/lib/currency";
 
 interface AnalyticsData {
 	range: string;
@@ -258,7 +259,7 @@ export default function AnalyticsPage() {
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 				<MetricCard
 					title="Total Revenue"
-				value={`BDT ${data.metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+					value={formatCurrency(data.metrics.totalRevenue)}
 					change={data.metrics.revenueChange}
 					color="green"
 					icon={
@@ -362,11 +363,7 @@ export default function AnalyticsPage() {
 												{category.name}
 											</span>
 											<span className="font-semibold text-zinc-900 dark:text-white text-sm">
-												BDT{" "}
-												{category.revenue.toLocaleString(undefined, {
-													minimumFractionDigits: 2,
-													maximumFractionDigits: 2,
-												})}
+												{formatCurrency(category.revenue)}
 											</span>
 										</div>
 										<div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-2">
@@ -543,11 +540,7 @@ export default function AnalyticsPage() {
 											{product.quantity} units
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-zinc-900 dark:text-white">
-											BDT{" "}
-											{product.revenue.toLocaleString(undefined, {
-												minimumFractionDigits: 2,
-												maximumFractionDigits: 2,
-											})}
+											{formatCurrency(product.revenue)}
 										</td>
 									</tr>
 								))}

@@ -8,41 +8,42 @@ import { UserMenu } from "./user-menu";
 import { BranchSwitcher } from "./branch-switcher";
 import { useRBAC } from "@/lib/rbac/rbac-context";
 import {
-	LayoutDashboard,
-	Store,
-	BarChart3,
-	ShoppingCart,
-	Clock,
-	Truck,
-	ShieldAlert,
-	Package,
-	FolderTree,
-	Boxes,
-	Warehouse,
-	Cpu,
-	ArrowLeftRight,
-	ShoppingBag,
-	QrCode,
-	Users,
-	BookOpen,
-	SlidersHorizontal,
-	TicketPercent,
-	Layers,
-	UserCog,
-	ShieldCheck,
-	CheckCircle2,
-	GitBranch,
 	Activity,
-	LineChart,
-	Settings,
+	ArrowLeft,
+	ArrowLeftRight,
+	BarChart3,
+	BookOpen,
+	Boxes,
+	CheckCircle2,
 	ChevronDown,
 	ChevronRight,
-	Search,
-	X,
+	Clock,
+	Cpu,
+	FolderTree,
+	GitBranch,
+	Layers,
+	LayoutDashboard,
+	LineChart,
+	Package,
 	PanelLeftClose,
 	PanelLeftOpen,
-	ArrowLeft,
+	QrCode,
+	Receipt,
+	Search,
+	Settings,
 	Shield,
+	ShieldAlert,
+	ShieldCheck,
+	ShoppingBag,
+	ShoppingCart,
+	SlidersHorizontal,
+	Store,
+	TicketPercent,
+	Truck,
+	UserCog,
+	Users,
+	Warehouse,
+	X,
 	type LucideIcon,
 } from "lucide-react";
 
@@ -87,6 +88,12 @@ const NAV_GROUPS: NavGroupDef[] = [
 				permission: "pos:access",
 				badge: "Live",
 				badgeVariant: "emerald",
+			},
+			{
+				href: "/admin/pos/orders",
+				label: "POS Sales",
+				icon: Receipt,
+				permission: "orders:view",
 			},
 			{
 				href: "/admin/orders",
@@ -357,6 +364,11 @@ export function AdminLayoutClient({
 	const isItemActive = (href: string) => {
 		if (href === "/admin/dashboard") {
 			return pathname === "/admin/dashboard" || pathname === "/admin";
+		}
+		// The till lives at /admin/pos and the sales register at /admin/pos/orders,
+		// so a prefix match here would light up both entries at once.
+		if (href === "/admin/pos") {
+			return pathname === "/admin/pos";
 		}
 		return pathname === href || pathname.startsWith(href + "/");
 	};

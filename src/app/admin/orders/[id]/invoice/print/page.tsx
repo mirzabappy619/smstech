@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { formatBDT } from "@/lib/currency";
 
 interface OrderDetail {
 	id: string;
@@ -204,8 +205,8 @@ export default function PrintInvoicePage() {
 									)}
 								</td>
 								<td className="p-3 text-center font-bold text-zinc-800">{item.quantity}</td>
-								<td className="p-3 text-right font-medium">BDT {Number(item.unit_price || 0).toLocaleString()}</td>
-								<td className="p-3 text-right font-bold text-zinc-900">BDT {Number(item.total_price || 0).toLocaleString()}</td>
+								<td className="p-3 text-right font-medium">{formatBDT(item.unit_price || 0)}</td>
+								<td className="p-3 text-right font-bold text-zinc-900">{formatBDT(item.total_price || 0)}</td>
 							</tr>
 						))}
 					</tbody>
@@ -217,21 +218,21 @@ export default function PrintInvoicePage() {
 				<div className="w-64 space-y-2 text-xs">
 					<div className="flex justify-between text-zinc-600">
 						<span>Subtotal:</span>
-						<span className="font-semibold text-zinc-900">BDT {Number(order.subtotal || 0).toLocaleString()}</span>
+						<span className="font-semibold text-zinc-900">{formatBDT(order.subtotal || 0)}</span>
 					</div>
 					<div className="flex justify-between text-zinc-600">
 						<span>Shipping Fee:</span>
-						<span className="font-semibold text-zinc-900">BDT {Number(order.shipping_amount || 0).toLocaleString()}</span>
+						<span className="font-semibold text-zinc-900">{formatBDT(order.shipping_amount || 0)}</span>
 					</div>
 					{order.discount_amount > 0 && (
 						<div className="flex justify-between text-green-700 font-semibold">
 							<span>Discount:</span>
-							<span>- BDT {Number(order.discount_amount).toLocaleString()}</span>
+							<span>−{formatBDT(order.discount_amount)}</span>
 						</div>
 					)}
 					<div className="border-t-2 border-zinc-900 pt-2 flex justify-between text-sm font-extrabold text-zinc-900">
 						<span>TOTAL (BDT):</span>
-						<span className="text-blue-700">BDT {Number(order.total_amount || 0).toLocaleString()}</span>
+						<span className="text-blue-700">{formatBDT(order.total_amount || 0)}</span>
 					</div>
 				</div>
 			</div>

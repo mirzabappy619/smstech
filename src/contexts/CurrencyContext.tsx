@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, currencySymbol, DEFAULT_CURRENCY } from '@/lib/currency';
 
 interface CurrencyContextValue {
 	currencyCode: string;
@@ -10,14 +10,14 @@ interface CurrencyContextValue {
 }
 
 const CurrencyContext = createContext<CurrencyContextValue>({
-	currencyCode: 'USD',
-	currencySymbol: '$',
-	format: (amount) => formatCurrency(amount, 'USD'),
+	currencyCode: DEFAULT_CURRENCY,
+	currencySymbol: currencySymbol(DEFAULT_CURRENCY),
+	format: (amount) => formatCurrency(amount, DEFAULT_CURRENCY),
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-	const [currencyCode, setCurrencyCode] = useState('USD');
-	const [currencySymbol, setCurrencySymbol] = useState('$');
+	const [currencyCode, setCurrencyCode] = useState(DEFAULT_CURRENCY);
+	const [symbol, setSymbol] = useState(currencySymbol(DEFAULT_CURRENCY));
 	const [_isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
@@ -26,7 +26,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 			.then((data) => {
 				if (data.success && data.data) {
 					setCurrencyCode(data.data.currency_code);
-					setCurrencySymbol(data.data.currency_symbol);
+					setSymbol(data.data.currency_symbol);
 				}
 			})
 			.catch((err) => {
@@ -40,7 +40,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 	const format = (amount: number | null | undefined) => formatCurrency(amount, currencyCode);
 
 	return (
-		<CurrencyContext.Provider value={{ currencyCode, currencySymbol, format }}>
+		<CurrencyContext.Provider value={{ currencyCode, currencySymbol: symbol, format }}>
 			{children}
 		</CurrencyContext.Provider>
 	);

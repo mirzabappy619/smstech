@@ -2,6 +2,24 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+} from 'lucide-react'
+import Container from '../../components/ui/container'
+import { Breadcrumbs } from '../../components/CollectionView'
+
+const FIELDS = [
+  { label: 'Full name', field: 'name', type: 'text', ph: 'Your name', required: true },
+  { label: 'Phone number', field: 'phone', type: 'tel', ph: '017…', required: true },
+  { label: 'Email address', field: 'email', type: 'email', ph: 'you@example.com', required: false },
+  { label: 'Subject', field: 'subject', type: 'text', ph: 'What is this about?', required: false },
+] as const
 
 export default function Contact() {
   const [form, setForm] = useState({ name: '', phone: '', email: '', subject: '', message: '' })
@@ -13,95 +31,182 @@ export default function Contact() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-800 text-slate-900 dark:text-white mb-2">Get in Touch</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">We're happy to answer your questions about laptops, smartphones, pre-owned products, or orders.</p>
-      </div>
+    <Container className="py-8 md:py-12">
+      <Breadcrumbs items={[{ label: 'Contact' }]} />
 
-      <div className="grid md:grid-cols-2 gap-10">
+      <header className="mb-10 max-w-2xl">
+        <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-0.025em] text-ink md:text-[38px]">
+          Get in touch
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+          Questions about a specific unit — its grade, battery reading, or what&rsquo;s in the box?
+          Ask. We answer within a few hours, seven days a week.
+        </p>
+      </header>
+
+      <div className="grid gap-8 lg:grid-cols-12">
         {/* Form */}
-        <div>
+        <div className="lg:col-span-7">
           {submitted ? (
-            <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
-              <div className="text-5xl mb-4">✅</div>
-              <h3 className="text-xl font-700 text-slate-900 dark:text-white mb-2">Message Sent!</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">We'll get back to you within 24 hours.</p>
-              <button onClick={() => setSubmitted(false)} className="mt-4 text-blue-600 dark:text-blue-400 font-600 text-sm hover:underline">Send Another Message</button>
+            <div className="rounded-xl border border-line bg-surface px-6 py-16 text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-verified-line bg-verified-soft text-verified">
+                <CheckCircle2 className="h-6 w-6" strokeWidth={1.75} />
+              </span>
+              <h2 className="mt-4 font-display text-lg font-semibold tracking-tight text-ink">
+                Message sent
+              </h2>
+              <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-ink-2">
+                Thanks — we&rsquo;ll get back to you within 24 hours, usually much sooner.
+              </p>
+              <button
+                onClick={() => {
+                  setSubmitted(false)
+                  setForm({ name: '', phone: '', email: '', subject: '', message: '' })
+                }}
+                className="mt-6 inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-medium text-ink transition-colors hover:border-line-2 hover:bg-surface-2"
+              >
+                Send another message
+              </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/80 transition-colors">
-              <h2 className="font-700 text-slate-900 dark:text-white mb-4">Send a Message</h2>
-              {[
-                ['Full Name', 'name', 'text'],
-                ['Phone Number', 'phone', 'tel'],
-                ['Email Address', 'email', 'email'],
-                ['Subject', 'subject', 'text'],
-              ].map(([label, field, type]) => (
-                <div key={field}>
-                  <label className="text-xs font-700 text-slate-700 dark:text-slate-300 block mb-1.5">{label}</label>
-                  <input
-                    type={type}
-                    value={(form as any)[field]}
-                    onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl text-sm focus:outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
-                    placeholder={label as string}
+            <form
+              onSubmit={handleSubmit}
+              className="overflow-hidden rounded-xl border border-line bg-surface"
+            >
+              <div className="border-b border-line px-6 py-4">
+                <h2 className="font-display text-base font-semibold tracking-tight text-ink">
+                  Send a message
+                </h2>
+              </div>
+
+              <div className="space-y-4 p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {FIELDS.map((f) => (
+                    <div key={f.field}>
+                      <label
+                        htmlFor={`contact-${f.field}`}
+                        className="mb-1.5 block text-[13px] font-medium text-ink"
+                      >
+                        {f.label}
+                        {f.required && <span className="text-danger"> *</span>}
+                      </label>
+                      <input
+                        id={`contact-${f.field}`}
+                        type={f.type}
+                        required={f.required}
+                        value={form[f.field]}
+                        onChange={(e) => setForm({ ...form, [f.field]: e.target.value })}
+                        placeholder={f.ph}
+                        className="h-11 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent/15"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="contact-message"
+                    className="mb-1.5 block text-[13px] font-medium text-ink"
+                  >
+                    Message <span className="text-danger">*</span>
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    rows={6}
+                    required
+                    value={form.message}
+                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                    placeholder="If it's about a specific device, include the model or the order number and we can answer precisely."
+                    className="w-full resize-none rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:bg-surface focus:outline-none focus:ring-3 focus:ring-accent/15"
                   />
                 </div>
-              ))}
-              <div>
-                <label className="text-xs font-700 text-slate-700 dark:text-slate-300 block mb-1.5">Message</label>
-                <textarea
-                  rows={5}
-                  value={form.message}
-                  onChange={(e) => setForm({ ...form, message: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl text-sm focus:outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors resize-none"
-                  placeholder="How can we help you?"
-                />
               </div>
-              <button type="submit" className="w-full py-3.5 bg-blue-600 text-white font-700 rounded-xl hover:bg-blue-700 transition-colors text-sm">
-                Send Message
-              </button>
+
+              <div className="border-t border-line bg-surface-2 px-6 py-4">
+                <button
+                  type="submit"
+                  className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-accent text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover sm:w-auto sm:px-6"
+                >
+                  Send message
+                </button>
+              </div>
             </form>
           )}
         </div>
 
-        {/* Info */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="font-700 text-slate-900 dark:text-white mb-4">Contact Information</h2>
-            <div className="space-y-3">
-              {[
-                ['📞', 'Hotline / Phone', '01781485588 / 01723249598'],
-                ['📧', 'Email', 'info@smstech.bd'],
-                ['🕐', 'Store Hours', '10:00 AM – 8:00 PM (Everyday)'],
-              ].map(([icon, label, value]) => (
-                <div key={label} className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700/80">
-                  <span className="text-xl">{icon}</span>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-600">{label}</p>
-                    <p className="text-sm font-700 text-slate-900 dark:text-white">{value}</p>
+        {/* Details */}
+        <div className="space-y-4 lg:col-span-5">
+          <ul className="grid gap-px overflow-hidden rounded-xl border border-line bg-line">
+            {[
+              { Icon: Phone, t: 'Phone', v: '01781485588 · 01723249598', href: 'tel:+8801781485588' },
+              { Icon: Mail, t: 'Email', v: 'info@smstech.bd', href: 'mailto:info@smstech.bd' },
+              { Icon: MessageCircle, t: 'WhatsApp', v: 'Message us', href: 'https://wa.me/8801781485588' },
+              { Icon: Clock, t: 'Hours', v: '10:00 AM – 8:00 PM, daily' },
+            ].map(({ Icon, t, v, href }) => (
+              <li key={t} className="bg-surface">
+                {href ? (
+                  <a
+                    href={href}
+                    className="flex items-center gap-3.5 px-5 py-4 transition-colors hover:bg-surface-2"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+                    <span className="min-w-0">
+                      <span className="block text-xs text-ink-3">{t}</span>
+                      <span className="tnum block truncate text-[14px] font-medium text-ink">
+                        {v}
+                      </span>
+                    </span>
+                  </a>
+                ) : (
+                  <div className="flex items-center gap-3.5 px-5 py-4">
+                    <Icon className="h-4 w-4 shrink-0 text-ink-3" strokeWidth={2} />
+                    <span>
+                      <span className="block text-xs text-ink-3">{t}</span>
+                      <span className="block text-[14px] font-medium text-ink">{v}</span>
+                    </span>
                   </div>
-                </div>
-              ))}
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-xl border border-line bg-surface p-5">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="font-display text-[15px] font-semibold tracking-tight text-ink">
+                SMSTech — Multiplan
+              </h2>
+              <span className="shrink-0 rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-ink-3">
+                Main store
+              </span>
             </div>
+            <p className="mt-3 flex gap-2.5 text-[13px] leading-relaxed text-ink-2">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-3" strokeWidth={2} />
+              Shop 309, Level 03, Computer City Market (Multiplan), New Elephant Road (69–71), Dhaka
+              1205
+            </p>
+            <Link
+              href="/stores"
+              className="group mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-accent"
+            >
+              Map and directions
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                strokeWidth={2}
+              />
+            </Link>
           </div>
 
-          {/* Main Store Location */}
-          <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-5 bg-white dark:bg-slate-800 transition-colors">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-700 text-slate-900 dark:text-white">SMSTech — Multiplan Branch</h3>
-              <span className="text-xs font-700 px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-full">Main Store</span>
-            </div>
-            <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-              <p className="font-600 text-slate-900 dark:text-white">📍 Shop - 309, Level -03, Computer City Market (Multiplan), New Elephant Road (69-71), Dhaka - 1205</p>
-              <p>📞 01781485588, 01723249598</p>
-              <p>🕐 10:00 AM – 8:00 PM</p>
-            </div>
-            <Link href="/stores" className="block mt-4 text-sm text-blue-600 dark:text-blue-400 font-600 hover:underline">View Map &amp; Directions →</Link>
+          <div className="rounded-xl border border-line bg-surface-2 p-5">
+            <p className="text-[13px] leading-relaxed text-ink-2">
+              Chasing an existing order?{' '}
+              <Link href="/track-order" className="font-medium text-accent">
+                Track it here
+              </Link>{' '}
+              with your order number — it&rsquo;s faster than emailing.
+            </p>
           </div>
         </div>
       </div>
-    </div>
+    </Container>
   )
 }
