@@ -4,6 +4,7 @@ import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 import {
 	resolvePipeline,
 	firstApplicableNode,
+	closesWithoutApproval,
 } from "@/lib/approvals/cash-close";
 
 type SupabaseClient = Awaited<ReturnType<typeof getSupabaseServerClient>>;
@@ -337,8 +338,110 @@ export async function POST(request: NextRequest) {
 			const expected = await expectedCash(supabase, shift_id);
 			const difference = round2(actual - expected);
 
-			// The drawer count is routed through the branch's approval chain
-			// rather than closing the shift outright.
+			// A shift already rejected once may be recounted and resubmitted;
+			// the previous request stays in the log as history.
+			const previousStatus = currentShift.status;
+
+			// Migration 023 makes the owner the final step of every approval
+			// chain, so sending an owner's own close through the pipeline would
+			// only ever be them approving themselves. They close the drawer
+			// outright — but the request and its action row are still written,
+			// already approved, so the trail still shows who signed this drawer
+			// off and that no chain was walked.
+			if (closesWithoutApproval(userRBAC)) {
+				const ownerPipeline = await resolvePipeline(
+					supabase,
+					currentShift.warehouse_id,
+				);
+				const closedAt = new Date().toISOString();
+
+				const { data: closedShift, error: ownerCloseErr } = await supabase
+					.from("pos_shifts")
+					.update({
+						closing_cash_actual: actual,
+						closing_cash_expected: expected,
+						difference,
+						status: "closed",
+						closed_at: closedAt,
+						closed_by_user_id: userRBAC.userId,
+						approved_at: closedAt,
+						notes: notes || currentShift.notes,
+					})
+					.eq("id", shift_id)
+					.eq("status", previousStatus)
+					.select()
+					.single();
+
+				if (ownerCloseErr) throw ownerCloseErr;
+				if (!closedShift) {
+					return NextResponse.json(
+						{ success: false, error: "That shift was changed by someone else." },
+						{ status: 409 },
+					);
+				}
+
+				const ownerRequestNumber = `CCA-${Date.now().toString().slice(-8)}`;
+				// Records the close as landing at the top of the chain, which is
+				// where the owner sits when there is a pipeline to speak of.
+				const ownerStep = ownerPipeline?.nodes.length || 1;
+
+				const { data: ownerApproval, error: ownerApprovalErr } = await supabase
+					.from("cash_close_approvals")
+					.insert({
+						request_number: ownerRequestNumber,
+						shift_id,
+						warehouse_id: currentShift.warehouse_id,
+						pipeline_id: ownerPipeline?.id ?? null,
+						closing_cash_expected: expected,
+						closing_cash_actual: actual,
+						difference,
+						submitted_by: userRBAC.userId,
+						current_node_id: null,
+						current_step: ownerStep,
+						status: "approved",
+						resolved_at: closedAt,
+						notes: notes || null,
+					})
+					.select()
+					.single();
+
+				if (ownerApprovalErr) {
+					// A closed drawer with no record of who closed it is worse
+					// than one still open, so undo rather than close silently.
+					await supabase
+						.from("pos_shifts")
+						.update({
+							status: previousStatus,
+							closed_at: null,
+							closed_by_user_id: null,
+							approved_at: null,
+						})
+						.eq("id", shift_id);
+					throw ownerApprovalErr;
+				}
+
+				await supabase.from("cash_close_approval_actions").insert({
+					approval_id: ownerApproval.id,
+					node_id: null,
+					step_order: ownerStep,
+					action: "approved",
+					acted_by: userRBAC.userId,
+					acted_by_role: userRBAC.role,
+					comment:
+						"Closed directly by Superadmin / Owner — approval chain not required.",
+				});
+
+				return NextResponse.json({
+					success: true,
+					data: closedShift,
+					approval: ownerApproval,
+					closed_without_approval: true,
+					message: `Drawer closed and signed off as ${ownerRequestNumber}. Superadmin close — no approval chain required.`,
+				});
+			}
+
+			// Everyone else: the drawer count is routed through the branch's
+			// approval chain rather than closing the shift outright.
 			const pipeline = await resolvePipeline(
 				supabase,
 				currentShift.warehouse_id,
@@ -366,10 +469,6 @@ export async function POST(request: NextRequest) {
 					{ status: 409 },
 				);
 			}
-
-			// A shift already rejected once may be recounted and resubmitted;
-			// the previous request stays in the log as history.
-			const previousStatus = currentShift.status;
 
 			const { data: pendingShift, error: closeErr } = await supabase
 				.from("pos_shifts")

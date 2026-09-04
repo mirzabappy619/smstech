@@ -32,8 +32,13 @@ export interface FraudCheckOptions {
 }
 
 const DEFAULT_API_KEY = process.env.FRAUD_CHECK_API_KEY || "12oclock_demo_key";
-const DEFAULT_BASE_URL = process.env.FRAUD_CHECK_BASE_URL || "https://12oclock.org";
-const DEFAULT_TIMEOUT_MS = 8000;
+// The canonical host. The bare domain answers every request with a 308 to this
+// one, and that wasted round trip was enough to push a call past the timeout.
+const DEFAULT_BASE_URL = process.env.FRAUD_CHECK_BASE_URL || "https://www.12oclock.org";
+// The upstream takes around 8 seconds to answer, so the previous 8s budget
+// aborted very nearly every lookup. This leaves real headroom instead of
+// sitting on the edge of the service's own response time.
+const DEFAULT_TIMEOUT_MS = 20000;
 
 /**
  * Checks customer delivery history and risk level using the 12oClock Fraud Check API.
@@ -153,7 +158,16 @@ export async function checkPhoneNumberFraud(
 		};
 	} catch (err) {
 		clearTimeout(timeoutId);
-		const message = err instanceof Error ? err.message : "Failed to connect to fraud check service";
+		// An abort surfaces as "This operation was aborted", which tells the
+		// person at the counter nothing. Say what actually happened.
+		const aborted =
+			err instanceof Error &&
+			(err.name === "AbortError" || err.message.includes("aborted"));
+		const message = aborted
+			? `The fraud check service did not respond within ${Math.round((options.timeoutMs || DEFAULT_TIMEOUT_MS) / 1000)} seconds.`
+			: err instanceof Error
+				? err.message
+				: "Failed to connect to fraud check service";
 		return {
 			success: false,
 			phone: normalizedPhone,

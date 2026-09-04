@@ -84,33 +84,43 @@ export async function GET(request: NextRequest) {
 
 		// Attach the branch's on-hand figure so the till can refuse to sell
 		// what is not there, rather than adding it to the cart blindly.
+		//
+		// The POS cart has no variation picker, so it rings products up against
+		// the pooled row (variation_id IS NULL) — and that is the only row
+		// checkout will check. Summing every row for the product, variations
+		// included, reported stock the till could never actually sell: the item
+		// went into the cart and then failed at settlement. Sellable stock and
+		// variation-held stock are therefore counted separately.
 		let productsWithStock = (products || []).map((p) => ({
 			...p,
 			available_quantity: 0,
+			variation_quantity: 0,
 		}));
 
 		if (warehouseId && productsWithStock.length > 0) {
 			const { data: stockRows } = await supabase
 				.from("inventory")
-				.select("product_id, available_quantity")
+				.select("product_id, variation_id, available_quantity")
 				.eq("warehouse_id", warehouseId)
 				.in(
 					"product_id",
 					productsWithStock.map((p) => p.id),
 				);
 
-			const stockByProduct = new Map<string, number>();
+			const pooledByProduct = new Map<string, number>();
+			const variationByProduct = new Map<string, number>();
 			for (const row of stockRows || []) {
-				stockByProduct.set(
+				const target = row.variation_id ? variationByProduct : pooledByProduct;
+				target.set(
 					row.product_id,
-					(stockByProduct.get(row.product_id) || 0) +
-						(row.available_quantity ?? 0),
+					(target.get(row.product_id) || 0) + (row.available_quantity ?? 0),
 				);
 			}
 
 			productsWithStock = productsWithStock.map((p) => ({
 				...p,
-				available_quantity: stockByProduct.get(p.id) ?? 0,
+				available_quantity: pooledByProduct.get(p.id) ?? 0,
+				variation_quantity: variationByProduct.get(p.id) ?? 0,
 			}));
 		}
 

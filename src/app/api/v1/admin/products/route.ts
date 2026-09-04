@@ -301,11 +301,26 @@ export async function POST(request: NextRequest) {
 				});
 
 				if (inventoryInserts.length > 0) {
-					await supabase
+					// Plain insert, not upsert: the product was created moments ago,
+					// so no inventory row can exist yet. An upsert would also fail —
+					// the uniqueness of (product, variation, warehouse) comes from a
+					// partial index, which ON CONFLICT cannot infer.
+					const { error: inventoryError } = await supabase
 						.from("inventory")
-						.upsert(inventoryInserts as Parameters<typeof supabase.from>[0] extends never ? never : Record<string, unknown>[], {
-							onConflict: "product_id,variation_id,warehouse_id",
-						});
+						.insert(inventoryInserts as never);
+
+					if (inventoryError) {
+						// Roll back so the admin retries against a clean slate rather
+						// than ending up with a product whose opening stock is missing.
+						await supabase.from("products").delete().eq("id", product.id);
+						insertedProductId = null;
+
+						return errorResponse(
+							"PRODUCT_INVENTORY_CREATE_FAILED",
+							inventoryError.message || "Failed to seed product inventory",
+							HTTP_STATUS.INTERNAL_SERVER_ERROR,
+						);
+					}
 				}
 			}
 		}

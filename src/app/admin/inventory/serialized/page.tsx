@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatBDT } from "@/lib/currency";
+import { warrantyDaysRemaining, warrantyState } from "@/lib/warranty";
 
 interface SerializedUnit {
   id: string;
@@ -18,6 +19,10 @@ interface SerializedUnit {
   selling_price: number;
   status: "in_stock" | "reserved" | "sold" | "in_transit" | "defective";
   warehouse_id: string;
+  warranty_months: number | null;
+  warranty_starts_at: string | null;
+  warranty_expires_at: string | null;
+  sold_at: string | null;
   created_at: string;
   products: {
     id: string;
@@ -47,6 +52,66 @@ interface WarehouseOption {
 
 const fmt = (n: number) => formatBDT(n);
 
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+/**
+ * A unit in stock shows the term it will be sold with; a unit that has left
+ * the shop shows the live window, because that is the number the service desk
+ * is asked for over the phone.
+ */
+function WarrantyCell({ unit }: { unit: SerializedUnit }) {
+  const term = unit.warranty_months ?? 0;
+  const state = warrantyState(unit);
+
+  if (state === "not_started") {
+    return term > 0 ? (
+      <>
+        <p className="font-bold text-zinc-900 dark:text-white">{term} months</p>
+        <p className="text-[10px] text-zinc-500">Starts when sold</p>
+      </>
+    ) : (
+      <p className="font-bold text-zinc-400">No warranty</p>
+    );
+  }
+
+  if (state === "none") {
+    return (
+      <>
+        <p className="font-bold text-zinc-400">Sold as-is</p>
+        <p className="text-[10px] text-zinc-500">No warranty</p>
+      </>
+    );
+  }
+
+  const daysLeft = warrantyDaysRemaining(unit.warranty_expires_at);
+  const expiringSoon = state === "active" && daysLeft <= 30;
+
+  return (
+    <>
+      <span
+        className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+          state === "expired"
+            ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+            : expiringSoon
+            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+        }`}
+      >
+        {state === "expired" ? "Expired" : `${daysLeft} days left`}
+      </span>
+      <p className="text-[10px] text-zinc-500 mt-1">
+        {term} mo · {unit.warranty_starts_at ? shortDate(unit.warranty_starts_at) : "—"}
+        {unit.warranty_expires_at ? ` → ${shortDate(unit.warranty_expires_at)}` : ""}
+      </p>
+    </>
+  );
+}
+
 export default function SerializedInventoryPage() {
   const [units, setUnits] = useState<SerializedUnit[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -73,6 +138,7 @@ export default function SerializedInventoryPage() {
   const [formVariant, setFormVariant] = useState("Official");
   const [formCostPrice, setFormCostPrice] = useState("");
   const [formSellingPrice, setFormSellingPrice] = useState("");
+  const [formWarrantyMonths, setFormWarrantyMonths] = useState("12");
   const [formNotes, setFormNotes] = useState("");
 
   useEffect(() => {
@@ -139,6 +205,7 @@ export default function SerializedInventoryPage() {
           regional_variant: formVariant,
           cost_price: formCostPrice,
           selling_price: formSellingPrice,
+          warranty_months: formWarrantyMonths,
           notes: formNotes
         })
       });
@@ -300,6 +367,7 @@ export default function SerializedInventoryPage() {
                   <th className="px-4 py-3.5">Variant</th>
                   <th className="px-4 py-3.5">Branch</th>
                   <th className="px-4 py-3.5">Selling Price</th>
+                  <th className="px-4 py-3.5">Warranty</th>
                   <th className="px-4 py-3.5">Status</th>
                 </tr>
               </thead>
@@ -347,6 +415,10 @@ export default function SerializedInventoryPage() {
 
                     <td className="px-4 py-3 font-extrabold text-zinc-900 dark:text-white">
                       {fmt(unit.selling_price)}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <WarrantyCell unit={unit} />
                     </td>
 
                     <td className="px-4 py-3">
@@ -535,6 +607,25 @@ export default function SerializedInventoryPage() {
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Warranty Term (months)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={formWarrantyMonths}
+                  onChange={e => setFormWarrantyMonths(e.target.value)}
+                  placeholder="12"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold"
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  The clock starts the moment this unit is sold, not now. Enter 0
+                  for stock sold as-is with no warranty.
+                </p>
               </div>
 
               <div>

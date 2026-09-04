@@ -444,7 +444,7 @@ export default function Header() {
                             <img
                               src={p.image}
                               alt=""
-                              className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-contain p-1"
+                              className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-cover"
                             />
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-medium text-ink">{p.name}</div>
@@ -719,7 +719,7 @@ export default function Header() {
                         <img
                           src={p.image}
                           alt=""
-                          className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-contain p-1"
+                          className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-cover"
                         />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-ink">{p.name}</p>

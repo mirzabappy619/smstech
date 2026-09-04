@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildIlikeOr } from "@/lib/supabase/filters";
 import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
+import {
+  DEFAULT_WARRANTY_MONTHS,
+  MAX_WARRANTY_MONTHS,
+  parseWarrantyMonths,
+} from "@/lib/warranty";
 
 export async function GET(request: NextRequest) {
   try {
@@ -96,6 +101,7 @@ export async function POST(request: NextRequest) {
       specs_summary,
       cost_price,
       selling_price,
+      warranty_months,
       notes
     } = body;
 
@@ -142,6 +148,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // The term is recorded now; the clock only starts when the unit is sold.
+    const warrantyMonths =
+      warranty_months === undefined || warranty_months === null || warranty_months === ""
+        ? DEFAULT_WARRANTY_MONTHS
+        : parseWarrantyMonths(warranty_months);
+    if (warrantyMonths === null) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Warranty must be a whole number of months between 0 and ${MAX_WARRANTY_MONTHS}.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const supabase = await getSupabaseServerClient();
     const { data: newUnit, error } = await supabase
       .from("device_units")
@@ -161,6 +182,8 @@ export async function POST(request: NextRequest) {
         cost_price: cost,
         selling_price: price,
         status: "in_stock",
+        // Term only — warranty_starts_at/expires_at stay NULL until the sale.
+        warranty_months: warrantyMonths,
         notes: notes || null
       })
       .select()

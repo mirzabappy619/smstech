@@ -36,7 +36,7 @@ export default function ProductCard({ product, compact }: Props) {
       <div className="relative">
         <Link
           href={`/product/${product.slug}`}
-          className="block overflow-hidden bg-surface-2"
+          className={`block overflow-hidden bg-surface-2 ${compact ? 'h-36' : 'aspect-[4/3]'}`}
           tabIndex={-1}
           aria-hidden="true"
         >
@@ -44,9 +44,7 @@ export default function ProductCard({ product, compact }: Props) {
             src={product.image}
             alt=""
             loading="lazy"
-            className={`w-full object-contain p-5 transition-transform duration-500 ease-out group-hover:scale-[1.04] ${
-              compact ? 'h-36' : 'aspect-[4/3] h-auto'
-            }`}
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
           />
         </Link>
 

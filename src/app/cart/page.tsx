@@ -88,7 +88,7 @@ export default function Cart() {
                   <img
                     src={item.product.image}
                     alt=""
-                    className="h-24 w-24 rounded-lg border border-line bg-surface-2 object-contain p-2"
+                    className="h-24 w-24 rounded-lg border border-line bg-surface-2 object-cover"
                   />
                 </Link>
 

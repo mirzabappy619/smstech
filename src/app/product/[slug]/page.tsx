@@ -254,7 +254,7 @@ export default function ProductDetail() {
             <img
               src={product.images[activeImage] || product.image}
               alt={product.name}
-              className="aspect-square w-full object-contain p-8"
+              className="aspect-square w-full object-cover"
             />
             <span
               className={`absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium ${
@@ -276,11 +276,11 @@ export default function ProductDetail() {
                   onClick={() => setActiveImage(i)}
                   aria-label={`View image ${i + 1}`}
                   aria-current={activeImage === i}
-                  className={`h-18 w-18 shrink-0 overflow-hidden rounded-lg border bg-surface-2 p-1 transition-colors ${
+                  className={`h-18 w-18 shrink-0 overflow-hidden rounded-lg border bg-surface-2 transition-colors ${
                     activeImage === i ? 'border-accent' : 'border-line hover:border-line-2'
                   }`}
                 >
-                  <img src={img} alt="" className="h-full w-full object-contain" />
+                  <img src={img} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>

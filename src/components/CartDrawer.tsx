@@ -97,7 +97,7 @@ export default function CartDrawer() {
                     <img
                       src={item.product.image}
                       alt=""
-                      className="h-20 w-20 rounded-lg border border-line bg-surface-2 object-contain p-1.5"
+                      className="h-20 w-20 rounded-lg border border-line bg-surface-2 object-cover"
                     />
                   </Link>
 

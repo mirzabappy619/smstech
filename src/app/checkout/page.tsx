@@ -609,7 +609,7 @@ export default function Checkout() {
                   <img
                     src={item.product.image}
                     alt=""
-                    className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-contain p-1"
+                    className="h-12 w-12 shrink-0 rounded-lg border border-line bg-surface-2 object-cover"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">

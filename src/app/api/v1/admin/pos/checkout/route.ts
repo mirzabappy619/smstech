@@ -12,6 +12,7 @@ import {
 	round2,
 	summarisePayments,
 } from "@/lib/pos/checkout-math";
+import { CLEARED_WARRANTY, activateWarranty } from "@/lib/warranty";
 
 interface NormalisedItem {
 	product_id: string | null;
@@ -283,10 +284,14 @@ export async function POST(request: NextRequest) {
 			return badRequest("The same serialized unit appears twice in the cart.");
 		}
 
+		// Warranty term travels with the unit from intake, so the sale below
+		// starts the clock on that term instead of assuming a year.
+		const warrantyMonthsByUnit = new Map<string, number | null>();
+
 		if (deviceUnitIds.length > 0) {
 			const { data: units } = await supabase
 				.from("device_units")
-				.select("id, serial_number, status, warehouse_id")
+				.select("id, serial_number, status, warehouse_id, warranty_months")
 				.in("id", deviceUnitIds);
 
 			for (const id of deviceUnitIds) {
@@ -312,6 +317,8 @@ export async function POST(request: NextRequest) {
 						`Unit ${unit.serial_number} is held at another branch.`,
 					);
 				}
+
+				warrantyMonthsByUnit.set(unit.id, unit.warranty_months);
 			}
 		}
 
@@ -437,15 +444,18 @@ export async function POST(request: NextRequest) {
 			if (itemErr) throw itemErr;
 
 			if (it.device_unit_id) {
+				const soldAt = new Date();
 				const { error: unitErr } = await supabase
 					.from("device_units")
 					.update({
 						status: "sold",
 						sold_order_id: order.id,
-						sold_at: new Date().toISOString(),
-						warranty_expires_at: new Date(
-							Date.now() + 365 * 24 * 60 * 60 * 1000,
-						).toISOString(),
+						sold_at: soldAt.toISOString(),
+						// Handing the device over is what starts the warranty.
+						...activateWarranty(
+							warrantyMonthsByUnit.get(it.device_unit_id),
+							soldAt,
+						),
 					})
 					.eq("id", it.device_unit_id)
 					.in("status", ["in_stock", "reserved"]);
@@ -612,7 +622,13 @@ export async function POST(request: NextRequest) {
 			if (soldDeviceUnitIds.length > 0) {
 				await supabase
 					.from("device_units")
-					.update({ status: "in_stock", sold_order_id: null, sold_at: null })
+					.update({
+						status: "in_stock",
+						sold_order_id: null,
+						sold_at: null,
+						// The sale never happened, so neither did the warranty.
+						...CLEARED_WARRANTY,
+					})
 					.in("id", soldDeviceUnitIds);
 			}
 

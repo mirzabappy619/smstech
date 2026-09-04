@@ -41,6 +41,7 @@ type TrackedWarranty = {
   battery_health_pct?: number | null
   cosmetic_grade?: string | null
   warranty_months?: number | null
+  warranty_starts_at?: string | null
   warranty_expires_at?: string | null
   sold_at?: string | null
   products?: { name?: string; brand?: string } | null
@@ -323,6 +324,7 @@ export default function TrackOrder() {
                   t: 'Warranty',
                   v: warranty.warranty_months ? `${warranty.warranty_months} months` : '—',
                 },
+                { t: 'Starts', v: formatDate(warranty.warranty_starts_at) },
                 { t: 'Expires', v: formatDate(warranty.warranty_expires_at) },
               ].map((row) => (
                 <div key={row.t} className="bg-surface px-5 py-4">

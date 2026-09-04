@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	canActOnNode,
+	closesWithoutApproval,
 	firstApplicableNode,
 	nextApplicableNode,
 	nodeApplies,
@@ -176,5 +177,19 @@ describe("pipeline shape", () => {
 				{ approver_role: "owner" },
 			]),
 		).toBeNull();
+	});
+});
+
+describe("Superadmin closing a drawer", () => {
+	it("lets the owner close outright — they are the top of every chain", () => {
+		expect(closesWithoutApproval(user({ role: "owner", isOwner: true }))).toBe(true);
+	});
+
+	it("still routes everyone else through the pipeline", () => {
+		expect(closesWithoutApproval(user({ role: "branch_manager", isOwner: false }))).toBe(false);
+		expect(closesWithoutApproval(user({ role: "accountant", isOwner: false }))).toBe(false);
+		// Admin is not owner: an admin's close still needs the owner's sign-off.
+		expect(closesWithoutApproval(user({ role: "admin", isOwner: false, isAdmin: true }))).toBe(false);
+		expect(closesWithoutApproval(user({ role: "cashier", isOwner: false }))).toBe(false);
 	});
 });

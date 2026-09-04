@@ -7,6 +7,7 @@ import { ThemeSwitcher } from "@/presentation/components/ui/theme-switcher";
 import { UserMenu } from "./user-menu";
 import { BranchSwitcher } from "./branch-switcher";
 import { useRBAC } from "@/lib/rbac/rbac-context";
+import { isNavItemActive } from "@/lib/admin-nav";
 import {
 	Activity,
 	ArrowLeft,
@@ -279,6 +280,14 @@ const NAV_GROUPS: NavGroupDef[] = [
 	},
 ];
 
+// Every href in the sidebar, used to resolve which entry owns the current
+// route when one entry's path is nested under another's. Permission filtering
+// is deliberately not applied: a route the user reaches directly should still
+// deactivate its parent entry.
+const ALL_NAV_HREFS: string[] = NAV_GROUPS.flatMap((group) =>
+	group.items.map((item) => item.href),
+);
+
 export function AdminLayoutClient({
 	children,
 	userName,
@@ -360,18 +369,9 @@ export function AdminLayoutClient({
 		}).filter((group) => group.items.length > 0); // Hide groups that have 0 permitted items
 	}, [hasPermission, searchQuery]);
 
-	// Auto-expand group if it contains current active route
-	const isItemActive = (href: string) => {
-		if (href === "/admin/dashboard") {
-			return pathname === "/admin/dashboard" || pathname === "/admin";
-		}
-		// The till lives at /admin/pos and the sales register at /admin/pos/orders,
-		// so a prefix match here would light up both entries at once.
-		if (href === "/admin/pos") {
-			return pathname === "/admin/pos";
-		}
-		return pathname === href || pathname.startsWith(href + "/");
-	};
+	// Auto-expand group if it contains current active route.
+	const isItemActive = (href: string) =>
+		isNavItemActive(pathname, href, ALL_NAV_HREFS);
 
 	// Close mobile menu when pressing Escape
 	useEffect(() => {

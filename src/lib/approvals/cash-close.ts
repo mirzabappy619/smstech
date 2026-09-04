@@ -128,6 +128,19 @@ export function canActOnNode(
 }
 
 /**
+ * Whether this user closes a drawer outright instead of opening a request.
+ *
+ * The owner is the final step of every chain — `validateNodeList` and the
+ * database trigger both enforce it — so routing an owner's own close through
+ * the pipeline would only ever be them approving themselves. The close is
+ * still written to the approval log, already approved, so who signed the
+ * drawer off stays on the record.
+ */
+export function closesWithoutApproval(user: ResolvedUserRBAC): boolean {
+	return user.isOwner;
+}
+
+/**
  * Validates a pipeline's node list before it is saved.
  * Returns an error message, or null when the shape is legal.
  */

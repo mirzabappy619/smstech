@@ -161,7 +161,7 @@ export default function Compare() {
                         <img
                           src={p.image}
                           alt=""
-                          className="h-28 w-full rounded-lg border border-line bg-surface-2 object-contain p-2"
+                          className="h-28 w-full rounded-lg border border-line bg-surface-2 object-cover"
                         />
                       </Link>
                       <p className="eyebrow mt-3">{p.brand}</p>

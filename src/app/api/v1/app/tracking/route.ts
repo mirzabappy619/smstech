@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const { data: unit } = await supabase
       .from("device_units")
       .select(`
-        id, serial_number, imei_1, battery_health_pct, cosmetic_grade, warranty_months, warranty_expires_at, sold_at,
+        id, serial_number, imei_1, battery_health_pct, cosmetic_grade, warranty_months, warranty_starts_at, warranty_expires_at, sold_at,
         products (name, brand)
       `)
       .or(`serial_number.eq.${query},imei_1.eq.${query}`)

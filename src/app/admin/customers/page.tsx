@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatBDT } from "@/lib/currency";
+import { PartiesPanel } from "./parties-panel";
 
 interface Customer {
 	id: string;
@@ -30,6 +31,11 @@ interface PaginationInfo {
 }
 
 export default function CustomersPage() {
+	// Two different populations share this screen: people who can sign in
+	// (users) and people the shop trades with on account (parties). A party
+	// does not need a login and a login is not necessarily a party, so they get
+	// a tab each rather than one confused list.
+	const [view, setView] = useState<"accounts" | "parties">("accounts");
 	const [customers, setCustomers] = useState<Customer[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [searchQuery, setSearchQuery] = useState("");
@@ -255,6 +261,33 @@ export default function CustomersPage() {
 					Total Registered: <span className="text-zinc-900 dark:text-white font-bold">{pagination.total}</span>
 				</div>
 			</div>
+
+			{/* View Tabs */}
+			<div className="flex border-b border-zinc-200 dark:border-zinc-800">
+				<button
+					onClick={() => setView("accounts")}
+					className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all ${
+						view === "accounts"
+							? "border-blue-600 text-blue-600 dark:text-blue-400"
+							: "border-transparent text-zinc-500"
+					}`}>
+					Login Accounts
+				</button>
+				<button
+					onClick={() => setView("parties")}
+					className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all ${
+						view === "parties"
+							? "border-blue-600 text-blue-600 dark:text-blue-400"
+							: "border-transparent text-zinc-500"
+					}`}>
+					Customers, Parties &amp; Suppliers
+				</button>
+			</div>
+
+			{view === "parties" && <PartiesPanel />}
+
+			{view === "accounts" && (
+			<>
 
 			{/* Filters Bar */}
 			<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
@@ -558,6 +591,8 @@ export default function CustomersPage() {
 					</div>
 				)}
 			</div>
+			</>
+			)}
 
 			{/* ── MODALS ───────────────────────────────────────────────────────── */}
 

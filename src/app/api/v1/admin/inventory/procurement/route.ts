@@ -5,6 +5,13 @@ import {
 	writeLedgerEntry,
 } from "@/lib/accounting/ledger";
 import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
+import {
+	DEFAULT_WARRANTY_MONTHS,
+	MAX_WARRANTY_MONTHS,
+	parseWarrantyMonths,
+} from "@/lib/warranty";
+import { checkCreditLimit } from "@/lib/parties";
+import { paymentStatusFor } from "@/lib/pos/checkout-math";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -67,6 +74,7 @@ export async function POST(request: NextRequest) {
 				product_id: string;
 				unit_cost: number;
 				selling_price: number;
+				warranty_months: number;
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				serials: any[];
 			}[] = [];
@@ -120,10 +128,25 @@ export async function POST(request: NextRequest) {
 						}
 					}
 
+					// One term covers the whole line — a batch of the same model
+					// bought from the same supplier carries the same warranty.
+					const lineWarranty =
+						it.warranty_months === undefined ||
+						it.warranty_months === null ||
+						it.warranty_months === ""
+							? DEFAULT_WARRANTY_MONTHS
+							: parseWarrantyMonths(it.warranty_months);
+					if (lineWarranty === null) {
+						return badRequest(
+							`Warranty must be a whole number of months between 0 and ${MAX_WARRANTY_MONTHS}.`,
+						);
+					}
+
 					serialLines.push({
 						product_id: it.product_id,
 						unit_cost: unitCost,
 						selling_price: sellingPrice,
+						warranty_months: lineWarranty,
 						serials,
 					});
 					computedTotal += unitCost * serials.length;
@@ -193,6 +216,8 @@ export async function POST(request: NextRequest) {
 					cost_price: line.unit_cost,
 					selling_price: line.selling_price,
 					status: "in_stock",
+					// Term only; the clock starts when the unit is sold.
+					warranty_months: line.warranty_months,
 				}));
 
 				const { data: inserted, error } = await supabase
@@ -334,6 +359,65 @@ export async function POST(request: NextRequest) {
 				}
 			}
 
+			// ── How much of this dispatch is settled now ─────────────────────
+			// The amount is what is authoritative; payment_status alone could
+			// not express a part payment, so the status is derived from it.
+			let amountPaid: number;
+			if (
+				body.amount_paid !== undefined &&
+				body.amount_paid !== null &&
+				body.amount_paid !== ""
+			) {
+				const paid = Number(body.amount_paid);
+				if (!Number.isFinite(paid) || paid < 0) {
+					return badRequest("Amount paid must be zero or more.");
+				}
+				if (paid > subtotal + 0.01) {
+					return badRequest(
+						`Amount paid (৳${round2(paid).toLocaleString("en-BD")}) is more than the order total.`,
+					);
+				}
+				amountPaid = round2(Math.min(paid, subtotal));
+			} else {
+				amountPaid = payment_status === "due" ? 0 : subtotal;
+			}
+
+			const dueAmount = round2(subtotal - amountPaid);
+
+			// ── Selling on due needs a registered party with credit ──────────
+			// An ad-hoc name can be dispatched to when the goods are paid for,
+			// but a due has to be owed by someone the shop can look up and
+			// chase later.
+			let creditParty: {
+				id: string;
+				name: string;
+				credit_limit: number | string | null;
+				outstanding_due: number | string | null;
+			} | null = null;
+
+			if (dueAmount > 0) {
+				if (!customer_id) {
+					return badRequest(
+						"Selling on due needs a registered party. Pick one, or add them under Customer Management first.",
+					);
+				}
+
+				const { data: party } = await supabase
+					.from("customers")
+					.select("id, name, credit_limit, outstanding_due")
+					.eq("id", customer_id)
+					.maybeSingle();
+
+				if (!party) {
+					return badRequest("That party is not registered.");
+				}
+
+				const credit = checkCreditLimit(party, dueAmount);
+				if (!credit.ok) return badRequest(credit.message as string);
+
+				creditParty = party;
+			}
+
 			// ── Write the order, its items, and the stock movement ───────────
 			const orderNumber = `B2B-${Date.now().toString().slice(-6)}`;
 			const { data: order, error } = await supabase
@@ -348,7 +432,9 @@ export async function POST(request: NextRequest) {
 					total: subtotal,
 					shipping_amount: 0,
 					discount_amount: 0,
-					payment_status: payment_status || "paid",
+					amount_paid: amountPaid,
+					due_amount: dueAmount,
+					payment_status: paymentStatusFor(dueAmount, amountPaid),
 					status: "delivered",
 					invoice_type: "b2b_wholesale",
 					warehouse_id,
@@ -360,6 +446,7 @@ export async function POST(request: NextRequest) {
 			if (error) throw error;
 
 			const applied: typeof lines = [];
+			let dueApplied: { partyId: string; previousDue: number } | null = null;
 
 			try {
 				for (const l of lines) {
@@ -392,7 +479,48 @@ export async function POST(request: NextRequest) {
 
 					applied.push(l);
 				}
+
+				// ── Post the due against the party ───────────────────────────
+				// Last, so a dispatch that failed on stock never leaves a
+				// balance behind. The ledger row carries the running net
+				// receivable, matching the convention in lib/accounting/ledger.
+				if (creditParty && dueAmount > 0) {
+					const previousDue = round2(Number(creditParty.outstanding_due) || 0);
+					const newDue = round2(previousDue + dueAmount);
+
+					const { error: dueErr } = await supabase
+						.from("customers")
+						.update({ outstanding_due: newDue })
+						.eq("id", creditParty.id);
+					if (dueErr) throw dueErr;
+
+					dueApplied = { partyId: creditParty.id, previousDue };
+
+					await writeLedgerEntry(supabase, {
+						partyType: "customer",
+						partyId: creditParty.id,
+						partyName: creditParty.name,
+						entryType: "debit",
+						amount: dueAmount,
+						balanceAfter: newDue,
+						referenceType: "sales_invoice",
+						referenceId: orderNumber,
+						notes:
+							amountPaid > 0
+								? `Wholesale dispatch ${orderNumber} — ৳${amountPaid.toLocaleString("en-BD")} paid, balance on due`
+								: `Wholesale dispatch ${orderNumber} on due`,
+					});
+				}
 			} catch (writeError) {
+				// Undo the balance before the stock: a party left owing money
+				// for an order that no longer exists is the worst outcome here.
+				if (dueApplied) {
+					await supabase
+						.from("customers")
+						.update({ outstanding_due: dueApplied.previousDue })
+						.eq("id", dueApplied.partyId);
+				}
+
 				// Put back whatever we took, then drop the half-written order.
 				for (const l of applied) {
 					await supabase.rpc("apply_stock_movement", {

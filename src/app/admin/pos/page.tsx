@@ -70,7 +70,7 @@ import { useRBAC } from "@/lib/rbac/rbac-context";
 import { formatBDT } from "@/lib/currency";
 
 export default function PosTerminalPage() {
-  const { activeBranch, branchContext } = useRBAC();
+  const { activeBranch, branchContext, isOwner } = useRBAC();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(activeBranch?.id || "");
   const [activeShift, setActiveShift] = useState<PosShift | null>(null);
@@ -298,12 +298,17 @@ export default function PosTerminalPage() {
 
   const addProductToCart = (product: any) => {
     const available = Number(product.available_quantity ?? 0);
+    const heldOnVariations = Number(product.variation_quantity ?? 0);
 
     // The till refuses to ring up stock the branch does not hold. Checkout
     // enforces this again server-side; this is so the cashier finds out at the
     // moment of scanning rather than at settlement.
     if (available <= 0) {
-      alert(`"${product.name}" is out of stock at this branch.`);
+      alert(
+        heldOnVariations > 0
+          ? `"${product.name}" has ${heldOnVariations} in stock at this branch, but all of it is held against variations. The till sells the base product only — move the stock or sell it from the variation.`
+          : `"${product.name}" is out of stock at this branch.`,
+      );
       return;
     }
 
@@ -730,22 +735,52 @@ export default function PosTerminalPage() {
                 {searchResults.products.length > 0 && (
                   <div className="space-y-2 mt-4">
                     <p className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider">Catalog Products (Bulk / Standard)</p>
-                    {searchResults.products.map(prod => (
-                      <div
-                        key={prod.id}
-                        onClick={() => addProductToCart(prod)}
-                        className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer transition-all"
-                      >
-                        <div>
-                          <p className="font-bold text-sm text-zinc-900 dark:text-white">{prod.name}</p>
-                          <p className="text-xs text-zinc-500 font-mono mt-0.5">SKU: {prod.sku} · {prod.brand}</p>
+                    {searchResults.products.map(prod => {
+                      const available = Number(prod.available_quantity ?? 0);
+                      const heldOnVariations = Number(prod.variation_quantity ?? 0);
+                      const sellable = available > 0;
+
+                      return (
+                        <div
+                          key={prod.id}
+                          onClick={sellable ? () => addProductToCart(prod) : undefined}
+                          aria-disabled={!sellable}
+                          className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                            sellable
+                              ? "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer"
+                              : "border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/60 dark:bg-zinc-800/20 opacity-70 cursor-not-allowed"
+                          }`}
+                        >
+                          <div>
+                            <p className="font-bold text-sm text-zinc-900 dark:text-white">{prod.name}</p>
+                            <p className="text-xs text-zinc-500 font-mono mt-0.5">SKU: {prod.sku} · {prod.brand}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-extrabold text-sm text-zinc-900 dark:text-white">{fmt(prod.base_price)}</p>
+                            {sellable ? (
+                              <div className="flex items-center justify-end gap-2 mt-0.5">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    available <= 3
+                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                      : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                  }`}
+                                >
+                                  {available} in stock
+                                </span>
+                                <span className="text-xs text-emerald-600 font-bold">+ Add to Cart</span>
+                              </div>
+                            ) : (
+                              <span className="block text-[11px] font-bold text-red-500 mt-0.5">
+                                {heldOnVariations > 0
+                                  ? `${heldOnVariations} held on variations — not sellable here`
+                                  : "Out of stock at this branch"}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-extrabold text-sm text-zinc-900 dark:text-white">{fmt(prod.base_price)}</p>
-                          <span className="text-xs text-emerald-600 font-bold">+ Add to Cart</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1204,8 +1239,9 @@ export default function PosTerminalPage() {
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">End-of-Day Shift Reconciliation</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 -mt-2">
-              The register frees up immediately, but the shift stays open on the books
-              until every approver in this branch&rsquo;s chain has signed off.
+              {isOwner
+                ? "As Superadmin you sit at the top of every approval chain, so this closes the drawer outright. The count is still recorded against your name."
+                : "The register frees up immediately, but the shift stays open on the books until every approver in this branch’s chain has signed off."}
             </p>
             <div className="space-y-1.5 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl text-xs">
               <div className="flex justify-between"><span>Opening Float:</span><span className="font-bold">{fmt(activeShift.opening_float)}</span></div>
@@ -1277,7 +1313,12 @@ export default function PosTerminalPage() {
                       diff === 0
                         ? "Drawer balanced exactly."
                         : `Drawer is ${fmt(Math.abs(diff))} ${diff > 0 ? "over" : "short"}.`;
-                    alert(`${variance}\n\n${json.message || "Submitted for approval."}`);
+                    alert(
+                      `${variance}\n\n${
+                        json.message ||
+                        (isOwner ? "Drawer closed." : "Submitted for approval.")
+                      }`,
+                    );
                     setActiveShift(null);
                     setActualCashInput("");
                     setShowCloseShiftModal(false);
@@ -1287,7 +1328,7 @@ export default function PosTerminalPage() {
                 }}
                 className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold"
               >
-                Submit for Approval
+                {isOwner ? "Close Drawer" : "Submit for Approval"}
               </button>
             </div>
           </div>
