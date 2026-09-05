@@ -33,6 +33,7 @@ const MIGRATIONS = [
 	"supabase/migrations/028_parties_and_credit_sales.sql",
 	"supabase/migrations/029_purchases_and_exchanges.sql",
 	"supabase/migrations/030_purchase_bills.sql",
+	"supabase/migrations/031_pos_search_performance.sql",
 ];
 
 let passed = 0;
@@ -517,6 +518,27 @@ async function main() {
 		openedAlongsidePending,
 	);
 
+	// ── indexes the POS depends on (031) ────────────────────────────────────
+	// The trigram ones need pg_trgm, which PGlite does not carry — 031 skips
+	// them there by design. These btree ones must exist everywhere.
+	console.log("\n\x1b[1mPOS performance indexes\x1b[0m");
+
+	const { rows: indexRows } = await db.query(
+		`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`,
+	);
+	const indexNames = new Set(indexRows.map((r) => r.indexname));
+
+	for (const [name, why] of [
+		["idx_customers_phone", "checkout resolves a walk-in by phone"],
+		["idx_inventory_warehouse_product", "every POS stock read is (branch, product)"],
+		["idx_inventory_warehouse_available", "the counter's browse grid"],
+		["idx_product_variations_product_active", "the variation picker"],
+		["idx_order_items_created_at", "last sold at this branch"],
+		["idx_orders_warehouse_created", "scoping both counter rows to a branch"],
+	]) {
+		check(`${name} exists`, indexNames.has(name), why);
+	}
+
 	// Re-running must be a no-op, not an error.
 	console.log("\n\x1b[1mIdempotency\x1b[0m");
 	for (const file of [
@@ -534,6 +556,7 @@ async function main() {
 	"supabase/migrations/028_parties_and_credit_sales.sql",
 	"supabase/migrations/029_purchases_and_exchanges.sql",
 	"supabase/migrations/030_purchase_bills.sql",
+	"supabase/migrations/031_pos_search_performance.sql",
 	]) {
 		try {
 			await db.exec(fs.readFileSync(file, "utf8"));

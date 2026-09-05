@@ -3,6 +3,10 @@ import { createServerClient, createAdminClient } from "@/lib/supabase/server";
 import { DEFAULT_ROLE_PERMISSIONS, ALL_PERMISSION_CODES } from "./permissions";
 import { SYSTEM_ROLES } from "./roles";
 import { errorResponse } from "@/lib/api-utils";
+import {
+	getCachedUserRBAC,
+	setCachedUserRBAC,
+} from "./rbac-cache";
 
 export interface BranchInfo {
 	id: string;
@@ -39,6 +43,12 @@ export interface ResolvedUserRBAC {
 export async function getUserPermissionsAndBranches(
 	authId: string,
 ): Promise<ResolvedUserRBAC | null> {
+	// Resolving this is five queries. It is the same five on every request a
+	// signed-in user makes, so a short TTL turns a whole burst of them — a
+	// cashier typing into the POS search — into one. See ./rbac-cache.
+	const cached = getCachedUserRBAC(authId);
+	if (cached) return cached;
+
 	try {
 		const adminSupabase = await createAdminClient();
 
@@ -136,7 +146,7 @@ export async function getUserPermissionsAndBranches(
 
 		const roleMeta = SYSTEM_ROLES[roleKey];
 
-		return {
+		const resolved: ResolvedUserRBAC = {
 			userId: userProfile.id,
 			authId: userProfile.auth_id || authId,
 			email: userProfile.email,
@@ -153,6 +163,9 @@ export async function getUserPermissionsAndBranches(
 				branchIds: assignedBranches.map((b) => b.id),
 			},
 		};
+
+		setCachedUserRBAC(authId, resolved);
+		return resolved;
 	} catch (err) {
 		console.error("[RBAC Service] Error resolving user RBAC:", err);
 		return null;

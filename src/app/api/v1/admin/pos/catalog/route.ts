@@ -4,7 +4,7 @@ import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
 import {
 	POS_PRODUCT_COLUMNS,
 	attachBranchStock,
-	fetchPosProductsByIds,
+	fetchPosProductGroups,
 } from "@/lib/pos/catalog";
 
 /** How far back "most sold" looks. Long enough to be stable, short enough to
@@ -13,6 +13,24 @@ const TOP_SELLER_WINDOW_DAYS = 90;
 
 const ROW_LIMIT = 12;
 const BROWSE_LIMIT = 40;
+
+/** Rows of sales history the best-seller tally reads. Capped because it is a
+ *  shortcut on a till screen, not a report. */
+const TOP_SELLER_SCAN_LIMIT = 1000;
+
+/** Distinct product ids in the order they were seen, up to a limit. */
+function distinctIds(
+	rows: { product_id?: string | null }[] | null,
+	limit: number,
+): string[] {
+	const seen = new Set<string>();
+	for (const row of rows || []) {
+		const id = row.product_id;
+		if (id) seen.add(id);
+		if (seen.size >= limit) break;
+	}
+	return [...seen];
+}
 
 /**
  * GET /api/v1/admin/pos/catalog?warehouse_id=...
@@ -39,9 +57,15 @@ export async function GET(request: NextRequest) {
 
 		const supabase = await getSupabaseServerClient();
 
-		// ── Recently sold at this branch ────────────────────────────────────
-		// Read more rows than we need: the same product sells repeatedly, and
-		// the row is a list of distinct products, newest first.
+		// ── Which products go in each row ───────────────────────────────────
+		// Three independent lookups that the cashier is waiting on together,
+		// so they go out together rather than one after another.
+		const since = new Date(
+			Date.now() - TOP_SELLER_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+		).toISOString();
+
+		// Recently sold: read more rows than the row shows, because the same
+		// product sells repeatedly and this is a list of distinct products.
 		let recentQuery = supabase
 			.from("order_items")
 			.select("product_id, created_at, orders!inner(warehouse_id)")
@@ -49,32 +73,40 @@ export async function GET(request: NextRequest) {
 			.order("created_at", { ascending: false })
 			.limit(200);
 
-		if (warehouseId) recentQuery = recentQuery.eq("orders.warehouse_id", warehouseId);
-
-		const { data: recentRows } = await recentQuery;
-
-		const recentIds: string[] = [];
-		for (const row of recentRows || []) {
-			const id = row.product_id as string;
-			if (id && !recentIds.includes(id)) recentIds.push(id);
-			if (recentIds.length >= ROW_LIMIT) break;
-		}
-
-		// ── Best sellers over the window ────────────────────────────────────
-		const since = new Date(
-			Date.now() - TOP_SELLER_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-		).toISOString();
-
+		// Best sellers: only the two columns the tally needs. Pulling the row
+		// wholesale moved far more over the wire than it summed.
 		let topQuery = supabase
 			.from("order_items")
-			.select("product_id, quantity, created_at, orders!inner(warehouse_id)")
+			.select("product_id, quantity, orders!inner(warehouse_id)")
 			.not("product_id", "is", null)
 			.gte("created_at", since)
-			.limit(2000);
+			.limit(TOP_SELLER_SCAN_LIMIT);
 
-		if (warehouseId) topQuery = topQuery.eq("orders.warehouse_id", warehouseId);
+		// What the branch is holding right now, driven off inventory so the
+		// browse grid only ever offers stock that is on this shelf.
+		let stockedQuery = supabase
+			.from("inventory")
+			.select("product_id, available_quantity")
+			.gt("available_quantity", 0)
+			.order("available_quantity", { ascending: false })
+			.limit(400);
 
-		const { data: topRows } = await topQuery;
+		if (warehouseId) {
+			recentQuery = recentQuery.eq("orders.warehouse_id", warehouseId);
+			topQuery = topQuery.eq("orders.warehouse_id", warehouseId);
+			stockedQuery = stockedQuery.eq("warehouse_id", warehouseId);
+		}
+
+		const [{ data: recentRows }, { data: topRows }, { data: stockedRows }] =
+			await Promise.all([
+				recentQuery,
+				topQuery,
+				warehouseId
+					? stockedQuery
+					: Promise.resolve({ data: [] as { product_id: string }[] }),
+			]);
+
+		const recentIds = distinctIds(recentRows, ROW_LIMIT);
 
 		const soldQty = new Map<string, number>();
 		for (const row of topRows || []) {
@@ -88,37 +120,22 @@ export async function GET(request: NextRequest) {
 			.slice(0, ROW_LIMIT)
 			.map(([id]) => id);
 
-		// ── What the branch is holding right now ────────────────────────────
-		// Driven off inventory rather than the catalogue, so the browse grid
-		// only ever offers stock that is actually on the shelf here.
-		const browseIds: string[] = [];
+		const browseIds = distinctIds(stockedRows, BROWSE_LIMIT);
 
-		if (warehouseId) {
-			const { data: stocked } = await supabase
-				.from("inventory")
-				.select("product_id, available_quantity")
-				.eq("warehouse_id", warehouseId)
-				.gt("available_quantity", 0)
-				.order("available_quantity", { ascending: false })
-				.limit(400);
-
-			for (const row of stocked || []) {
-				const id = row.product_id as string;
-				if (id && !browseIds.includes(id)) browseIds.push(id);
-				if (browseIds.length >= BROWSE_LIMIT) break;
-			}
-		}
-
-		const [recent, top] = await Promise.all([
-			fetchPosProductsByIds(supabase, recentIds, warehouseId),
-			fetchPosProductsByIds(supabase, topIds, warehouseId),
-		]);
+		// ── Hydrate all three rows from one pass ────────────────────────────
+		// The lists overlap heavily — a best seller is usually also in stock —
+		// so this resolves the union once instead of three times over.
+		const { recent, top, browse } = await fetchPosProductGroups(
+			supabase,
+			{ recent: recentIds, top: topIds, browse: browseIds },
+			warehouseId,
+		);
 
 		// The browse grid falls back to the newest active products when the
 		// branch has no inventory rows yet, so the screen is never blank.
-		let browse = await fetchPosProductsByIds(supabase, browseIds, warehouseId);
+		let browseProducts = browse;
 
-		if (browse.length === 0) {
+		if (browseProducts.length === 0) {
 			const { data: fallback } = await supabase
 				.from("products")
 				.select(POS_PRODUCT_COLUMNS)
@@ -126,7 +143,7 @@ export async function GET(request: NextRequest) {
 				.order("created_at", { ascending: false })
 				.limit(BROWSE_LIMIT);
 
-			browse = await attachBranchStock(supabase, fallback || [], warehouseId);
+			browseProducts = await attachBranchStock(supabase, fallback || [], warehouseId);
 		}
 
 		return NextResponse.json({
@@ -134,7 +151,7 @@ export async function GET(request: NextRequest) {
 			data: {
 				recent,
 				top,
-				browse,
+				browse: browseProducts,
 				top_seller_window_days: TOP_SELLER_WINDOW_DAYS,
 			},
 		});

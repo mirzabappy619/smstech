@@ -429,8 +429,12 @@ export async function POST(request: NextRequest) {
 		createdOrderId = order.id;
 
 		// ── 8. Line items and stock ──────────────────────────────────────────
-		for (const it of normalisedItems) {
-			const { error: itemErr } = await supabase.from("order_items").insert({
+		// The rows go in together. One insert per cart line meant a round trip
+		// per item while the customer stood at the counter, and the rollback
+		// clears them by order_id regardless, so there is nothing to gain from
+		// writing them one at a time.
+		const { error: itemsErr } = await supabase.from("order_items").insert(
+			normalisedItems.map((it) => ({
 				order_id: order.id,
 				product_id: it.product_id,
 				variation_id: it.variation_id,
@@ -443,9 +447,13 @@ export async function POST(request: NextRequest) {
 				serial_number: it.serial_number,
 				imei_1: it.imei_1,
 				warranty_period: it.warranty,
-			});
-			if (itemErr) throw itemErr;
+			})),
+		);
+		if (itemsErr) throw itemsErr;
 
+		// Stock still moves one line at a time: each draw-down has to be able
+		// to fail on its own so the reversal above knows exactly what to undo.
+		for (const it of normalisedItems) {
 			if (it.device_unit_id) {
 				const soldAt = new Date();
 				const { error: unitErr } = await supabase
@@ -488,20 +496,20 @@ export async function POST(request: NextRequest) {
 		}
 
 		// ── 9. Payment rows ──────────────────────────────────────────────────
-		for (const p of paymentBreakdown) {
-			const { error: payErr } = await supabase
-				.from("payment_transactions")
-				.insert({
-					order_id: order.id,
-					shift_id: shift_id || null,
-					gateway: GATEWAY_BY_METHOD[p.method],
-					transaction_reference: p.reference || orderNumber,
-					amount: p.amount,
-					status: "completed",
-					raw_payload: { method: p.method, notes: p.notes },
-				});
-			if (payErr) throw payErr;
-		}
+		// Same reasoning as the line items: a split payment is at most a
+		// handful of rows and the rollback deletes them by order_id.
+		const { error: payErr } = await supabase.from("payment_transactions").insert(
+			paymentBreakdown.map((p) => ({
+				order_id: order.id,
+				shift_id: shift_id || null,
+				gateway: GATEWAY_BY_METHOD[p.method],
+				transaction_reference: p.reference || orderNumber,
+				amount: p.amount,
+				status: "completed",
+				raw_payload: { method: p.method, notes: p.notes },
+			})),
+		);
+		if (payErr) throw payErr;
 
 		// ── 10. Customer balances and aggregates ─────────────────────────────
 		if (resolvedCustomerId && customerRecord) {

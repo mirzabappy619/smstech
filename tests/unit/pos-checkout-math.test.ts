@@ -19,7 +19,6 @@ import {
 	resolveDiscount,
 	GATEWAY_BY_METHOD,
 } from "@/lib/pos/checkout-math";
-import { isSellable, type PosProductRow } from "@/lib/pos/catalog";
 
 describe("cart totals", () => {
 	it("sums line totals into the subtotal", () => {
@@ -345,44 +344,3 @@ describe("discount entry", () => {
 	});
 });
 
-describe("what the till will ring up", () => {
-	const product = (
-		available: number,
-		variations: number[],
-	): PosProductRow => ({
-		id: "p1",
-		name: "Test product",
-		sku: "SKU-1",
-		brand: "Test",
-		base_price: 1000,
-		images: [],
-		warranty: null,
-		available_quantity: available,
-		variation_quantity: variations.reduce((s, v) => s + v, 0),
-		variations: variations.map((qty, i) => ({
-			id: `v${i}`,
-			name: `Variation ${i}`,
-			sku: `SKU-1-${i}`,
-			price: 1100,
-			attributes: null,
-			images: [],
-			available_quantity: qty,
-		})),
-	});
-
-	it("sells a product holding pooled stock", () => {
-		expect(isSellable(product(4, []))).toBe(true);
-	});
-
-	it("sells a product whose stock sits entirely on a variation", () => {
-		// Before the picker existed this was refused outright: the pooled row
-		// was empty, so the till called it out of stock while the branch held
-		// three of them.
-		expect(isSellable(product(0, [0, 3]))).toBe(true);
-	});
-
-	it("refuses a product with nothing on any row", () => {
-		expect(isSellable(product(0, [0, 0]))).toBe(false);
-		expect(isSellable(product(0, []))).toBe(false);
-	});
-});

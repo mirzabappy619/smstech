@@ -67,37 +67,41 @@ export async function attachBranchStock(
 
 	const productIds = base.map((p) => p.id);
 
-	const { data: variationRows } = await supabase
-		.from("product_variations")
-		.select("id, product_id, name, sku, price, attributes, images")
-		.in("product_id", productIds)
-		.eq("is_active", true)
-		.order("name");
+	// The variations and the stock rows do not depend on each other, so they
+	// go out together. Awaiting them in turn made every product list two round
+	// trips deep instead of one.
+	const [{ data: variationRows }, { data: stockRows }] = await Promise.all([
+		supabase
+			.from("product_variations")
+			.select("id, product_id, name, sku, price, attributes, images")
+			.in("product_id", productIds)
+			.eq("is_active", true)
+			.order("name"),
+		// Without a branch there is nothing to count against, but the
+		// variations are still worth returning so the picker can render.
+		warehouseId
+			? supabase
+					.from("inventory")
+					.select("product_id, variation_id, available_quantity")
+					.eq("warehouse_id", warehouseId)
+					.in("product_id", productIds)
+			: Promise.resolve({ data: [] as { product_id: string; variation_id: string | null; available_quantity: number | null }[] }),
+	]);
 
-	// Without a branch there is nothing to count against, but the variations
-	// are still worth returning so the picker can render.
 	const pooled = new Map<string, number>();
 	const heldOnVariations = new Map<string, number>();
 	const byVariation = new Map<string, number>();
 
-	if (warehouseId) {
-		const { data: stockRows } = await supabase
-			.from("inventory")
-			.select("product_id, variation_id, available_quantity")
-			.eq("warehouse_id", warehouseId)
-			.in("product_id", productIds);
-
-		for (const row of stockRows || []) {
-			const qty = row.available_quantity ?? 0;
-			if (row.variation_id) {
-				heldOnVariations.set(
-					row.product_id,
-					(heldOnVariations.get(row.product_id) || 0) + qty,
-				);
-				byVariation.set(row.variation_id, (byVariation.get(row.variation_id) || 0) + qty);
-			} else {
-				pooled.set(row.product_id, (pooled.get(row.product_id) || 0) + qty);
-			}
+	for (const row of stockRows || []) {
+		const qty = row.available_quantity ?? 0;
+		if (row.variation_id) {
+			heldOnVariations.set(
+				row.product_id,
+				(heldOnVariations.get(row.product_id) || 0) + qty,
+			);
+			byVariation.set(row.variation_id, (byVariation.get(row.variation_id) || 0) + qty);
+		} else {
+			pooled.set(row.product_id, (pooled.get(row.product_id) || 0) + qty);
 		}
 	}
 
@@ -134,20 +138,52 @@ export async function fetchPosProductsByIds(
 	productIds: string[],
 	warehouseId: string | null,
 ): Promise<PosProductRow[]> {
-	if (productIds.length === 0) return [];
+	const [group] = Object.values(
+		await fetchPosProductGroups(supabase, { only: productIds }, warehouseId),
+	);
+	return group;
+}
+
+/**
+ * Hydrate several id lists at once.
+ *
+ * The counter screen wants three lists — recently sold, best selling, and what
+ * is on the shelf — and they overlap heavily. Resolving them one at a time
+ * meant three products queries, three variation queries and three stock
+ * queries for what is nearly the same set of rows. This fetches the union
+ * once and hands each list back in the order it asked for.
+ */
+export async function fetchPosProductGroups<K extends string>(
+	supabase: Client,
+	groups: Record<K, string[]>,
+	warehouseId: string | null,
+): Promise<Record<K, PosProductRow[]>> {
+	const keys = Object.keys(groups) as K[];
+	const union = [...new Set(keys.flatMap((k) => groups[k]))];
+
+	if (union.length === 0) {
+		return Object.fromEntries(
+			keys.map((k) => [k, [] as PosProductRow[]]),
+		) as Record<K, PosProductRow[]>;
+	}
 
 	const { data: products } = await supabase
 		.from("products")
 		.select(POS_PRODUCT_COLUMNS)
-		.in("id", productIds)
+		.in("id", union)
 		.eq("is_active", true);
 
 	const hydrated = await attachBranchStock(supabase, products || [], warehouseId);
 	const byId = new Map(hydrated.map((p) => [p.id, p]));
 
-	return productIds
-		.map((id) => byId.get(id))
-		.filter((p): p is PosProductRow => Boolean(p));
+	return Object.fromEntries(
+		keys.map((k) => [
+			k,
+			groups[k]
+				.map((id) => byId.get(id))
+				.filter((p): p is PosProductRow => Boolean(p)),
+		]),
+	) as Record<K, PosProductRow[]>;
 }
 
 /** True when the till can ring this product up at all, base or variation. */

@@ -66,9 +66,6 @@ export async function GET(request: NextRequest) {
 		);
 		if (unitFilter) unitQuery = unitQuery.or(unitFilter);
 
-		const { data: deviceUnits, error: unitError } = await unitQuery.limit(20);
-		if (unitError) throw unitError;
-
 		// ── 2. Catalogue products, with the stock held at this branch ────────
 		let productQuery = supabase
 			.from("products")
@@ -78,7 +75,15 @@ export async function GET(request: NextRequest) {
 		const productFilter = buildIlikeOr(["name", "sku", "brand"], q);
 		if (productFilter) productQuery = productQuery.or(productFilter);
 
-		const { data: products, error: productError } = await productQuery.limit(20);
+		// Serialized units and catalogue products are independent lookups, and
+		// the cashier is waiting on both. Awaiting them in turn put a whole
+		// extra round trip in front of every keystroke.
+		const [
+			{ data: deviceUnits, error: unitError },
+			{ data: products, error: productError },
+		] = await Promise.all([unitQuery.limit(20), productQuery.limit(20)]);
+
+		if (unitError) throw unitError;
 		if (productError) throw productError;
 
 		// Sellable stock, variation-held stock and the variations themselves are

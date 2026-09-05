@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import Link from "next/link";
 
 interface PosItem {
@@ -106,6 +106,12 @@ const sellableStock = (p: PosProduct) =>
   Number(p.available_quantity ?? 0) +
   (p.variations || []).reduce((s, v) => s + Number(v.available_quantity ?? 0), 0);
 
+/** How long typing has to pause before the till goes and looks. */
+const SEARCH_DEBOUNCE_MS = 220;
+
+/** A "query" this long arrived from a scanner, not from fingers — no wait. */
+const SCAN_LENGTH_HINT = 10;
+
 const fmt = (n: number) => formatBDT(n);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -119,7 +125,7 @@ import { notify } from "@/components/ui/toast";
  * square in a list of tiles reads as a broken row rather than a product
  * nobody has photographed yet.
  */
-function ProductThumb({
+const ProductThumb = memo(function ProductThumb({
   src,
   name,
   className = "h-12 w-12",
@@ -147,10 +153,10 @@ function ProductThumb({
       className={`${className} shrink-0 rounded-lg object-cover bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700`}
     />
   );
-}
+});
 
 /** Stock badge shared by every product surface on the till. */
-function StockBadge({ available }: { available: number }) {
+const StockBadge = memo(function StockBadge({ available }: { available: number }) {
   if (available <= 0) {
     return (
       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
@@ -170,10 +176,10 @@ function StockBadge({ available }: { available: number }) {
       {available} in stock
     </span>
   );
-}
+});
 
 /** One product in a vertical list: search results and the browse grid. */
-function ProductRow({
+const ProductRow = memo(function ProductRow({
   product,
   onSelect,
 }: {
@@ -224,10 +230,10 @@ function ProductRow({
       </div>
     </div>
   );
-}
+});
 
 /** A horizontal row of product cards — "last sold", "most sold". */
-function ProductStrip({
+const ProductStrip = memo(function ProductStrip({
   title,
   hint,
   products,
@@ -285,7 +291,7 @@ function ProductStrip({
       </div>
     </div>
   );
-}
+});
 
 export default function PosTerminalPage() {
   const { activeBranch, branchContext, isOwner, hasPermission } = useRBAC();
@@ -506,26 +512,50 @@ export default function PosTerminalPage() {
     executeInstantScanRef.current = executeInstantScan;
   });
 
-  // Perform Live Universal Search
-  const handleSearch = useCallback(async (query: string) => {
+  // Typing is not a search. Each keystroke used to fire its own request, so
+  // "macbook" was seven round trips — and whichever came back last won, which
+  // is not necessarily the one for what is now in the box. This holds the
+  // query in state and lets the effect below do the fetching.
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     if (!query.trim()) {
       setSearchResults({ deviceUnits: [], products: [] });
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const res = await fetch(`/api/v1/admin/pos/search?q=${encodeURIComponent(query)}&warehouse_id=${selectedBranch}`);
-      const json = await res.json();
-      if (json.success) {
-        setSearchResults(json.data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
       setIsSearching(false);
     }
-  }, [selectedBranch]);
+  }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    // A scanner delivers a whole code in one burst and the cashier is already
+    // waiting, so it goes straight out; typed input waits for a pause.
+    const delay = query.length >= SCAN_LENGTH_HINT ? 0 : SEARCH_DEBOUNCE_MS;
+
+    const controller = new AbortController();
+    setIsSearching(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/v1/admin/pos/search?q=${encodeURIComponent(query)}&warehouse_id=${selectedBranch}`,
+          { signal: controller.signal },
+        );
+        const json = await res.json();
+        if (json.success) setSearchResults(json.data);
+      } catch (err) {
+        // An abort is this effect being superseded, not a failure.
+        if ((err as Error)?.name !== "AbortError") console.error(err);
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false);
+      }
+    }, delay);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery, selectedBranch]);
 
   // Add Item to Cart
   const addDeviceUnitToCart = (unit: any) => {
@@ -561,7 +591,7 @@ export default function PosTerminalPage() {
    * actually against: its own price, its own stock row, and the id checkout
    * draws down. Without one the base product sells against the pooled row.
    */
-  const addProductToCart = (product: PosProduct, variation?: PosVariation) => {
+  const addProductToCart = useCallback((product: PosProduct, variation?: PosVariation) => {
     const available = Number(
       (variation ? variation.available_quantity : product.available_quantity) ?? 0,
     );
@@ -618,20 +648,20 @@ export default function PosTerminalPage() {
     setSearchQuery("");
     setSearchResults({ deviceUnits: [], products: [] });
     setVariationPicker(null);
-  };
+  }, []);
 
   /**
    * What a click on a product tile does. Anything with variations goes through
    * the picker — selling the base product when the stock sits on a variation
    * is how a sale ends up failing at settlement.
    */
-  const handleProductClick = (product: PosProduct) => {
+  const handleProductClick = useCallback((product: PosProduct) => {
     if ((product.variations || []).length > 0) {
       setVariationPicker(product);
       return;
     }
     addProductToCart(product);
-  };
+  }, [addProductToCart]);
 
   const updateQuantity = (cartId: string, delta: number) => {
     setCart(prev => prev.map(item => {

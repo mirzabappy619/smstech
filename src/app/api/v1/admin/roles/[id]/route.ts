@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/rbac/rbac-service";
 import { SYSTEM_ROLES } from "@/lib/rbac/roles";
 import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/rbac/permissions";
 import { z } from "zod";
+import { invalidateUserRBAC } from "@/lib/rbac/rbac-cache";
 
 const updateRoleSchema = z.object({
 	name: z.string().min(2).max(100).optional(),
@@ -123,6 +124,10 @@ export async function PUT(
 			}
 		}
 
+		// A role's permission set moves every user holding it, and the cache is
+		// keyed by user — so this clears the lot rather than guessing who.
+		invalidateUserRBAC();
+
 		return jsonResponse({
 			message: "Role updated successfully",
 		});
@@ -176,6 +181,8 @@ export async function DELETE(
 	if (error) {
 		return errorResponse("DB_ERROR", error.message, 500);
 	}
+
+	invalidateUserRBAC();
 
 	return jsonResponse({
 		message: "Role deleted successfully",

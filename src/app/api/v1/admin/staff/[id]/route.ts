@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { jsonResponse, errorResponse, validationErrorResponse } from "@/lib/api-utils";
 import { requirePermission } from "@/lib/rbac/rbac-service";
 import { z } from "zod";
+import { invalidateUserRBAC } from "@/lib/rbac/rbac-cache";
 
 const updateStaffSchema = z.object({
 	full_name: z.string().min(2).optional(),
@@ -110,6 +111,11 @@ export async function PUT(
 			}
 		}
 
+		// Their permissions just moved; drop the cached resolution so the next
+		// request re-reads rather than running on the old set for its TTL.
+		invalidateUserRBAC(user.id);
+		if (user.auth_id) invalidateUserRBAC(user.auth_id);
+
 		return jsonResponse({
 			user: updatedUser,
 			message: "Staff user updated successfully",
@@ -147,6 +153,9 @@ export async function DELETE(
 
 	// Deactivate user or delete
 	await adminSupabase.from("users").update({ is_active: false }).eq("id", user.id);
+
+	invalidateUserRBAC(user.id);
+	if (user.auth_id) invalidateUserRBAC(user.auth_id);
 
 	return jsonResponse({
 		message: "User deactivated successfully",
