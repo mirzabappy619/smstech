@@ -17,3 +17,5 @@ export {
 export type { ConditionGrade } from './condition'
 export { Toaster, notify, useToast, dismiss as dismissToast, dismissAll as dismissAllToasts } from './toast'
 export type { ToastTone, ToastOptions, ToastRecord } from './toast'
+export { default as SearchableSelect } from './searchable-select'
+export type { SearchableOption } from './searchable-select'

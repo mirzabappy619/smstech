@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isNavItemActive, resolveActiveNavHref } from "@/lib/admin-nav";
+import { ALL_NAV_HREFS, NAV_GROUPS } from "@/app/admin/admin-layout-client";
 
 // The nested pairs from the real sidebar — these are the ones that used to
 // light up two entries at once.
@@ -16,6 +17,11 @@ const HREFS = [
 	"/admin/inventory/serialized",
 	"/admin/inventory/transfers",
 	"/admin/inventory/procurement",
+	"/admin/inventory/procurement/buy",
+	"/admin/inventory/procurement/dispatch",
+	"/admin/inventory/procurement/exchange",
+	"/admin/inventory/procurement/purchases",
+	"/admin/inventory/procurement/sales",
 	"/admin/settings",
 ];
 
@@ -71,5 +77,75 @@ describe("Admin sidebar active route", () => {
 
 	it("reports no active entry for a route outside the sidebar", () => {
 		expect(resolveActiveNavHref("/admin/nowhere", HREFS)).toBeNull();
+	});
+
+	it("gives each procurement sub-page its own entry", () => {
+		// The five screens used to be tabs on one page. Now that each is a
+		// route with a sidebar entry, the parent must step aside for them.
+		for (const page of ["buy", "dispatch", "exchange", "purchases", "sales"]) {
+			const pathname = `/admin/inventory/procurement/${page}`;
+			expect(isNavItemActive(pathname, pathname, HREFS)).toBe(true);
+			expect(isNavItemActive(pathname, "/admin/inventory/procurement", HREFS)).toBe(false);
+			expect(isNavItemActive(pathname, "/admin/inventory", HREFS)).toBe(false);
+			expect(activeCount(pathname)).toBe(1);
+		}
+	});
+
+	it("keeps the procurement parent active on its own index route", () => {
+		// The index redirects to /buy, but it is a real entry until it does.
+		expect(isNavItemActive("/admin/inventory/procurement", "/admin/inventory/procurement", HREFS)).toBe(true);
+		expect(activeCount("/admin/inventory/procurement")).toBe(1);
+	});
+});
+
+describe("Sidebar wiring", () => {
+	const allItems = NAV_GROUPS.flatMap((group) => group.items);
+
+	it("lists every procurement screen under the procurement entry", () => {
+		// The five pages replaced five tabs. If they are not here they are
+		// unreachable from the sidebar, which is how they shipped the first time.
+		const procurement = allItems.find(
+			(item) => item.href === "/admin/inventory/procurement",
+		);
+
+		expect(procurement).toBeDefined();
+		expect(procurement?.children?.map((child) => child.href)).toEqual([
+			"/admin/inventory/procurement/buy",
+			"/admin/inventory/procurement/dispatch",
+			"/admin/inventory/procurement/exchange",
+			"/admin/inventory/procurement/purchases",
+			"/admin/inventory/procurement/sales",
+		]);
+	});
+
+	it("puts every sub-page href in the activation set", () => {
+		// The longest-match resolver only sees hrefs it was handed; a child
+		// missing here leaves its parent lit on the child's own route.
+		for (const item of allItems) {
+			for (const child of item.children ?? []) {
+				expect(ALL_NAV_HREFS).toContain(child.href);
+			}
+		}
+	});
+
+	it("nests sub-pages under their parent's path", () => {
+		for (const item of allItems) {
+			for (const child of item.children ?? []) {
+				expect(child.href.startsWith(`${item.href}/`)).toBe(true);
+			}
+		}
+	});
+
+	it("gives every sub-page a label and a permission", () => {
+		for (const item of allItems) {
+			for (const child of item.children ?? []) {
+				expect(child.label.trim().length).toBeGreaterThan(0);
+				expect(child.permission).toBeTruthy();
+			}
+		}
+	});
+
+	it("has no duplicate hrefs across the whole sidebar", () => {
+		expect(new Set(ALL_NAV_HREFS).size).toBe(ALL_NAV_HREFS.length);
 	});
 });

@@ -25,11 +25,16 @@ import {
 	Layers,
 	LayoutDashboard,
 	LineChart,
+	ClipboardList,
 	Package,
+	PackageCheck,
+	PackagePlus,
 	PanelLeftClose,
 	PanelLeftOpen,
 	QrCode,
 	Receipt,
+	Repeat,
+	ScrollText,
 	Search,
 	Settings,
 	Shield,
@@ -63,6 +68,12 @@ export interface NavItemDef {
 	permission?: string;
 	badge?: string;
 	badgeVariant?: "emerald" | "blue" | "amber" | "purple";
+	/**
+	 * Sub-pages, listed under the entry when the route is inside it. Used where
+	 * one feature area is several screens — procurement is five — and putting
+	 * each at the top level would bury the rest of the group.
+	 */
+	children?: NavItemDef[];
 }
 
 export interface NavGroupDef {
@@ -71,7 +82,7 @@ export interface NavGroupDef {
 	items: NavItemDef[];
 }
 
-const NAV_GROUPS: NavGroupDef[] = [
+export const NAV_GROUPS: NavGroupDef[] = [
 	{
 		id: "operations",
 		title: "Daily Operations",
@@ -158,9 +169,41 @@ const NAV_GROUPS: NavGroupDef[] = [
 			},
 			{
 				href: "/admin/inventory/procurement",
-				label: "Batch Buy / Sell",
+				label: "Procurement",
 				icon: ShoppingBag,
 				permission: "inventory:procurement",
+				children: [
+					{
+						href: "/admin/inventory/procurement/buy",
+						label: "Buy / Receive Stock",
+						icon: PackagePlus,
+						permission: "inventory:procurement",
+					},
+					{
+						href: "/admin/inventory/procurement/dispatch",
+						label: "Wholesale Dispatch",
+						icon: PackageCheck,
+						permission: "inventory:procurement",
+					},
+					{
+						href: "/admin/inventory/procurement/exchange",
+						label: "Exchange / Trade-In",
+						icon: Repeat,
+						permission: "inventory:procurement",
+					},
+					{
+						href: "/admin/inventory/procurement/purchases",
+						label: "Purchase List",
+						icon: ClipboardList,
+						permission: "inventory:procurement",
+					},
+					{
+						href: "/admin/inventory/procurement/sales",
+						label: "Sell List",
+						icon: ScrollText,
+						permission: "inventory:procurement",
+					},
+				],
 			},
 			{
 				href: "/admin/labels",
@@ -284,8 +327,11 @@ const NAV_GROUPS: NavGroupDef[] = [
 // route when one entry's path is nested under another's. Permission filtering
 // is deliberately not applied: a route the user reaches directly should still
 // deactivate its parent entry.
-const ALL_NAV_HREFS: string[] = NAV_GROUPS.flatMap((group) =>
-	group.items.map((item) => item.href),
+export const ALL_NAV_HREFS: string[] = NAV_GROUPS.flatMap((group) =>
+	group.items.flatMap((item) => [
+		item.href,
+		...(item.children ?? []).map((child) => child.href),
+	]),
 );
 
 export function AdminLayoutClient({
@@ -349,17 +395,29 @@ export function AdminLayoutClient({
 	const visibleGroups = useMemo(() => {
 		const query = searchQuery.trim().toLowerCase();
 
-		return NAV_GROUPS.map((group) => {
-			// Filter items based on RBAC permissions
-			const permittedItems = group.items.filter((item) =>
-				item.permission ? hasPermission(item.permission) : true
-			);
+		const permitted = (item: NavItemDef) =>
+			item.permission ? hasPermission(item.permission) : true;
 
-			// Further filter items by search query if any
+		return NAV_GROUPS.map((group) => {
+			// Filter items — and their sub-pages — based on RBAC permissions
+			const permittedItems: NavItemDef[] = group.items
+				.filter(permitted)
+				.map((item) =>
+					item.children ? { ...item, children: item.children.filter(permitted) } : item,
+				);
+
+			// Further filter by search query if any. A parent survives when one
+			// of its sub-pages matches, so searching "dispatch" finds the page
+			// rather than nothing.
 			const searchedItems = query
-				? permittedItems.filter((item) =>
-						item.label.toLowerCase().includes(query)
-				  )
+				? permittedItems.flatMap((item) => {
+						if (item.label.toLowerCase().includes(query)) return [item];
+						const childHits =
+							item.children?.filter((child) =>
+								child.label.toLowerCase().includes(query),
+							) ?? [];
+						return childHits.length > 0 ? [{ ...item, children: childHits }] : [];
+				  })
 				: permittedItems;
 
 			return {
@@ -513,6 +571,8 @@ export function AdminLayoutClient({
 													item={item}
 													isActive={isItemActive(item.href)}
 													isCollapsed={sidebarCollapsed}
+													isChildActive={isItemActive}
+													forceExpanded={!!searchQuery}
 												/>
 											))}
 										</div>
@@ -645,6 +705,8 @@ export function AdminLayoutClient({
 												item={item}
 												isActive={isItemActive(item.href)}
 												onClick={() => setMobileMenuOpen(false)}
+												isChildActive={isItemActive}
+												forceExpanded={!!searchQuery}
 											/>
 										))}
 									</div>
@@ -722,13 +784,27 @@ function SidebarNavItem({
 	isActive,
 	isCollapsed,
 	onClick,
+	isChildActive,
+	forceExpanded,
 }: {
 	item: NavItemDef;
 	isActive: boolean;
 	isCollapsed?: boolean;
 	onClick?: () => void;
+	/** Whether a given sub-page is the current route. */
+	isChildActive?: (href: string) => boolean;
+	/** Open the sub-list even when the route is elsewhere — used while searching. */
+	forceExpanded?: boolean;
 }) {
 	const Icon = item.icon;
+	const children = item.children ?? [];
+
+	// Sub-pages appear once you are inside the section, so the sidebar stays
+	// short everywhere else. A collapsed rail has no room for them at all.
+	const expanded =
+		!isCollapsed &&
+		children.length > 0 &&
+		(forceExpanded || isActive || children.some((child) => isChildActive?.(child.href)));
 
 	const badgeColorStyles = {
 		emerald:
@@ -741,7 +817,7 @@ function SidebarNavItem({
 			"bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400 border border-purple-200 dark:border-purple-800",
 	};
 
-	return (
+	const link = (
 		<Link
 			href={item.href}
 			onClick={onClick}
@@ -780,6 +856,43 @@ function SidebarNavItem({
 				</div>
 			)}
 		</Link>
+	);
+
+	if (children.length === 0) return link;
+
+	return (
+		<div>
+			{link}
+			{expanded && (
+				<div className="mt-0.5 ml-4 space-y-0.5 border-l border-zinc-200 pl-2 dark:border-zinc-800">
+					{children.map((child) => {
+						const ChildIcon = child.icon;
+						const childActive = isChildActive?.(child.href) ?? false;
+
+						return (
+							<Link
+								key={child.href}
+								href={child.href}
+								onClick={onClick}
+								className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+									childActive
+										? "bg-blue-50 font-semibold text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
+										: "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800/70 dark:hover:text-zinc-100"
+								}`}>
+								<ChildIcon
+									className={`h-3.5 w-3.5 shrink-0 ${
+										childActive
+											? "text-blue-600 dark:text-blue-400"
+											: "text-zinc-400 dark:text-zinc-600"
+									}`}
+								/>
+								<span className="truncate">{child.label}</span>
+							</Link>
+						);
+					})}
+				</div>
+			)}
+		</div>
 	);
 }
 
