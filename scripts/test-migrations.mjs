@@ -31,6 +31,8 @@ const MIGRATIONS = [
 	"supabase/migrations/026_product_admin_columns.sql",
 	"supabase/migrations/027_device_unit_warranty.sql",
 	"supabase/migrations/028_parties_and_credit_sales.sql",
+	"supabase/migrations/029_purchases_and_exchanges.sql",
+	"supabase/migrations/030_purchase_bills.sql",
 ];
 
 let passed = 0;
@@ -530,6 +532,8 @@ async function main() {
 	"supabase/migrations/026_product_admin_columns.sql",
 	"supabase/migrations/027_device_unit_warranty.sql",
 	"supabase/migrations/028_parties_and_credit_sales.sql",
+	"supabase/migrations/029_purchases_and_exchanges.sql",
+	"supabase/migrations/030_purchase_bills.sql",
 	]) {
 		try {
 			await db.exec(fs.readFileSync(file, "utf8"));

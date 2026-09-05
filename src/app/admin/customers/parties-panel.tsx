@@ -35,6 +35,10 @@ export function PartiesPanel() {
 	const [form, setForm] = useState(emptyForm);
 	const [saving, setSaving] = useState(false);
 	const [formError, setFormError] = useState("");
+	// Set while editing an existing party; null while adding a new one.
+	const [editing, setEditing] = useState<Party | null>(null);
+	const [balanceAdjustment, setBalanceAdjustment] = useState("");
+	const [adjustmentReason, setAdjustmentReason] = useState("");
 
 	const fetchParties = useCallback(async () => {
 		setLoading(true);
@@ -57,20 +61,77 @@ export function PartiesPanel() {
 		fetchParties();
 	}, [typeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	const handleCreate = async (e: React.FormEvent) => {
+	const openAdd = () => {
+		setEditing(null);
+		setForm(emptyForm);
+		setBalanceAdjustment("");
+		setAdjustmentReason("");
+		setFormError("");
+		setShowAddModal(true);
+	};
+
+	const openEdit = (party: Party) => {
+		setEditing(party);
+		setForm({
+			party_type: party.party_type,
+			customer_type: party.customer_type || "retail",
+			name: party.name,
+			company_name: party.party_type === "customer" ? party.company_name || "" : "",
+			phone: party.phone || "",
+			email: party.email || "",
+			address: party.address || "",
+			contact_person: party.party_type === "supplier" ? party.company_name || "" : "",
+			credit_limit: String(party.credit_limit ?? 0),
+			opening_balance: "0",
+			notes: "",
+		});
+		setBalanceAdjustment("");
+		setAdjustmentReason("");
+		setFormError("");
+		setShowAddModal(true);
+	};
+
+	const handleSave = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setFormError("");
 		setSaving(true);
 		try {
-			const res = await fetch("/api/v1/admin/parties", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(form),
-			});
+			const editingParty = editing;
+			const res = editingParty
+				? await fetch(`/api/v1/admin/parties/${editingParty.id}`, {
+						method: "PATCH",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							party_type: editingParty.party_type,
+							name: form.name,
+							phone: form.phone,
+							email: form.email,
+							address: form.address,
+							notes: form.notes,
+							...(editingParty.party_type === "supplier"
+								? { contact_person: form.contact_person }
+								: {
+										company_name: form.company_name,
+										customer_type: form.customer_type,
+										credit_limit: form.credit_limit,
+									}),
+							balance_adjustment: balanceAdjustment || undefined,
+							adjustment_reason: adjustmentReason || undefined,
+						}),
+					})
+				: await fetch("/api/v1/admin/parties", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(form),
+					});
+
 			const json = await res.json();
 			if (json.success) {
 				setShowAddModal(false);
+				setEditing(null);
 				setForm(emptyForm);
+				setBalanceAdjustment("");
+				setAdjustmentReason("");
 				fetchParties();
 			} else {
 				setFormError(json.error || "Could not save this party.");
@@ -154,11 +215,7 @@ export function PartiesPanel() {
 				</button>
 
 				<button
-					onClick={() => {
-						setForm(emptyForm);
-						setFormError("");
-						setShowAddModal(true);
-					}}
+					onClick={openAdd}
 					className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-600/30"
 				>
 					+ Add Customer / Party
@@ -188,6 +245,7 @@ export function PartiesPanel() {
 									<th className="px-4 py-3.5">Contact</th>
 									<th className="px-4 py-3.5">Credit Limit</th>
 									<th className="px-4 py-3.5">Balance</th>
+									<th className="px-4 py-3.5 text-right">Actions</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 font-medium">
@@ -256,6 +314,14 @@ export function PartiesPanel() {
 												<span className="text-zinc-400">Settled</span>
 											)}
 										</td>
+										<td className="px-4 py-3 text-right">
+											<button
+												onClick={() => openEdit(party)}
+												className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg text-[11px] font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+											>
+												Edit
+											</button>
+										</td>
 									</tr>
 								))}
 							</tbody>
@@ -270,7 +336,7 @@ export function PartiesPanel() {
 					<div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
 						<div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
 							<h2 className="text-lg font-black text-zinc-900 dark:text-white">
-								Add Customer / Party
+								{editing ? `Edit ${editing.name}` : "Add Customer / Party"}
 							</h2>
 							<button
 								onClick={() => setShowAddModal(false)}
@@ -280,7 +346,7 @@ export function PartiesPanel() {
 							</button>
 						</div>
 
-						<form onSubmit={handleCreate} className="space-y-3">
+						<form onSubmit={handleSave} className="space-y-3">
 							<div className="grid grid-cols-2 gap-3">
 								<div>
 									<label className={labelClass}>Party Type *</label>
@@ -289,7 +355,8 @@ export function PartiesPanel() {
 										onChange={(e) =>
 											setForm({ ...form, party_type: e.target.value as PartyType })
 										}
-										className={fieldClass}
+										disabled={!!editing}
+										className={`${fieldClass} disabled:opacity-60`}
 									>
 										<option value="customer">Customer / Wholesale buyer</option>
 										<option value="supplier">Supplier</option>
@@ -395,24 +462,26 @@ export function PartiesPanel() {
 										</p>
 									</div>
 								)}
-								<div>
-									<label className={labelClass}>
-										{isSupplier ? "Opening Payable (BDT)" : "Opening Due (BDT)"}
-									</label>
-									<input
-										type="number"
-										min={0}
-										value={form.opening_balance}
-										onChange={(e) =>
-											setForm({ ...form, opening_balance: e.target.value })
-										}
-										className={fieldClass}
-									/>
-									<p className="text-[10px] text-zinc-500 mt-1">
-										Balance carried in from before. Posted to the ledger so it shows in
-										their history.
-									</p>
-								</div>
+								{!editing && (
+									<div>
+										<label className={labelClass}>
+											{isSupplier ? "Opening Payable (BDT)" : "Opening Due (BDT)"}
+										</label>
+										<input
+											type="number"
+											min={0}
+											value={form.opening_balance}
+											onChange={(e) =>
+												setForm({ ...form, opening_balance: e.target.value })
+											}
+											className={fieldClass}
+										/>
+										<p className="text-[10px] text-zinc-500 mt-1">
+											Balance carried in from before. Posted to the ledger so it shows in
+											their history.
+										</p>
+									</div>
+								)}
 							</div>
 
 							<div>
@@ -424,6 +493,53 @@ export function PartiesPanel() {
 									className={fieldClass}
 								/>
 							</div>
+
+							{editing && (
+								<div className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-2">
+									<p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+										Balance:{" "}
+										<span className={editing.balance > 0 ? "text-rose-600" : "text-zinc-500"}>
+											{fmt(editing.balance)}
+										</span>{" "}
+										<span className="font-medium text-zinc-500">
+											{editing.party_type === "supplier" ? "we owe" : "they owe"}
+										</span>
+									</p>
+									<p className="text-[10px] text-zinc-500">
+										A balance is the sum of this party&rsquo;s ledger history, so it is not
+										edited directly. Sales and payments move it. To correct a mistake,
+										post an adjustment — it goes into the ledger with your reason.
+									</p>
+									<div className="grid grid-cols-2 gap-3">
+										<div>
+											<label className={labelClass}>Adjustment (+/−)</label>
+											<input
+												type="number"
+												value={balanceAdjustment}
+												onChange={(e) => setBalanceAdjustment(e.target.value)}
+												placeholder="e.g. -5000"
+												className={fieldClass}
+											/>
+										</div>
+										<div>
+											<label className={labelClass}>Reason</label>
+											<input
+												type="text"
+												value={adjustmentReason}
+												onChange={(e) => setAdjustmentReason(e.target.value)}
+												placeholder="e.g. Opening balance typo"
+												className={fieldClass}
+												required={!!balanceAdjustment}
+											/>
+										</div>
+									</div>
+									{balanceAdjustment !== "" && Number(balanceAdjustment) !== 0 && (
+										<p className="text-[11px] font-bold text-zinc-600 dark:text-zinc-300">
+											New balance: {fmt(editing.balance + Number(balanceAdjustment))}
+										</p>
+									)}
+								</div>
+							)}
 
 							{formError && (
 								<p className="text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-lg p-2.5">
@@ -444,7 +560,7 @@ export function PartiesPanel() {
 									disabled={saving}
 									className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/30 disabled:opacity-50"
 								>
-									{saving ? "Saving..." : "Save Party"}
+									{saving ? "Saving..." : editing ? "Save Changes" : "Save Party"}
 								</button>
 							</div>
 						</form>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { notify } from "@/components/ui/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export default function WarehouseInventoryPage() {
 			const res = await fetch(`/api/v1/admin/inventory/warehouse?variation_id=${id}`);
 			const data = await res.json();
 			if (!data.success) {
-				alert(data.error?.message || "Failed to fetch inventory");
+				notify.error(data.error?.message || "Failed to fetch inventory");
 				return;
 			}
 			setWarehouseStocks(data.data.warehouses || []);
@@ -173,11 +174,11 @@ export default function WarehouseInventoryPage() {
 				// Re-fetch updated stocks
 				lookupVariation();
 			} else {
-				alert(data.error?.message || "Failed to save");
+				notify.error(data.error?.message || "Failed to save");
 			}
 		} catch (e) {
 			console.error(e);
-			alert("Network error");
+			notify.error("Network error");
 		} finally {
 			setSaving((s) => ({ ...s, [warehouseId]: false }));
 			setTimeout(() => setSuccessMsg((s) => ({ ...s, [warehouseId]: "" })), 3000);
@@ -211,7 +212,7 @@ export default function WarehouseInventoryPage() {
 				});
 				fetchWarehouses();
 			} else {
-				alert(data.error?.message || "Failed to create warehouse");
+				notify.error(data.error?.message || "Failed to create warehouse");
 			}
 		} catch (e) {
 			console.error(e);

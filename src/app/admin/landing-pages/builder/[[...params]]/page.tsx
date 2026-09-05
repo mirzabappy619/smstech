@@ -19,6 +19,7 @@ import {
 	ProductOption,
 } from "@/app/landing-page-types";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/components/ui/toast";
 
 interface PageProps {
 	params: Promise<{ params?: string[] }>;
@@ -73,10 +74,6 @@ function LandingPageBuilder({ params }: PageProps) {
 	const [slugError, setSlugError] = useState("");
 	const [slugChecking, setSlugChecking] = useState(false);
 	const [showPageSettings, setShowPageSettings] = useState(false);
-	const [toast, setToast] = useState<{
-		message: string;
-		type: "success" | "error";
-	} | null>(null);
 
 	useEffect(() => {
 		if (pageId) {
@@ -131,13 +128,13 @@ function LandingPageBuilder({ params }: PageProps) {
 						);
 					}
 				} else {
-					showToast("Failed to load page data", "error");
+					notify.error("Failed to load page data");
 				}
 			} else {
-				showToast("Failed to load page", "error");
+				notify.error("Failed to load page");
 			}
 		} catch (error) {
-			showToast("Error loading page", "error");
+			notify.error("Error loading page");
 		} finally {
 			setLoading(false);
 		}
@@ -191,11 +188,6 @@ function LandingPageBuilder({ params }: PageProps) {
 
 		return () => clearTimeout(timer);
 	}, [page.slug, checkSlug]);
-
-	const showToast = (message: string, type: "success" | "error") => {
-		setToast({ message, type });
-		setTimeout(() => setToast(null), 3000);
-	};
 
 	const createDefaultBlockData = (blockType: BlockType): BlockData => {
 		switch (blockType) {
@@ -423,7 +415,7 @@ function LandingPageBuilder({ params }: PageProps) {
 
 				// Check if the response indicates success
 				if (!response.success) {
-					showToast(response.error?.message || "Failed to save page", "error");
+					notify.error(response.error?.message || "Failed to save page");
 					return;
 				}
 
@@ -448,19 +440,16 @@ function LandingPageBuilder({ params }: PageProps) {
 					if (publishRes.ok) {
 						const publishResponse = await publishRes.json();
 						if (publishResponse.success) {
-							showToast("Page published successfully!", "success");
+							notify.success("Page published successfully!");
 							router.push("/admin/landing-pages");
 						} else {
-							showToast(
-								publishResponse.error?.message || "Failed to publish",
-								"error",
-							);
+							notify.error(publishResponse.error?.message || "Failed to publish");
 						}
 					} else {
-						showToast("Saved but failed to publish", "error");
+						notify.error("Saved but failed to publish");
 					}
 				} else {
-					showToast("Page saved successfully!", "success");
+					notify.success("Page saved successfully!");
 					if (!pageId) {
 						router.push(`/admin/landing-pages/builder/${savedPage.id}`);
 					}
@@ -468,11 +457,11 @@ function LandingPageBuilder({ params }: PageProps) {
 			} else {
 				const errorData = await res.json();
 				console.error("Save page error:", errorData);
-				showToast(errorData.error?.message || "Failed to save page", "error");
+				notify.error(errorData.error?.message || "Failed to save page");
 			}
 		} catch (error) {
 			console.error("Exception saving page:", error);
-			showToast("Error saving page", "error");
+			notify.error("Error saving page");
 		} finally {
 			setSaving(false);
 		}
@@ -482,7 +471,7 @@ function LandingPageBuilder({ params }: PageProps) {
 		if (page.slug) {
 			window.open(`/landing/${page.slug}`, "_blank");
 		} else {
-			showToast("Please save the page first", "error");
+			notify.warning("Please save the page first");
 		}
 	};
 
@@ -772,20 +761,6 @@ function LandingPageBuilder({ params }: PageProps) {
 					</div>
 				)}
 			</div>
-
-			{/* Toast Notification */}
-			{toast && (
-				<div className="fixed bottom-4 right-4 z-50">
-					<div
-						className={`px-6 py-3 rounded-lg shadow-lg ${
-							toast.type === "success"
-								? "bg-green-600 text-white"
-								: "bg-red-600 text-white"
-						}`}>
-						{toast.message}
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

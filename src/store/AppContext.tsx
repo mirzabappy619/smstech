@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import type { Product } from '../data/products'
 import { trackMetaAddToCart } from '@/presentation/components/meta-pixel'
+import { notify } from '@/components/ui/toast'
 
 type CartItem = {
   product: Product
@@ -84,7 +85,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Pre-order products are sold through the pre-booking queue, not the cart.
     // The UI hides Add to Cart for them; this stops stale carts and any other
     // call site from slipping one through.
-    if (product.isPreorder) return
+    if (product.isPreorder) {
+      notify.info(`${product.name} is a pre-order — reserve it from the product page.`)
+      return
+    }
 
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id && i.variant === variant)
@@ -112,8 +116,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const removeFromCart = useCallback((productId: string) => {
+    const item = cart.find((i) => i.product.id === productId)
     setCart((prev) => prev.filter((i) => i.product.id !== productId))
-  }, [])
+    if (item) notify.info(`${item.product.name} removed from your cart.`)
+  }, [cart])
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
     if (quantity <= 0) {
@@ -126,11 +132,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const toggleWishlist = useCallback((product: Product) => {
-    setWishlist((prev) => {
-      const exists = prev.find((p) => p.id === product.id)
-      return exists ? prev.filter((p) => p.id !== product.id) : [...prev, product]
-    })
-  }, [])
+    const exists = wishlist.some((p) => p.id === product.id)
+    setWishlist((prev) =>
+      exists ? prev.filter((p) => p.id !== product.id) : [...prev, product],
+    )
+    if (exists) notify.info(`${product.name} removed from your saved items.`)
+    else notify.success(`${product.name} saved.`, { description: 'Find it under Saved items.' })
+  }, [wishlist])
 
   const isWishlisted = useCallback(
     (productId: string) => wishlist.some((p) => p.id === productId),
@@ -138,16 +146,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const addToCompare = useCallback((product: Product) => {
-    setCompareList((prev) => {
-      if (prev.find((p) => p.id === product.id)) return prev
-      if (prev.length >= 4) return prev
-      return [...prev, product]
-    })
-  }, [])
+    if (compareList.some((p) => p.id === product.id)) {
+      notify.info(`${product.name} is already in your comparison.`)
+      return
+    }
+    if (compareList.length >= 4) {
+      notify.warning('You can compare four products at a time.', {
+        description: 'Remove one from the comparison to add another.',
+      })
+      return
+    }
+    setCompareList((prev) => [...prev, product])
+    notify.success(`${product.name} added to compare.`)
+  }, [compareList])
 
   const removeFromCompare = useCallback((productId: string) => {
+    const item = compareList.find((p) => p.id === productId)
     setCompareList((prev) => prev.filter((p) => p.id !== productId))
-  }, [])
+    if (item) notify.info(`${item.name} removed from your comparison.`)
+  }, [compareList])
 
   const isCompared = useCallback(
     (productId: string) => compareList.some((p) => p.id === productId),

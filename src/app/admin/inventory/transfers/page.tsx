@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { notify } from "@/components/ui/toast";
 
 interface BranchTransfer {
   id: string;
@@ -138,7 +139,7 @@ export default function BranchTransfersPage() {
 
   const handleCreateTransfer = async () => {
     if (!sourceBranch || !targetBranch || sourceBranch === targetBranch) {
-      alert("Source and destination branch must be different!");
+      notify.warning("Source and destination branch must be different!");
       return;
     }
     const bulkLines = bulkStock
@@ -151,7 +152,7 @@ export default function BranchTransfersPage() {
       }));
 
     if (selectedUnits.length === 0 && bulkLines.length === 0) {
-      alert("Select at least one device or bulk item to transfer.");
+      notify.warning("Select at least one device or bulk item to transfer.");
       return;
     }
 
@@ -187,10 +188,10 @@ export default function BranchTransfersPage() {
         setTransferNotes("");
         fetchTransfers();
       } else {
-        alert(json.error || "Failed to create transfer");
+        notify.error(json.error || "Failed to create transfer");
       }
     } catch (err) {
-      alert("Failed to submit transfer");
+      notify.error("Failed to submit transfer");
     }
   };
 
@@ -205,10 +206,10 @@ export default function BranchTransfersPage() {
       if (json.success) {
         fetchTransfers();
       } else {
-        alert(json.error || "Failed to update status");
+        notify.error(json.error || "Failed to update status");
       }
     } catch (err) {
-      alert("Error updating transfer status");
+      notify.error("Error updating transfer status");
     }
   };
 

@@ -6,6 +6,7 @@ import { MetaPixelProvider } from "@/presentation/components/meta-pixel/MetaPixe
 import { FacebookCookieCapture } from "@/presentation/components/meta-pixel/FacebookCookieCapture";
 import { GoogleAnalyticsProvider } from "@/presentation/components/google-analytics/GoogleAnalyticsProvider";
 import AppShell from "@/components/AppShell";
+import { Toaster } from "@/components/ui/toast";
 import { getStoreName } from "@/lib/get-store-name";
 import "./globals.css";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
 							<AppShell>
 								{children}
 							</AppShell>
+							<Toaster />
 						</ThemeProvider>
 					</GoogleAnalyticsProvider>
 				</MetaPixelProvider>

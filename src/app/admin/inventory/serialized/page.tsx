@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatBDT } from "@/lib/currency";
 import { warrantyDaysRemaining, warrantyState } from "@/lib/warranty";
+import { notify } from "@/components/ui/toast";
 
 interface SerializedUnit {
   id: string;
@@ -184,7 +185,7 @@ export default function SerializedInventoryPage() {
   const handleCreateUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formProductId || !formWarehouseId || !formSerial || !formSellingPrice) {
-      alert("Please fill in Product, Branch, Serial Number, and Selling Price.");
+      notify.warning("Please fill in Product, Branch, Serial Number, and Selling Price.");
       return;
     }
 
@@ -216,10 +217,10 @@ export default function SerializedInventoryPage() {
         setFormImei1("");
         fetchData();
       } else {
-        alert(json.error || "Failed to create unit");
+        notify.error(json.error || "Failed to create unit");
       }
     } catch (err) {
-      alert("Error adding unit");
+      notify.error("Error adding unit");
     }
   };
 

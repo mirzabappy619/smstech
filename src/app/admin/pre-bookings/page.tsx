@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatBDT } from "@/lib/currency";
+import { notify } from "@/components/ui/toast";
 
 
 interface PreBooking {
@@ -60,13 +61,13 @@ export default function PreBookingsAdminPage() {
       });
       const json = await res.json();
       if (json.success) {
-        alert(json.message);
+        notify.success(json.message);
         fetchBookings();
       } else {
-        alert(json.error || "Allocation failed");
+        notify.error(json.error || "Allocation failed");
       }
     } catch (err) {
-      alert("Allocation request error");
+      notify.error("Allocation request error");
     } finally {
       setAllocating(false);
     }

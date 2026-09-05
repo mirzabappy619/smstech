@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE, normalizeBDPhone } from "@/lib/bd-phone-validator";
 import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
+import { notify } from "@/components/ui/toast";
 
 interface CourierSettings {
 	id?: string;
@@ -522,21 +523,21 @@ export default function CourierSettingsPage() {
 	const submitDirectOrder = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!createStoreId) {
-			alert("Please select a store");
+			notify.warning("Please select a store");
 			return;
 		}
 		if (!createRecipientName || !createRecipientPhone || !createRecipientAddress) {
-			alert("Please fill out recipient name, phone, and address");
+			notify.warning("Please fill out recipient name, phone, and address");
 			return;
 		}
 
 		if (!isValidBDPhone(createRecipientPhone)) {
-			alert(BD_PHONE_ERROR_MESSAGE);
+			notify.warning(BD_PHONE_ERROR_MESSAGE);
 			return;
 		}
 
 		if (createRecipientSecondaryPhone && !isValidBDPhone(createRecipientSecondaryPhone)) {
-			alert("Secondary phone: " + BD_PHONE_ERROR_MESSAGE);
+			notify.warning("Secondary phone: " + BD_PHONE_ERROR_MESSAGE);
 			return;
 		}
 
@@ -618,10 +619,10 @@ export default function CourierSettingsPage() {
 			if (json.success) {
 				fetchDeliveries();
 			} else {
-				alert(`Failed to refresh status: ${json.error?.message || "Unknown error"}`);
+				notify.error(`Failed to refresh status: ${json.error?.message || "Unknown error"}`);
 			}
 		} catch (err: any) {
-			alert(`Error refreshing status: ${err.message}`);
+			notify.error(`Error refreshing status: ${err.message}`);
 		} finally {
 			setRefreshingOrderId(null);
 		}

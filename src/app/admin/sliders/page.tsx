@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { notify } from "@/components/ui/toast";
 
 type Slide = {
   id?: string
@@ -106,7 +107,7 @@ export default function AdminSliders() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!formData.title || !formData.image_url) {
-      alert('Please fill in slide title and image URL!')
+      notify.warning('Please fill in slide title and image URL!')
       return
     }
 
@@ -138,7 +139,7 @@ export default function AdminSliders() {
       setTimeout(() => setSuccessMsg(''), 4000)
     } catch (err) {
       console.error('Failed to save slide:', err)
-      alert('Error saving slide. Please try again.')
+      notify.error('Error saving slide. Please try again.')
     }
   }
 

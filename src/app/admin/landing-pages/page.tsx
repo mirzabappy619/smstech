@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { notify } from "@/components/ui/toast";
 
 interface LandingPage {
 	id: string;
@@ -50,7 +51,6 @@ export default function AdminLandingPagesPage() {
 	>(null);
 	const [processingAction, setProcessingAction] = useState<string | null>(null);
 	const [showCreateModal, setShowCreateModal] = useState(false);
-	const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 	const [createFormData, setCreateFormData] = useState({
 		title: "",
 		slug: "",
@@ -100,11 +100,11 @@ export default function AdminLandingPagesPage() {
 				}
 			} else {
 				console.error("Landing pages fetch failed:", data.error);
-				showToast("Failed to fetch landing pages", "error");
+				notify.error("Failed to fetch landing pages");
 			}
 		} catch (err) {
 			console.error("Failed to fetch landing pages:", err);
-			showToast("Failed to fetch landing pages", "error");
+			notify.error("Failed to fetch landing pages");
 		} finally {
 			setLoading(false);
 		}
@@ -113,9 +113,9 @@ export default function AdminLandingPagesPage() {
 	const handleCopySlug = async (slug: string) => {
 		try {
 			await navigator.clipboard.writeText(slug);
-			showToast("Slug copied to clipboard", "success");
+			notify.success("Slug copied to clipboard");
 		} catch (err) {
-			showToast("Failed to copy slug", "error");
+			notify.error("Failed to copy slug");
 		}
 	};
 
@@ -123,9 +123,9 @@ export default function AdminLandingPagesPage() {
 		try {
 			const url = `${window.location.origin}/landing/${slug}`;
 			await navigator.clipboard.writeText(url);
-			showToast("URL copied to clipboard", "success");
+			notify.success("URL copied to clipboard");
 		} catch (err) {
-			showToast("Failed to copy URL", "error");
+			notify.error("Failed to copy URL");
 		}
 	};
 
@@ -143,14 +143,14 @@ export default function AdminLandingPagesPage() {
 			const data = await response.json();
 
 			if (data.success) {
-				showToast("Landing page published successfully", "success");
+				notify.success("Landing page published successfully");
 				fetchPages();
 			} else {
-				showToast(data.error || "Failed to publish", "error");
+				notify.error(data.error || "Failed to publish");
 			}
 		} catch (err) {
 			console.error("Failed to publish:", err);
-			showToast("Failed to publish landing page", "error");
+			notify.error("Failed to publish landing page");
 		} finally {
 			setProcessingAction(null);
 		}
@@ -170,14 +170,14 @@ export default function AdminLandingPagesPage() {
 			const data = await response.json();
 
 			if (data.success) {
-				showToast("Landing page unpublished", "success");
+				notify.success("Landing page unpublished");
 				fetchPages();
 			} else {
-				showToast(data.error || "Failed to unpublish", "error");
+				notify.error(data.error || "Failed to unpublish");
 			}
 		} catch (err) {
 			console.error("Failed to unpublish:", err);
-			showToast("Failed to unpublish landing page", "error");
+			notify.error("Failed to unpublish landing page");
 		} finally {
 			setProcessingAction(null);
 			setShowUnpublishConfirm(null);
@@ -193,7 +193,7 @@ export default function AdminLandingPagesPage() {
 			const data = await response.json();
 
 			if (data.success) {
-				showToast("Landing page deleted successfully", "success");
+				notify.success("Landing page deleted successfully");
 				// If we deleted the last item on the current page (and we're not on page 1),
 				// go back one page so we don't fetch an empty page.
 				const isLastOnPage = pages.length === 1 && page > 1;
@@ -204,20 +204,15 @@ export default function AdminLandingPagesPage() {
 					fetchPages();
 				}
 			} else {
-				showToast(data.error || "Failed to delete", "error");
+				notify.error(data.error || "Failed to delete");
 			}
 		} catch (err) {
 			console.error("Failed to delete:", err);
-			showToast("Failed to delete landing page", "error");
+			notify.error("Failed to delete landing page");
 		} finally {
 			setProcessingAction(null);
 			setShowDeleteConfirm(null);
 		}
-	};
-
-	const showToast = (message: string, type: "success" | "error") => {
-		setToast({ message, type });
-		setTimeout(() => setToast(null), 4000);
 	};
 
 	const formatDate = (dateString: string) => {
@@ -294,12 +289,12 @@ export default function AdminLandingPagesPage() {
 
 	const handleCreatePage = async () => {
 		if (!createFormData.title || !createFormData.slug) {
-			showToast("Please fill in title and slug", "error");
+			notify.error("Please fill in title and slug");
 			return;
 		}
 
 		if (slugError) {
-			showToast("Please fix slug error", "error");
+			notify.error("Please fix slug error");
 			return;
 		}
 
@@ -320,13 +315,13 @@ export default function AdminLandingPagesPage() {
 			const response = await res.json();
 
 			if (response.success) {
-				showToast("Page created successfully!", "success");
+				notify.success("Page created successfully!");
 				window.location.href = `/admin/landing-pages/builder?id=${response.data.id}`;
 			} else {
-				showToast(response.error?.message || "Failed to create page", "error");
+				notify.error(response.error?.message || "Failed to create page");
 			}
 		} catch (error) {
-			showToast("Failed to create page", "error");
+			notify.error("Failed to create page");
 		} finally {
 			setCreating(false);
 		}
@@ -334,21 +329,6 @@ export default function AdminLandingPagesPage() {
 
 	return (
 		<div className="space-y-6">
-			{/* Toast Notification */}
-			{toast && (
-				<div
-					className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all ${
-						toast.type === "success"
-							? "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-							: "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300"
-					}`}>
-					<span>{toast.type === "success" ? "✓" : "✗"}</span>
-					<span>{toast.message}</span>
-					<button onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100">
-						×
-					</button>
-				</div>
-			)}
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>

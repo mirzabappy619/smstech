@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatBDT } from "@/lib/currency";
+import { notify } from "@/components/ui/toast";
 
 
 interface LedgerEntry {
@@ -88,7 +89,7 @@ export default function AccountingLedgerPage() {
   const handleCollectDue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustId || !collectionAmount) {
-      alert("Please select customer and amount.");
+      notify.warning("Please select customer and amount.");
       return;
     }
 
@@ -112,10 +113,10 @@ export default function AccountingLedgerPage() {
         fetchLedger();
         fetchCustomersWithDue();
       } else {
-        alert(json.error || "Collection failed");
+        notify.error(json.error || "Collection failed");
       }
     } catch (err) {
-      alert("Error collecting due");
+      notify.error("Error collecting due");
     }
   };
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Trash2, Warehouse, Layers } from "lucide-react";
+import { notify } from "@/components/ui/toast";
 
 interface ProductVariation {
 	id: string;
@@ -337,7 +338,7 @@ export default function NewProductPage() {
 	const generateVariationsFromAttrs = (attrs: AttributeDefinition[]) => {
 		if (attrs.length === 0) return;
 		if (!formData.sku.trim()) {
-			alert("Set the product SKU first before generating variations.");
+			notify.warning("Set the product SKU first before generating variations.");
 			return;
 		}
 		const combos: Record<string, string>[] = [];
@@ -524,7 +525,7 @@ export default function NewProductPage() {
 			router.push("/admin/products");
 		} catch (error) {
 			console.error("Error creating product:", error);
-			alert(
+			notify.error(
 				error instanceof Error
 					? error.message
 					: "Failed to create product. Please try again.",
@@ -1002,7 +1003,7 @@ export default function NewProductPage() {
 										const values = newAttrValues.split(",").map((v) => v.trim()).filter(Boolean);
 										if (!name || values.length === 0) return;
 										if (attributeDefinitions.some((a) => a.name === name)) {
-											alert(`Attribute "${name}" already exists`);
+											notify.warning(`Attribute "${name}" already exists`);
 											return;
 										}
 										setAttributeDefinitions((prev) => [

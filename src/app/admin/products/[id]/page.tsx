@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import { notify } from "@/components/ui/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -333,11 +334,11 @@ export default function EditProductPage() {
         if (p.attribute_definitions?.length) setAttributeDefinitions(p.attribute_definitions);
         if (p.unit_system) setUnitSystem(p.unit_system);
       } else {
-        alert("Failed to load product.");
+        notify.error("Failed to load product.");
         router.push("/admin/products");
       }
     } catch {
-      alert("Failed to load product.");
+      notify.error("Failed to load product.");
       router.push("/admin/products");
     } finally {
       setIsFetching(false);
@@ -506,10 +507,10 @@ export default function EditProductPage() {
         throw new Error(err.error?.message || err.error || "Failed to update product");
       }
 
-      alert("Product updated successfully!");
+      notify.success("Product updated successfully!");
       router.push("/admin/products");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update product.");
+      notify.error(err instanceof Error ? err.message : "Failed to update product.");
     } finally {
       setIsLoading(false);
     }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
 import { formatCurrency as formatMoney, DEFAULT_CURRENCY } from "@/lib/currency";
+import { notify } from "@/components/ui/toast";
 
 interface OrderItem {
 	id: string;
@@ -283,7 +284,7 @@ export default function OrderDetailPage() {
 			setShowStatusModal(false);
 		} catch (error) {
 			console.error("Error updating order:", error);
-			alert("Failed to update order status. Please try again.");
+			notify.error("Failed to update order status. Please try again.");
 		} finally {
 			setIsUpdating(false);
 		}
@@ -434,7 +435,7 @@ export default function OrderDetailPage() {
 			window.URL.revokeObjectURL(url);
 		} catch (err) {
 			console.error('Failed to download invoice:', err);
-			alert('Failed to generate invoice');
+			notify.error('Failed to generate invoice');
 		} finally {
 			setDownloadingInvoice(false);
 		}
@@ -458,7 +459,7 @@ export default function OrderDetailPage() {
 			window.URL.revokeObjectURL(url);
 		} catch (err) {
 			console.error('Failed to download packing slip:', err);
-			alert('Failed to generate packing slip');
+			notify.error('Failed to generate packing slip');
 		} finally {
 			setDownloadingSlip(false);
 		}

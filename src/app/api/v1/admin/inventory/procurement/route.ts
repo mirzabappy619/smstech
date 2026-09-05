@@ -5,29 +5,18 @@ import {
 	writeLedgerEntry,
 } from "@/lib/accounting/ledger";
 import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
-import {
-	DEFAULT_WARRANTY_MONTHS,
-	MAX_WARRANTY_MONTHS,
-	parseWarrantyMonths,
-} from "@/lib/warranty";
 import { checkCreditLimit } from "@/lib/parties";
+import { adHocSupplierId } from "@/lib/trade";
+import {
+	fetchProductNames,
+	findExistingSerials,
+	validateIntakeLines,
+	writeIntakeLines,
+	writePurchaseBill,
+} from "@/lib/inventory/intake";
 import { paymentStatusFor } from "@/lib/pos/checkout-math";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-
-// Suppliers entered ad-hoc by name share this sentinel party id, so give each
-// name its own deterministic bucket rather than collapsing them all into one.
-const AD_HOC_SUPPLIER_NAMESPACE = "00000000-0000-0000-0000-0000000000";
-
-function adHocSupplierId(name: string) {
-	// Stable 2-hex-digit suffix derived from the name, so repeat purchases from
-	// the same unregistered supplier accumulate against one ledger party.
-	let hash = 0;
-	for (let i = 0; i < name.length; i++) {
-		hash = (hash * 31 + name.charCodeAt(i)) & 0xff;
-	}
-	return AD_HOC_SUPPLIER_NAMESPACE + hash.toString(16).padStart(2, "0");
-}
 
 function badRequest(error: string, status = 400) {
 	return NextResponse.json({ success: false, error }, { status });
@@ -69,182 +58,51 @@ export async function POST(request: NextRequest) {
 				return badRequest("A branch and at least one line item are required.");
 			}
 
-			// ── Validate every line before writing anything ──────────────────
-			const serialLines: {
-				product_id: string;
-				unit_cost: number;
-				selling_price: number;
-				warranty_months: number;
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				serials: any[];
-			}[] = [];
-			const bulkLines: {
-				product_id: string;
-				variation_id: string | null;
-				quantity: number;
-				unit_cost: number;
-			}[] = [];
+			// Validated and written through the shared intake path, so a supplier
+			// batch, a counter purchase and a part-exchange all record provenance
+			// and warranty terms the same way.
+			const intake = validateIntakeLines(items);
+			if ("error" in intake) return badRequest(intake.error);
+			const lines = intake.value;
+			const computedTotal = lines.total;
 
-			let computedTotal = 0;
-
-			for (const it of items) {
-				if (!it.product_id) {
-					return badRequest("Every line needs a product.");
-				}
-
-				const unitCost = Number(it.unit_cost);
-				if (!Number.isFinite(unitCost) || unitCost < 0) {
-					return badRequest("Every line needs a valid unit cost.");
-				}
-
-				if (it.serial_numbers && Array.isArray(it.serial_numbers)) {
-					if (it.serial_numbers.length === 0) {
-						return badRequest("A serialized line needs at least one serial number.");
-					}
-
-					const sellingPrice = Number(it.selling_price);
-					if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
-						return badRequest(
-							"Serialized lines need an explicit selling price — it is no longer guessed from cost.",
-						);
-					}
-
-					const serials = it.serial_numbers.map(
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						(sn: any) => (typeof sn === "string" ? { serial: sn } : sn),
-					);
-
-					for (const sn of serials) {
-						if (!sn.serial || !String(sn.serial).trim()) {
-							return badRequest("Every serialized unit needs a serial number.");
-						}
-						if (sn.battery_health !== undefined && sn.battery_health !== null && sn.battery_health !== "") {
-							const bh = Number(sn.battery_health);
-							if (!Number.isFinite(bh) || bh < 0 || bh > 100) {
-								return badRequest(
-									`Battery health for ${sn.serial} must be between 0 and 100.`,
-								);
-							}
-						}
-					}
-
-					// One term covers the whole line — a batch of the same model
-					// bought from the same supplier carries the same warranty.
-					const lineWarranty =
-						it.warranty_months === undefined ||
-						it.warranty_months === null ||
-						it.warranty_months === ""
-							? DEFAULT_WARRANTY_MONTHS
-							: parseWarrantyMonths(it.warranty_months);
-					if (lineWarranty === null) {
-						return badRequest(
-							`Warranty must be a whole number of months between 0 and ${MAX_WARRANTY_MONTHS}.`,
-						);
-					}
-
-					serialLines.push({
-						product_id: it.product_id,
-						unit_cost: unitCost,
-						selling_price: sellingPrice,
-						warranty_months: lineWarranty,
-						serials,
-					});
-					computedTotal += unitCost * serials.length;
-				} else {
-					const quantity = Number(it.quantity);
-					if (!Number.isInteger(quantity) || quantity < 1) {
-						return badRequest("Bulk lines need a whole quantity of 1 or more.");
-					}
-					bulkLines.push({
-						product_id: it.product_id,
-						variation_id: it.variation_id || null,
-						quantity,
-						unit_cost: unitCost,
-					});
-					computedTotal += unitCost * quantity;
-				}
+			const clashes = await findExistingSerials(supabase, lines);
+			if (clashes.length > 0) {
+				return badRequest(`Already in stock: ${clashes.join(", ")}`);
 			}
 
-			computedTotal = round2(computedTotal);
-
-			// Reject duplicate serials up front — both within this batch and
-			// against what is already in stock.
-			const allSerials = serialLines.flatMap((l) =>
-				l.serials.map((s) => String(s.serial).trim()),
-			);
-
-			const dupInBatch = allSerials.find(
-				(s, i) => allSerials.indexOf(s) !== i,
-			);
-			if (dupInBatch) {
-				return badRequest(`Serial "${dupInBatch}" appears twice in this batch.`);
-			}
-
-			if (allSerials.length > 0) {
-				const { data: existing } = await supabase
-					.from("device_units")
-					.select("serial_number")
-					.in("serial_number", allSerials);
-
-				if (existing && existing.length > 0) {
-					return badRequest(
-						`Already in stock: ${existing.map((e) => e.serial_number).join(", ")}`,
-					);
-				}
-			}
-
-			// ── Write ────────────────────────────────────────────────────────
 			const billRef = `BILL-IN-${Date.now().toString().slice(-6)}`;
-			let createdUnits = 0;
+			const { createdUnitIds } = await writeIntakeLines(supabase, {
+				lines,
+				warehouseId: warehouse_id,
+				acquisition: {
+					from_type: "supplier",
+					party_id: supplier_id || null,
+					party_name: supplier_name || "Central Supplier",
+					reference: billRef,
+				},
+				movementReason: `Purchase intake ${billRef}`,
+			});
+			const createdUnits = createdUnitIds.length;
+			const bulkLines = lines.bulkLines;
 
-			for (const line of serialLines) {
-				const rows = line.serials.map((sn) => ({
-					product_id: line.product_id,
-					warehouse_id,
-					serial_number: String(sn.serial).trim(),
-					imei_1: sn.imei1 || null,
-					imei_2: sn.imei2 || null,
-					battery_health_pct:
-						sn.battery_health !== undefined &&
-						sn.battery_health !== null &&
-						sn.battery_health !== ""
-							? Number(sn.battery_health)
-							: 100,
-					battery_cycles: Number(sn.cycles) || 0,
-					cosmetic_grade: sn.grade || "Brand New",
-					regional_variant: sn.variant || "Official",
-					cost_price: line.unit_cost,
-					selling_price: line.selling_price,
-					status: "in_stock",
-					// Term only; the clock starts when the unit is sold.
-					warranty_months: line.warranty_months,
-				}));
-
-				const { data: inserted, error } = await supabase
-					.from("device_units")
-					.insert(rows)
-					.select("id");
-
-				// Previously this error was discarded, so a failed batch still
-				// reported success.
-				if (error) throw error;
-				createdUnits += inserted?.length || 0;
-			}
-
-			for (const line of bulkLines) {
-				const { error } = await supabase.rpc("apply_stock_movement", {
-					p_product_id: line.product_id,
-					p_variation_id: line.variation_id,
-					p_warehouse_id: warehouse_id,
-					p_delta: line.quantity,
-					p_adjustment_type: "purchase",
-					p_reason: `Purchase intake ${billRef}`,
-					p_order_id: null,
-					p_user_id: null,
-					p_allow_negative: false,
-				});
-				if (error) throw error;
-			}
+			// A supplier batch is billed on account, so the whole total is due.
+			await writePurchaseBill(supabase, {
+				lines,
+				warehouseId: warehouse_id,
+				acquisition: {
+					from_type: "supplier",
+					party_id: supplier_id || null,
+					party_name: supplier_name || "Central Supplier",
+					reference: billRef,
+				},
+				amountPaid: 0,
+				dueAmount: lines.total,
+				createdUnitIds,
+				productNames: await fetchProductNames(supabase, lines),
+				notes,
+				createdBy: auth.userRBAC.userId,
+			});
 
 			// ── Supplier ledger: accumulate, do not overwrite ────────────────
 			if (supplier_id || supplier_name) {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { isValidBDPhone, BD_PHONE_ERROR_MESSAGE, normalizeBDPhone } from "@/lib/bd-phone-validator";
 import { FraudCheckResult, getRiskLevelConfig } from "@/lib/fraud-check";
 import { formatBDT } from "@/lib/currency";
+import { notify } from "@/components/ui/toast";
 
 interface OrderItem {
 	id: string;
@@ -207,7 +208,7 @@ export default function AdminOrdersPage() {
 
 	const addDraftItem = () => {
 		if (!selectedProdId) {
-			alert("Please select a product");
+			notify.warning("Please select a product");
 			return;
 		}
 		const prod = availableProducts.find((p) => p.id === selectedProdId);

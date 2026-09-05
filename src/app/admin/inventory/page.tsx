@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { notify } from "@/components/ui/toast";
 
 
 interface InventoryItem {
@@ -166,7 +167,7 @@ export default function InventoryPage() {
 
 	const handleStockAdjustment = async () => {
 		if (!selectedItem || adjustment.quantity === 0) {
-			alert("Please enter a valid quantity");
+			notify.warning("Please enter a valid quantity");
 			return;
 		}
 
@@ -188,11 +189,11 @@ export default function InventoryPage() {
 			} else {
 				// The API returns { error: { code, message } }; alerting the
 				// object printed "[object Object]".
-				alert(errorMessage(data, "Failed to adjust stock"));
+				notify.error(errorMessage(data, "Failed to adjust stock"));
 			}
 		} catch (err) {
 			console.error("Stock adjustment failed:", err);
-			alert("Could not reach the server. Check your connection and try again.");
+			notify.error("Could not reach the server. Check your connection and try again.");
 		}
 	};
 

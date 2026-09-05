@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatBDT } from "@/lib/currency";
+import { notify } from "@/components/ui/toast";
 
 interface Coupon {
 	id: string;
@@ -85,16 +86,16 @@ export default function CouponsPage() {
 			});
 
 			if (response.ok) {
-				alert("Coupon created successfully");
+				notify.success("Coupon created successfully");
 				setShowCreateModal(false);
 				resetForm();
 				fetchCoupons();
 			} else {
 				const data = await response.json();
-				alert(data.error || "Failed to create coupon");
+				notify.error(data.error || "Failed to create coupon");
 			}
 		} catch (err) {
-			alert("Failed to create coupon");
+			notify.error("Failed to create coupon");
 		}
 	};
 
@@ -127,16 +128,16 @@ export default function CouponsPage() {
 			);
 
 			if (response.ok) {
-				alert("Coupon updated successfully");
+				notify.success("Coupon updated successfully");
 				setEditingCoupon(null);
 				resetForm();
 				fetchCoupons();
 			} else {
 				const data = await response.json();
-				alert(data.error || "Failed to update coupon");
+				notify.error(data.error || "Failed to update coupon");
 			}
 		} catch (err) {
-			alert("Failed to update coupon");
+			notify.error("Failed to update coupon");
 		}
 	};
 
@@ -149,11 +150,11 @@ export default function CouponsPage() {
 			});
 
 			if (response.ok) {
-				alert("Coupon deleted successfully");
+				notify.success("Coupon deleted successfully");
 				fetchCoupons();
 			}
 		} catch (err) {
-			alert("Failed to delete coupon");
+			notify.error("Failed to delete coupon");
 		}
 	};
 

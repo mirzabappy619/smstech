@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatBDT } from "@/lib/currency";
 import { PartiesPanel } from "./parties-panel";
+import { notify } from "@/components/ui/toast";
 
 interface Customer {
 	id: string;
@@ -114,7 +115,7 @@ export default function CustomersPage() {
 
 	const handleSetPassword = async () => {
 		if (!selectedCustomer || !newPassword || newPassword.length < 6) {
-			alert("Password must be at least 6 characters long.");
+			notify.warning("Password must be at least 6 characters long.");
 			return;
 		}
 		setActionLoading(true);
@@ -126,14 +127,14 @@ export default function CustomersPage() {
 			});
 			const json = await res.json();
 			if (res.ok && json.success) {
-				alert(`Password for ${selectedCustomer.email} updated successfully!`);
+				notify.success(`Password for ${selectedCustomer.email} updated successfully!`);
 				setShowSetPasswordModal(false);
 				setNewPassword("");
 			} else {
-				alert(json.error?.message || "Failed to set password.");
+				notify.error(json.error?.message || "Failed to set password.");
 			}
 		} catch (err: any) {
-			alert(err.message || "Failed to set password.");
+			notify.error(err.message || "Failed to set password.");
 		} finally {
 			setActionLoading(false);
 		}
@@ -153,10 +154,10 @@ export default function CustomersPage() {
 				setGeneratedResetLink(json.data?.reset_link || "");
 				setShowResetLinkModal(true);
 			} else {
-				alert(json.error?.message || "Failed to generate password reset link.");
+				notify.error(json.error?.message || "Failed to generate password reset link.");
 			}
 		} catch (err: any) {
-			alert(err.message || "Failed to generate reset link.");
+			notify.error(err.message || "Failed to generate reset link.");
 		} finally {
 			setActionLoading(false);
 		}
@@ -180,12 +181,12 @@ export default function CustomersPage() {
 				setShowDisableModal(false);
 				setDisableReasonInput("");
 				fetchCustomers();
-				alert(`Customer login ${nextDisabledState ? "DISABLED" : "ENABLED"} successfully.`);
+				notify.success(`Customer login ${nextDisabledState ? "DISABLED" : "ENABLED"} successfully.`);
 			} else {
-				alert(json.error?.message || "Failed to update account status.");
+				notify.error(json.error?.message || "Failed to update account status.");
 			}
 		} catch (err: any) {
-			alert(err.message || "Failed to update status.");
+			notify.error(err.message || "Failed to update status.");
 		} finally {
 			setActionLoading(false);
 		}
@@ -208,12 +209,12 @@ export default function CustomersPage() {
 				setShowFraudModal(false);
 				setFraudReasonInput("");
 				fetchCustomers();
-				alert(`Customer risk status updated to '${selectedFraudStatus.toUpperCase()}'.`);
+				notify.success(`Customer risk status updated to '${selectedFraudStatus.toUpperCase()}'.`);
 			} else {
-				alert(json.error?.message || "Failed to update risk status.");
+				notify.error(json.error?.message || "Failed to update risk status.");
 			}
 		} catch (err: any) {
-			alert(err.message || "Failed to update risk status.");
+			notify.error(err.message || "Failed to update risk status.");
 		} finally {
 			setActionLoading(false);
 		}

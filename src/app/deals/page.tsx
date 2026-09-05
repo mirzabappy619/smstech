@@ -77,7 +77,7 @@ function DealsContent() {
       emptyTitle="No deals match those filters"
       emptyBody="Clear a filter to see everything currently reduced."
       banner={
-        <div className="mb-6 flex flex-col gap-4 rounded-xl border border-line bg-inverse px-5 py-4 text-inverse-ink sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-6 flex flex-col gap-4 rounded-xl border border-line bg-promo px-5 py-4 text-promo-ink sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[13px] font-medium">Current promotion ends soon</p>
             {biggestSaving > 0 && (

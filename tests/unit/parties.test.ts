@@ -9,7 +9,9 @@ import {
 	checkCreditLimit,
 	creditHeadroom,
 	generatePartyCode,
+	parseBalanceAdjustment,
 	validateParty,
+	validatePartyUpdate,
 } from "@/lib/parties";
 
 describe("Party registration", () => {
@@ -110,5 +112,61 @@ describe("Credit limits on a due sale", () => {
 	it("treats missing balances as zero rather than throwing", () => {
 		expect(checkCreditLimit({ credit_limit: 1000 }, 500).ok).toBe(true);
 		expect(checkCreditLimit({}, 500).ok).toBe(false);
+	});
+});
+
+describe("Editing a party", () => {
+	it("changes only the keys that were sent", () => {
+		const result = validatePartyUpdate("customer", { credit_limit: 75000 });
+		expect("value" in result && result.value).toEqual({ credit_limit: 75000 });
+	});
+
+	it("refuses an edit that would blank the name or phone", () => {
+		expect(validatePartyUpdate("customer", { name: "  " })).toHaveProperty("error");
+		expect(validatePartyUpdate("customer", { phone: "" })).toHaveProperty("error");
+	});
+
+	it("does not accept a credit limit or customer type on a supplier", () => {
+		// A supplier is owed money by us; a credit limit makes no sense there.
+		expect(validatePartyUpdate("supplier", { credit_limit: 1000 })).toHaveProperty("error");
+		expect(
+			validatePartyUpdate("supplier", { customer_type: "wholesale" }),
+		).toHaveProperty("error");
+	});
+
+	it("lets a customer be reclassified between retail and wholesale", () => {
+		const result = validatePartyUpdate("customer", { customer_type: "wholesale" });
+		expect("value" in result && result.value.customer_type).toBe("wholesale");
+	});
+
+	it("reports an empty patch rather than issuing a no-op write", () => {
+		expect(validatePartyUpdate("customer", {})).toEqual({ error: "Nothing to change." });
+	});
+
+	it("never carries a balance in the patch", () => {
+		// Balances are the sum of ledger history; a form must not overwrite one.
+		const result = validatePartyUpdate("customer", {
+			credit_limit: 1000,
+			// @ts-expect-error deliberately passing a field the patch must ignore
+			outstanding_due: 999999,
+		});
+		expect("value" in result && result.value).not.toHaveProperty("outstanding_due");
+	});
+});
+
+describe("Balance corrections", () => {
+	it("accepts a signed amount in either direction", () => {
+		expect(parseBalanceAdjustment(5000)).toEqual({ value: 5000 });
+		expect(parseBalanceAdjustment("-2500")).toEqual({ value: -2500 });
+	});
+
+	it("treats an absent value as no adjustment", () => {
+		expect(parseBalanceAdjustment("")).toEqual({ value: 0 });
+		expect(parseBalanceAdjustment(undefined)).toEqual({ value: 0 });
+		expect(parseBalanceAdjustment(null)).toEqual({ value: 0 });
+	});
+
+	it("rejects something that is not a number", () => {
+		expect(parseBalanceAdjustment("five thousand")).toHaveProperty("error");
 	});
 });

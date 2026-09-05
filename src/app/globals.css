@@ -21,6 +21,11 @@
   --inverse: #16171A;
   --inverse-ink: #FAFAF9;
 
+  /* Promo panel — deliberately dark in BOTH themes. Its contents are painted
+     with white/x overlays, so it must not flip with the theme. */
+  --promo: #16171A;
+  --promo-ink: #FAFAF9;
+
   /* Text */
   --ink: #16171A;
   --ink-2: #55565C;
@@ -72,6 +77,10 @@
   --surface-3: #23262B;
   --inverse: #FAFAF9;
   --inverse-ink: #16171A;
+
+  /* Stays dark; nudged up off the page background so the band still reads */
+  --promo: #17181C;
+  --promo-ink: #F5F5F3;
 
   --ink: #F5F5F3;
   --ink-2: #A5A7AE;
@@ -136,6 +145,8 @@
   --color-surface-3: var(--surface-3);
   --color-inverse: var(--inverse);
   --color-inverse-ink: var(--inverse-ink);
+  --color-promo: var(--promo);
+  --color-promo-ink: var(--promo-ink);
 
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
@@ -320,6 +331,34 @@ h1, h2, h3, h4 {
 .animate-rise-in { animation: rise-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both }
 .animate-slide-in-right { animation: slide-in-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) both }
 .animate-slide-in-left { animation: slide-in-left 0.28s cubic-bezier(0.22, 1, 0.36, 1) both }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(18px) scale(0.97) }
+  to { opacity: 1; transform: translateX(0) scale(1) }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0) scale(1); max-height: 20rem; margin-bottom: 0.625rem }
+  to { opacity: 0; transform: translateX(18px) scale(0.97); max-height: 0; margin-bottom: 0 }
+}
+
+@keyframes toast-progress {
+  from { transform: scaleX(1) }
+  to { transform: scaleX(0) }
+}
+
+/* Toast stack — spacing lives here so the exit animation can collapse it */
+.toast-item { margin-bottom: 0.625rem; max-height: 20rem }
+.toast-item-in { animation: toast-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both }
+.toast-item-out { animation: toast-out 0.2s ease-in forwards }
+
+.toast-progress { animation: toast-progress linear forwards }
+
+/* Hovering or tabbing into the stack freezes every countdown */
+.toast-viewport:hover .toast-progress,
+.toast-viewport:focus-within .toast-progress {
+  animation-play-state: paused;
+}
 
 /* Loading placeholder */
 .skeleton {

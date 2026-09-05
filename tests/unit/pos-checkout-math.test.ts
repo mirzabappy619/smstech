@@ -16,8 +16,10 @@ import {
 	customerNetPosition,
 	transferUnitCount,
 	round2,
+	resolveDiscount,
 	GATEWAY_BY_METHOD,
 } from "@/lib/pos/checkout-math";
+import { isSellable, type PosProductRow } from "@/lib/pos/catalog";
 
 describe("cart totals", () => {
 	it("sums line totals into the subtotal", () => {
@@ -294,5 +296,93 @@ describe("customer aggregates", () => {
 
 		expect(after.total_orders).toBe(1);
 		expect(after.total_spent).toBe(25000);
+	});
+});
+
+describe("discount entry", () => {
+	it("takes a flat amount as-is", () => {
+		expect(resolveDiscount(10000, "amount", 750)).toBe(750);
+	});
+
+	it("resolves a percentage against the subtotal", () => {
+		expect(resolveDiscount(10000, "percent", 12.5)).toBe(1250);
+	});
+
+	it("rounds a percentage to paisa rather than carrying a fraction", () => {
+		// 7% of 1,234.56 is 86.4192 — the invoice cannot hold that.
+		expect(resolveDiscount(1234.56, "percent", 7)).toBe(86.42);
+	});
+
+	it("never discounts more than the cart is worth", () => {
+		expect(resolveDiscount(500, "amount", 900)).toBe(500);
+		expect(resolveDiscount(500, "percent", 150)).toBe(500);
+	});
+
+	it("treats a negative or unparseable entry as no discount", () => {
+		expect(resolveDiscount(500, "amount", -100)).toBe(0);
+		expect(resolveDiscount(500, "percent", "")).toBe(0);
+		expect(resolveDiscount(500, "amount", "abc")).toBe(0);
+	});
+
+	it("reads the string an input element actually hands over", () => {
+		expect(resolveDiscount(2000, "percent", "10")).toBe(200);
+		expect(resolveDiscount(2000, "amount", "199.5")).toBe(199.5);
+	});
+
+	it("stays at zero for an empty cart", () => {
+		expect(resolveDiscount(0, "percent", 50)).toBe(0);
+		expect(resolveDiscount(0, "amount", 50)).toBe(0);
+	});
+
+	it("feeds computeCartTotals a figure it will not have to clamp again", () => {
+		const items = [{ unit_price: 4000, quantity: 2 }];
+		const discount = resolveDiscount(8000, "percent", 15);
+		const totals = computeCartTotals(items, discount);
+
+		expect(discount).toBe(1200);
+		expect(totals.discount).toBe(1200);
+		expect(totals.finalTotal).toBe(6800);
+	});
+});
+
+describe("what the till will ring up", () => {
+	const product = (
+		available: number,
+		variations: number[],
+	): PosProductRow => ({
+		id: "p1",
+		name: "Test product",
+		sku: "SKU-1",
+		brand: "Test",
+		base_price: 1000,
+		images: [],
+		warranty: null,
+		available_quantity: available,
+		variation_quantity: variations.reduce((s, v) => s + v, 0),
+		variations: variations.map((qty, i) => ({
+			id: `v${i}`,
+			name: `Variation ${i}`,
+			sku: `SKU-1-${i}`,
+			price: 1100,
+			attributes: null,
+			images: [],
+			available_quantity: qty,
+		})),
+	});
+
+	it("sells a product holding pooled stock", () => {
+		expect(isSellable(product(4, []))).toBe(true);
+	});
+
+	it("sells a product whose stock sits entirely on a variation", () => {
+		// Before the picker existed this was refused outright: the pooled row
+		// was empty, so the till called it out of stock while the branch held
+		// three of them.
+		expect(isSellable(product(0, [0, 3]))).toBe(true);
+	});
+
+	it("refuses a product with nothing on any row", () => {
+		expect(isSellable(product(0, [0, 0]))).toBe(false);
+		expect(isSellable(product(0, []))).toBe(false);
 	});
 });

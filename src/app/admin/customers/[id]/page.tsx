@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { formatBDT } from "@/lib/currency";
+import { notify } from "@/components/ui/toast";
 
 interface CustomerDetail {
 	id: string;
@@ -117,14 +118,14 @@ export default function CustomerDetailPage() {
 			});
 			const json = await res.json();
 			if (json.success) {
-				alert(json.message);
+				notify.success(json.message);
 				setShowNfcModal(false);
 				fetchCustomerDetail();
 			} else {
-				alert(json.error || "Failed to update NFC credentials");
+				notify.error(json.error || "Failed to update NFC credentials");
 			}
 		} catch (err: any) {
-			alert(err.message);
+			notify.error(err.message);
 		} finally {
 			setActionLoading(false);
 		}
@@ -144,7 +145,7 @@ export default function CustomerDetailPage() {
 				});
 				const json = await res.json();
 				if (json.success) {
-					alert(json.message);
+					notify.success(json.message);
 					setShowWalletModal(false);
 					setWalletAmountInput("");
 					fetchCustomerDetail();
@@ -161,14 +162,14 @@ export default function CustomerDetailPage() {
 				});
 				const json = await res.json();
 				if (json.success) {
-					alert(json.message);
+					notify.success(json.message);
 					setShowWalletModal(false);
 					setWalletAmountInput("");
 					fetchCustomerDetail();
 				}
 			}
 		} catch (err: any) {
-			alert(err.message);
+			notify.error(err.message);
 		} finally {
 			setActionLoading(false);
 		}
@@ -214,7 +215,7 @@ export default function CustomerDetailPage() {
 			if (res.ok && json.success) {
 				setShowFraudModal(false);
 				fetchCustomerDetail();
-				alert("Risk classification and notes saved.");
+				notify.success("Risk classification and notes saved.");
 			}
 		} finally {
 			setActionLoading(false);

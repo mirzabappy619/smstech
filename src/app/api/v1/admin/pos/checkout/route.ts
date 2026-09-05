@@ -21,6 +21,7 @@ interface NormalisedItem {
 	quantity: number;
 	device_unit_id: string | null;
 	variation_id: string | null;
+	variation_name: string | null;
 	serial_number: string | null;
 	imei_1: string | null;
 	warranty: string;
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
 				quantity,
 				device_unit_id: it.device_unit_id || null,
 				variation_id: it.variation_id || null,
+				variation_name: it.variation_name || null,
 				serial_number: it.serial_number || null,
 				imei_1: it.imei_1 || null,
 				warranty: it.warranty || "1 Year SMSTech Warranty",
@@ -432,6 +434,7 @@ export async function POST(request: NextRequest) {
 				order_id: order.id,
 				product_id: it.product_id,
 				variation_id: it.variation_id,
+				variation_name: it.variation_name,
 				product_name: it.product_name,
 				unit_price: it.unit_price,
 				quantity: it.quantity,

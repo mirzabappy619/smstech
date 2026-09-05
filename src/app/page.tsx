@@ -343,7 +343,7 @@ export default function Home() {
       </Container>
 
       {/* Deals */}
-      <section className="border-y border-line bg-inverse text-inverse-ink">
+      <section className="border-y border-line bg-promo text-promo-ink">
         <Container className="py-16 md:py-20">
           <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>

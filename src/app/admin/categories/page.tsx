@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { notify } from "@/components/ui/toast";
 
 interface Category {
 	id: string;
@@ -165,10 +166,10 @@ export default function AdminCategoriesPage() {
 			if (data.success) {
 				await fetchCategories();
 			} else {
-				alert(data.error?.message || "Failed to delete category");
+				notify.error(data.error?.message || "Failed to delete category");
 			}
 		} catch {
-			alert("An error occurred while deleting the category");
+			notify.error("An error occurred while deleting the category");
 		}
 	};
 

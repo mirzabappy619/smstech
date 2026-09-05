@@ -106,6 +106,115 @@ export function validateParty(
 	};
 }
 
+/** Fields an edit may change. Balances are deliberately not among them. */
+export interface PartyPatch {
+	name?: string;
+	company_name?: string | null;
+	contact_person?: string | null;
+	phone?: string;
+	email?: string | null;
+	address?: string | null;
+	customer_type?: CustomerType;
+	credit_limit?: number;
+	is_active?: boolean;
+	notes?: string | null;
+}
+
+/**
+ * Validates an edit. Only the keys actually present are touched, so a form
+ * that submits one field does not blank the rest.
+ *
+ * `outstanding_due` and the supplier payable are not editable here: a balance
+ * is the sum of the party's ledger history, and letting a form overwrite it
+ * would put the two permanently out of step. Use `balance_adjustment` for a
+ * deliberate correction — it posts an entry instead of rewriting the total.
+ */
+export function validatePartyUpdate(
+	partyType: PartyType,
+	input: PartyInput & { is_active?: unknown },
+): { error: string } | { value: PartyPatch } {
+	const patch: PartyPatch = {};
+
+	if (input.name !== undefined) {
+		const name = typeof input.name === "string" ? input.name.trim() : "";
+		if (!name) return { error: "A name is required." };
+		if (name.length > 200) return { error: "That name is too long." };
+		patch.name = name;
+	}
+
+	if (input.phone !== undefined) {
+		const phone = typeof input.phone === "string" ? input.phone.trim() : "";
+		if (!phone) {
+			return { error: "A contact number is required — it is how a due gets chased." };
+		}
+		patch.phone = phone;
+	}
+
+	if (input.email !== undefined) {
+		const email = typeof input.email === "string" ? input.email.trim() : "";
+		if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			return { error: "That email address is not valid." };
+		}
+		patch.email = email || null;
+	}
+
+	if (input.company_name !== undefined) patch.company_name = trimOrNull(input.company_name);
+	if (input.contact_person !== undefined) {
+		patch.contact_person = trimOrNull(input.contact_person);
+	}
+	if (input.address !== undefined) patch.address = trimOrNull(input.address);
+	if (input.notes !== undefined) patch.notes = trimOrNull(input.notes);
+
+	if (input.customer_type !== undefined) {
+		if (partyType !== "customer") {
+			return { error: "Only a customer has a retail or wholesale type." };
+		}
+		const customerType = String(input.customer_type);
+		if (!CUSTOMER_TYPES.includes(customerType as CustomerType)) {
+			return { error: `"${customerType}" is not a customer type.` };
+		}
+		patch.customer_type = customerType as CustomerType;
+	}
+
+	if (input.credit_limit !== undefined) {
+		if (partyType !== "customer") {
+			return { error: "A credit limit applies to customers, not suppliers." };
+		}
+		const creditLimit = parseMoney(input.credit_limit);
+		if (creditLimit === null) return { error: "Credit limit must be zero or more." };
+		patch.credit_limit = creditLimit;
+	}
+
+	if (input.is_active !== undefined) {
+		if (typeof input.is_active !== "boolean") {
+			return { error: "Active must be true or false." };
+		}
+		patch.is_active = input.is_active;
+	}
+
+	if (Object.keys(patch).length === 0) {
+		return { error: "Nothing to change." };
+	}
+
+	return { value: patch };
+}
+
+/**
+ * A deliberate correction to what a party owes — a mistyped opening balance,
+ * a written-off remainder. Signed: positive increases what is owed.
+ */
+export function parseBalanceAdjustment(
+	value: unknown,
+): { error: string } | { value: number } {
+	if (value === undefined || value === null || value === "") return { value: 0 };
+
+	const amount = Number(value);
+	if (!Number.isFinite(amount)) {
+		return { error: "That adjustment is not a number." };
+	}
+	return { value: round2(amount) };
+}
+
 export interface NormalisedParty {
 	name: string;
 	company_name: string | null;

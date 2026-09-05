@@ -64,6 +64,27 @@ export function computeCartTotals(
 	return { subtotal, discount, finalTotal: round2(subtotal - discount) };
 }
 
+export type DiscountMode = "amount" | "percent";
+
+/**
+ * Resolve what the cashier typed into the taka figure the invoice carries.
+ *
+ * A percentage is only ever an input convention — the order, the ledger and
+ * the API see the resolved amount, so a discount never has to be recomputed
+ * from a rate that the subtotal has since moved away from. Negatives are
+ * treated as nothing, a percentage is capped at 100, and the result can never
+ * exceed the subtotal.
+ */
+export function resolveDiscount(
+	subtotal: number,
+	mode: DiscountMode,
+	input: number | string,
+): number {
+	const entered = Math.max(0, Number(input) || 0);
+	const raw = mode === "percent" ? (subtotal * Math.min(100, entered)) / 100 : entered;
+	return round2(Math.min(Math.max(0, subtotal), raw));
+}
+
 export interface TenderBreakdown {
 	totalTendered: number;
 	cash: number;

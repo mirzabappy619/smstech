@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildIlikeOr } from "@/lib/supabase/filters";
 import { requirePermission, hasBranchAccess } from "@/lib/rbac/rbac-service";
+import { POS_PRODUCT_COLUMNS, attachBranchStock } from "@/lib/pos/catalog";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -71,9 +72,7 @@ export async function GET(request: NextRequest) {
 		// ── 2. Catalogue products, with the stock held at this branch ────────
 		let productQuery = supabase
 			.from("products")
-			.select(
-				"id, name, sku, brand, base_price, compare_at_price, images, warranty, stock_count, track_inventory",
-			)
+			.select(POS_PRODUCT_COLUMNS)
 			.eq("is_active", true);
 
 		const productFilter = buildIlikeOr(["name", "sku", "brand"], q);
@@ -82,47 +81,15 @@ export async function GET(request: NextRequest) {
 		const { data: products, error: productError } = await productQuery.limit(20);
 		if (productError) throw productError;
 
-		// Attach the branch's on-hand figure so the till can refuse to sell
-		// what is not there, rather than adding it to the cart blindly.
-		//
-		// The POS cart has no variation picker, so it rings products up against
-		// the pooled row (variation_id IS NULL) — and that is the only row
-		// checkout will check. Summing every row for the product, variations
-		// included, reported stock the till could never actually sell: the item
-		// went into the cart and then failed at settlement. Sellable stock and
-		// variation-held stock are therefore counted separately.
-		let productsWithStock = (products || []).map((p) => ({
-			...p,
-			available_quantity: 0,
-			variation_quantity: 0,
-		}));
-
-		if (warehouseId && productsWithStock.length > 0) {
-			const { data: stockRows } = await supabase
-				.from("inventory")
-				.select("product_id, variation_id, available_quantity")
-				.eq("warehouse_id", warehouseId)
-				.in(
-					"product_id",
-					productsWithStock.map((p) => p.id),
-				);
-
-			const pooledByProduct = new Map<string, number>();
-			const variationByProduct = new Map<string, number>();
-			for (const row of stockRows || []) {
-				const target = row.variation_id ? variationByProduct : pooledByProduct;
-				target.set(
-					row.product_id,
-					(target.get(row.product_id) || 0) + (row.available_quantity ?? 0),
-				);
-			}
-
-			productsWithStock = productsWithStock.map((p) => ({
-				...p,
-				available_quantity: pooledByProduct.get(p.id) ?? 0,
-				variation_quantity: variationByProduct.get(p.id) ?? 0,
-			}));
-		}
+		// Sellable stock, variation-held stock and the variations themselves are
+		// all resolved together — the till rings the base product against the
+		// pooled row and each variation against its own, exactly as checkout
+		// draws them down.
+		const productsWithStock = await attachBranchStock(
+			supabase,
+			products || [],
+			warehouseId,
+		);
 
 		return NextResponse.json({
 			success: true,

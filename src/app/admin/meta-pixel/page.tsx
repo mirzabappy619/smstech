@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { notify } from "@/components/ui/toast";
 
 type MetaEventType =
 	| "PageView"
@@ -88,13 +89,6 @@ export default function MetaPixelPage() {
 	// Event log (in-session)
 	const [eventLog, setEventLog] = useState<EventLog[]>([]);
 
-	// Toast
-	const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
-	const showToast = (type: "success" | "error", text: string) => {
-		setToast({ type, text });
-		setTimeout(() => setToast(null), 4000);
-	};
-
 	const fetchSettings = useCallback(async () => {
 		try {
 			const res = await fetch("/api/v1/admin/meta-pixel");
@@ -103,7 +97,7 @@ export default function MetaPixelPage() {
 				setSettings({ ...DEFAULT_SETTINGS, ...data.data.settings });
 			}
 		} catch {
-			showToast("error", "Failed to load settings");
+			notify.error("Failed to load settings");
 		} finally {
 			setLoading(false);
 		}
@@ -121,13 +115,13 @@ export default function MetaPixelPage() {
 			});
 			const data = await res.json();
 			if (data.success) {
-				showToast("success", "Settings saved successfully");
+				notify.success("Settings saved successfully");
 				if (data.data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.data.settings });
 			} else {
-				showToast("error", data.error?.message || "Failed to save settings");
+				notify.error(data.error?.message || "Failed to save settings");
 			}
 		} catch {
-			showToast("error", "Failed to save settings");
+			notify.error("Failed to save settings");
 		} finally {
 			setSaving(false);
 		}
@@ -161,15 +155,15 @@ export default function MetaPixelPage() {
 			setEventLog((prev) => [logEntry, ...prev].slice(0, 50));
 			if (data.success) {
 				setTestResult({ success: true, ...data.data });
-				showToast("success", `"${testEvent}" sent to Facebook CAPI ✓`);
+				notify.success(`"${testEvent}" sent to Facebook CAPI ✓`);
 			} else {
 				setTestResult({ success: false, error: data.error?.message || "Unknown error" });
-				showToast("error", data.error?.message || "Failed to send event");
+				notify.error(data.error?.message || "Failed to send event");
 			}
 		} catch (e: unknown) {
 			const msg = e instanceof Error ? e.message : "Network error";
 			setTestResult({ success: false, error: msg });
-			showToast("error", msg);
+			notify.error(msg);
 		} finally {
 			setTesting(false);
 		}
@@ -196,18 +190,6 @@ export default function MetaPixelPage() {
 
 	return (
 		<div className="max-w-5xl mx-auto">
-			{/* Toast */}
-			{toast && (
-				<div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-4 rounded-xl shadow-2xl text-white text-sm font-medium transition-all ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"}`}>
-					{toast.type === "success" ? (
-						<svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-					) : (
-						<svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-					)}
-					{toast.text}
-				</div>
-			)}
-
 			{/* Header */}
 			<div className="flex items-start justify-between mb-8">
 				<div>

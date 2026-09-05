@@ -9,6 +9,10 @@ interface PosItem {
   name: string;
   price: number;
   quantity: number;
+  /** Set when a specific variation was picked; checkout draws that row down. */
+  variationId?: string;
+  variationName?: string;
+  image?: string;
   deviceUnitId?: string;
   serialNumber?: string;
   imei1?: string;
@@ -63,14 +67,229 @@ interface Warehouse {
   code: string;
 }
 
+interface PosVariation {
+  id: string;
+  name: string;
+  sku: string;
+  price: number;
+  attributes: Record<string, unknown> | null;
+  images: string[];
+  available_quantity: number;
+}
+
+interface PosProduct {
+  id: string;
+  name: string;
+  sku: string | null;
+  brand: string | null;
+  base_price: number;
+  images: string[];
+  warranty: string | null;
+  available_quantity: number;
+  variation_quantity: number;
+  variations: PosVariation[];
+}
+
+interface PosCatalog {
+  recent: PosProduct[];
+  top: PosProduct[];
+  browse: PosProduct[];
+  top_seller_window_days: number;
+}
+
+/** First usable image on a product or variation, if it has one. */
+const firstImage = (images?: string[] | null) =>
+  (Array.isArray(images) ? images.find((src) => typeof src === "string" && src.trim()) : null) || null;
+
+/** Total the till can actually sell — pooled stock plus every variation's. */
+const sellableStock = (p: PosProduct) =>
+  Number(p.available_quantity ?? 0) +
+  (p.variations || []).reduce((s, v) => s + Number(v.available_quantity ?? 0), 0);
+
 const fmt = (n: number) => formatBDT(n);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 import { useRBAC } from "@/lib/rbac/rbac-context";
 import { formatBDT } from "@/lib/currency";
+import { resolveDiscount } from "@/lib/pos/checkout-math";
+import { notify } from "@/components/ui/toast";
+
+/**
+ * Product thumbnail. Falls back to the first letter of the name — a blank
+ * square in a list of tiles reads as a broken row rather than a product
+ * nobody has photographed yet.
+ */
+function ProductThumb({
+  src,
+  name,
+  className = "h-12 w-12",
+}: {
+  src: string | null;
+  name: string;
+  className?: string;
+}) {
+  if (!src) {
+    return (
+      <div
+        className={`${className} shrink-0 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-400 font-extrabold`}
+      >
+        {name.trim().charAt(0).toUpperCase() || "?"}
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      className={`${className} shrink-0 rounded-lg object-cover bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700`}
+    />
+  );
+}
+
+/** Stock badge shared by every product surface on the till. */
+function StockBadge({ available }: { available: number }) {
+  if (available <= 0) {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+        Out of stock
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+        available <= 3
+          ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+          : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+      }`}
+    >
+      {available} in stock
+    </span>
+  );
+}
+
+/** One product in a vertical list: search results and the browse grid. */
+function ProductRow({
+  product,
+  onSelect,
+}: {
+  product: PosProduct;
+  onSelect: (product: PosProduct) => void;
+}) {
+  const variations = product.variations || [];
+  const pooled = Number(product.available_quantity ?? 0);
+  const sellable = sellableStock(product) > 0;
+  const inStockVariations = variations.filter(v => v.available_quantity > 0).length;
+
+  return (
+    <div
+      onClick={sellable ? () => onSelect(product) : undefined}
+      aria-disabled={!sellable}
+      className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
+        sellable
+          ? "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer"
+          : "border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/60 dark:bg-zinc-800/20 opacity-70 cursor-not-allowed"
+      }`}
+    >
+      <ProductThumb src={firstImage(product.images)} name={product.name} />
+
+      <div className="min-w-0 flex-1">
+        <p className="font-bold text-sm text-zinc-900 dark:text-white truncate">{product.name}</p>
+        <p className="text-xs text-zinc-500 font-mono mt-0.5 truncate">
+          SKU: {product.sku || "—"}{product.brand ? ` · ${product.brand}` : ""}
+        </p>
+        {variations.length > 0 && (
+          <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+            {inStockVariations > 0
+              ? `${inStockVariations} variation${inStockVariations === 1 ? "" : "s"} available`
+              : "Variations out of stock"}
+          </p>
+        )}
+      </div>
+
+      <div className="text-right shrink-0">
+        <p className="font-extrabold text-sm text-zinc-900 dark:text-white">{fmt(product.base_price)}</p>
+        <div className="flex items-center justify-end gap-2 mt-0.5">
+          <StockBadge available={variations.length > 0 ? sellableStock(product) : pooled} />
+          {sellable && (
+            <span className="text-xs text-emerald-600 font-bold">
+              {variations.length > 0 ? "Choose →" : "+ Add"}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A horizontal row of product cards — "last sold", "most sold". */
+function ProductStrip({
+  title,
+  hint,
+  products,
+  onSelect,
+}: {
+  title: string;
+  hint: string;
+  products: PosProduct[];
+  onSelect: (product: PosProduct) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider">{title}</p>
+        <span className="text-[10px] text-zinc-400 font-semibold">{hint}</span>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1.5">
+        {products.map(product => {
+          const sellable = sellableStock(product) > 0;
+          const hasVariations = (product.variations || []).length > 0;
+
+          return (
+            <button
+              key={product.id}
+              type="button"
+              onClick={() => onSelect(product)}
+              disabled={!sellable}
+              className={`w-32 shrink-0 p-2 rounded-xl border text-left transition-all ${
+                sellable
+                  ? "border-zinc-200 dark:border-zinc-800 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 cursor-pointer"
+                  : "border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/60 dark:bg-zinc-800/20 opacity-60 cursor-not-allowed"
+              }`}
+            >
+              <ProductThumb
+                src={firstImage(product.images)}
+                name={product.name}
+                className="h-20 w-full"
+              />
+              <p className="mt-1.5 text-[11px] font-bold text-zinc-900 dark:text-white leading-tight line-clamp-2">
+                {product.name}
+              </p>
+              <p className="mt-1 text-xs font-extrabold text-blue-600 dark:text-blue-400">
+                {fmt(product.base_price)}
+              </p>
+              <div className="mt-1 flex items-center gap-1">
+                <StockBadge available={sellableStock(product)} />
+                {hasVariations && (
+                  <span className="text-[9px] font-bold text-zinc-400 uppercase">opts</span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function PosTerminalPage() {
-  const { activeBranch, branchContext, isOwner } = useRBAC();
+  const { activeBranch, branchContext, isOwner, hasPermission } = useRBAC();
+  const canRegisterCustomers = hasPermission("customers:edit");
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(activeBranch?.id || "");
   const [activeShift, setActiveShift] = useState<PosShift | null>(null);
@@ -80,15 +299,36 @@ export default function PosTerminalPage() {
   const [searchResults, setSearchResults] = useState<{ deviceUnits: any[]; products: any[] }>({ deviceUnits: [], products: [] });
   const [isSearching, setIsSearching] = useState(false);
   const [cart, setCart] = useState<PosItem[]>([]);
-  const [discount, setDiscount] = useState<number>(0);
-  
-  // Customer & NFC
+
+  // Discount — taken either as a flat amount or as a percentage of the
+  // subtotal. Only the resolved figure is ever sent to checkout.
+  const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
+  const [discountInput, setDiscountInput] = useState("");
+
+  // Quick catalogue shown before anyone types: what this branch sold last,
+  // what it sells most, and what it is holding.
+  const [catalog, setCatalog] = useState<PosCatalog>({
+    recent: [],
+    top: [],
+    browse: [],
+    top_seller_window_days: 90,
+  });
+  const [catalogLoading, setCatalogLoading] = useState(false);
+
+  // Product whose variations are being picked from.
+  const [variationPicker, setVariationPicker] = useState<PosProduct | null>(null);
+
+  // Customer
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [customerPreBookings, setCustomerPreBookings] = useState<PosPreBooking[]>([]);
   const [selectedPreBooking, setSelectedPreBooking] = useState<PosPreBooking | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [nfcScanning, setNfcScanning] = useState(false);
+  const [customerResults, setCustomerResults] = useState<PosCustomer[]>([]);
+  const [customerSearching, setCustomerSearching] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerModalTab, setCustomerModalTab] = useState<"find" | "new">("find");
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "", credit_limit: "" });
+  const [savingCustomer, setSavingCustomer] = useState(false);
   
   // Shift Management Modals
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
@@ -178,6 +418,26 @@ export default function PosTerminalPage() {
     refreshShift(true);
   }, [refreshShift]);
 
+  // Quick catalogue for the idle screen. Reloaded on every branch change —
+  // "last sold" and "most sold" are branch figures, not shop-wide ones.
+  const loadCatalog = useCallback(async () => {
+    if (!selectedBranch) return;
+    setCatalogLoading(true);
+    try {
+      const res = await fetch(`/api/v1/admin/pos/catalog?warehouse_id=${selectedBranch}`);
+      const json = await res.json();
+      if (json.success) setCatalog(json.data);
+    } catch (err) {
+      console.error("Failed to load POS catalogue", err);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    loadCatalog();
+  }, [loadCatalog]);
+
   // Hardware Scanner Listener (keystroke velocity detection)
   //
   // Two things this must not do: fire while someone is typing into a field, and
@@ -233,7 +493,7 @@ export default function PosTerminalPage() {
         if (json.data.deviceUnits?.length > 0) {
           addDeviceUnitToCart(json.data.deviceUnits[0]);
         } else if (json.data.products?.length > 0) {
-          addProductToCart(json.data.products[0]);
+          handleProductClick(json.data.products[0]);
         }
       }
     } catch (err) {
@@ -287,7 +547,7 @@ export default function PosTerminalPage() {
     // `cart` here would use whatever the scanner listener last closed over.
     setCart(prev => {
       if (prev.some(i => i.deviceUnitId === unit.id)) {
-        alert("That serialized unit is already in the cart.");
+        notify.warning("That serialized unit is already in the cart.");
         return prev;
       }
       return [newItem, ...prev];
@@ -296,43 +556,58 @@ export default function PosTerminalPage() {
     setSearchResults({ deviceUnits: [], products: [] });
   };
 
-  const addProductToCart = (product: any) => {
-    const available = Number(product.available_quantity ?? 0);
+  /**
+   * Ring up a catalogue product. A variation, when given, is what the sale is
+   * actually against: its own price, its own stock row, and the id checkout
+   * draws down. Without one the base product sells against the pooled row.
+   */
+  const addProductToCart = (product: PosProduct, variation?: PosVariation) => {
+    const available = Number(
+      (variation ? variation.available_quantity : product.available_quantity) ?? 0,
+    );
     const heldOnVariations = Number(product.variation_quantity ?? 0);
+    const label = variation ? `${product.name} · ${variation.name}` : product.name;
 
     // The till refuses to ring up stock the branch does not hold. Checkout
     // enforces this again server-side; this is so the cashier finds out at the
     // moment of scanning rather than at settlement.
     if (available <= 0) {
-      alert(
-        heldOnVariations > 0
-          ? `"${product.name}" has ${heldOnVariations} in stock at this branch, but all of it is held against variations. The till sells the base product only — move the stock or sell it from the variation.`
-          : `"${product.name}" is out of stock at this branch.`,
+      notify.warning(
+        !variation && heldOnVariations > 0
+          ? `"${product.name}" has ${heldOnVariations} in stock at this branch, but all of it is held against variations — pick one.`
+          : `"${label}" is out of stock at this branch.`,
       );
       return;
     }
 
+    const cartId = variation ? `PROD-${product.id}-${variation.id}` : `PROD-${product.id}`;
+    const price = Number(variation ? variation.price : product.base_price) || 0;
+    const image = firstImage(variation?.images) || firstImage(product.images) || undefined;
+
     setCart(prev => {
-      const existing = prev.find(i => !i.isSerialized && i.productId === product.id);
+      const existing = prev.find(i => !i.isSerialized && i.cartId === cartId);
 
       if (existing) {
         if (existing.quantity >= available) {
-          alert(`Only ${available} of "${product.name}" in stock at this branch.`);
+          notify.warning(`Only ${available} of "${label}" in stock at this branch.`);
           return prev;
         }
         return prev.map(i =>
-          i.cartId === existing.cartId
+          i.cartId === cartId
             ? { ...i, quantity: i.quantity + 1, availableStock: available }
             : i
         );
       }
 
       const newItem: PosItem = {
-        cartId: `PROD-${product.id}`,
+        cartId,
         productId: product.id,
-        name: product.name,
-        price: Number(product.base_price),
+        name: label,
+        price,
         quantity: 1,
+        variationId: variation?.id,
+        variationName: variation?.name,
+        image,
         warranty: product.warranty || "Standard Warranty",
         isSerialized: false,
         availableStock: available
@@ -342,6 +617,20 @@ export default function PosTerminalPage() {
 
     setSearchQuery("");
     setSearchResults({ deviceUnits: [], products: [] });
+    setVariationPicker(null);
+  };
+
+  /**
+   * What a click on a product tile does. Anything with variations goes through
+   * the picker — selling the base product when the stock sits on a variation
+   * is how a sale ends up failing at settlement.
+   */
+  const handleProductClick = (product: PosProduct) => {
+    if ((product.variations || []).length > 0) {
+      setVariationPicker(product);
+      return;
+    }
+    addProductToCart(product);
   };
 
   const updateQuantity = (cartId: string, delta: number) => {
@@ -353,7 +642,7 @@ export default function PosTerminalPage() {
       const requested = item.quantity + delta;
 
       if (requested > ceiling) {
-        alert(`Only ${ceiling} of "${item.name}" in stock at this branch.`);
+        notify.warning(`Only ${ceiling} of "${item.name}" in stock at this branch.`);
         return item;
       }
 
@@ -367,39 +656,10 @@ export default function PosTerminalPage() {
 
   const clearCart = () => {
     setCart([]);
-    setDiscount(0);
+    setDiscountInput("");
     setCustomer(null);
     setCustomerPreBookings([]);
     setSelectedPreBooking(null);
-  };
-
-  // NFC Card Reader Simulator & WebNFC
-  const triggerNfcTap = async (simulatedUid?: string) => {
-    setNfcScanning(true);
-    try {
-      let uid = simulatedUid;
-      if (!uid && "NDEFReader" in window) {
-        try {
-          const ndef = new (window as any).NDEFReader();
-          await ndef.scan();
-          ndef.onreading = (event: any) => {
-            fetchCustomerByNfc(event.serialNumber);
-          };
-          return;
-        } catch {
-          // Fallback to simulation
-          uid = "NFC-CARD-99281";
-        }
-      } else if (!uid) {
-        uid = "NFC-CARD-99281";
-      }
-
-      await fetchCustomerByNfc(uid);
-    } catch (err: any) {
-      alert("NFC Reader error: " + err.message);
-    } finally {
-      setNfcScanning(false);
-    }
   };
 
   const applyCustomerLookup = (data: any) => {
@@ -413,43 +673,109 @@ export default function PosTerminalPage() {
     setSelectedPreBooking(null);
   };
 
-  const fetchCustomerByNfc = async (uid: string) => {
-    try {
-      const res = await fetch(`/api/v1/admin/pos/nfc-lookup?uid=${encodeURIComponent(uid)}`);
-      const json = await res.json();
-      if (json.success && json.data?.customer) {
-        applyCustomerLookup(json.data);
-      } else {
-        alert("No registered customer card found for NFC UID: " + uid);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  /**
+   * Type-ahead over the customer book. Debounced, and the response is dropped
+   * if the cashier has typed on since — otherwise a slow early request lands
+   * after a fast later one and shows the wrong list.
+   */
+  useEffect(() => {
+    if (!showCustomerModal || customerModalTab !== "find") return;
 
-  const searchManualCustomer = async () => {
-    if (!customerSearch.trim()) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setCustomerSearching(true);
+      try {
+        const res = await fetch(
+          `/api/v1/admin/pos/customers?q=${encodeURIComponent(customerSearch.trim())}`,
+        );
+        const json = await res.json();
+        if (!cancelled && json.success) setCustomerResults(json.data.customers || []);
+      } catch {
+        if (!cancelled) setCustomerResults([]);
+      } finally {
+        if (!cancelled) setCustomerSearching(false);
+      }
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [customerSearch, showCustomerModal, customerModalTab]);
+
+  /** Attach a customer to the sale, with whatever they have open at the till. */
+  const selectCustomer = async (customerId: string) => {
     try {
-      const res = await fetch(`/api/v1/admin/pos/nfc-lookup?query=${encodeURIComponent(customerSearch)}`);
+      const res = await fetch(`/api/v1/admin/pos/customers?id=${encodeURIComponent(customerId)}`);
       const json = await res.json();
       if (json.success && json.data?.customer) {
         applyCustomerLookup(json.data);
         setShowCustomerModal(false);
-      } else if (json.success && json.data?.matches?.length > 1) {
-        const names = json.data.matches
-          .map((m: any) => `${m.name} (${m.phone})`)
-          .join("\n");
-        alert(`${json.data.matches.length} customers match that search:\n\n${names}\n\nSearch by full phone number or customer code.`);
+        setCustomerSearch("");
+        setCustomerResults([]);
       } else {
-        alert("Customer not found");
+        notify.error(json.error || "Could not load that customer.");
       }
-    } catch (err) {
-      alert("Customer lookup failed");
+    } catch {
+      notify.error("Customer lookup failed");
+    }
+  };
+
+  const openCustomerPicker = (tab: "find" | "new" = "find") => {
+    setCustomerModalTab(tab);
+    setShowCustomerModal(true);
+  };
+
+  const registerCustomer = async () => {
+    if (!newCustomer.name.trim()) {
+      notify.warning("Give the customer a name.");
+      return;
+    }
+    if (!newCustomer.phone.trim()) {
+      notify.warning("A contact number is required — it is how a due gets chased.");
+      return;
+    }
+
+    setSavingCustomer(true);
+    try {
+      const res = await fetch("/api/v1/admin/pos/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCustomer.name,
+          phone: newCustomer.phone,
+          email: newCustomer.email || null,
+          credit_limit: newCustomer.credit_limit || 0,
+        }),
+      });
+      const json = await res.json();
+
+      if (json.success && json.data?.customer) {
+        notify.success(
+          json.data.already_registered
+            ? `${json.data.customer.name} is already registered — attached to this sale.`
+            : `${json.data.customer.name} registered as ${json.data.customer.customer_code}.`,
+        );
+        setNewCustomer({ name: "", phone: "", email: "", credit_limit: "" });
+        await selectCustomer(json.data.customer.id);
+      } else {
+        notify.error(json.error || "Could not register that customer");
+      }
+    } catch {
+      notify.error("Could not register that customer");
+    } finally {
+      setSavingCustomer(false);
     }
   };
 
   // Calculations
   const subtotal = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+
+  // A percentage is resolved against the subtotal here; the invoice, the
+  // ledger and the API only ever see the taka figure it came to.
+  const discountPercent =
+    discountMode === "percent" ? Math.min(100, Math.max(0, Number(discountInput) || 0)) : 0;
+  const discount = resolveDiscount(subtotal, discountMode, discountInput);
   const finalTotal = Math.max(0, subtotal - discount);
 
   const totalTendered = splitPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -466,12 +792,12 @@ export default function PosTerminalPage() {
   // Initialize split payments with final total
   const openCheckout = () => {
     if (!activeShift) {
-      alert("Open a register shift before taking payment.");
+      notify.warning("Open a register shift before taking payment.");
       setShowOpenShiftModal(true);
       return;
     }
     if (cart.length === 0) {
-      alert("Cart is empty.");
+      notify.warning("Cart is empty.");
       return;
     }
 
@@ -493,7 +819,7 @@ export default function PosTerminalPage() {
 
   const handleCheckoutSubmit = async () => {
     if (Math.abs(tenderDifference) > 0.01) {
-      alert(
+      notify.warning(
         `Payments total ${fmt(totalTendered)} but the invoice is ${fmt(finalTotal)}. They must match.`
       );
       return;
@@ -506,7 +832,7 @@ export default function PosTerminalPage() {
       .reduce((s, p) => s + (Number(p.amount) || 0), 0);
 
     if (advanceLine > 0 && advanceLine > (customer?.advance_balance ?? 0) + 0.01) {
-      alert(
+      notify.warning(
         `Wallet holds ${fmt(customer?.advance_balance ?? 0)} but ${fmt(advanceLine)} was tendered from it.`
       );
       return;
@@ -519,7 +845,7 @@ export default function PosTerminalPage() {
     if (dueLine > 0 && customer) {
       const projected = (customer.outstanding_due || 0) + dueLine;
       if (projected > (customer.credit_limit || 0) + 0.01) {
-        alert(
+        notify.warning(
           `That due takes ${customer.name} to ${fmt(projected)}, over their ${fmt(customer.credit_limit || 0)} credit limit.`
         );
         return;
@@ -527,7 +853,7 @@ export default function PosTerminalPage() {
     }
 
     if (cashLineTotal > 0 && cashGiven > 0 && cashGiven < cashLineTotal) {
-      alert(`Cash received ${fmt(cashGiven)} is less than the ${fmt(cashLineTotal)} cash line.`);
+      notify.warning(`Cash received ${fmt(cashGiven)} is less than the ${fmt(cashLineTotal)} cash line.`);
       return;
     }
 
@@ -546,6 +872,8 @@ export default function PosTerminalPage() {
           product_name: i.name,
           unit_price: i.price,
           quantity: i.quantity,
+          variation_id: i.variationId || null,
+          variation_name: i.variationName || null,
           device_unit_id: i.deviceUnitId,
           serial_number: i.serialNumber,
           imei_1: i.imei1,
@@ -567,7 +895,7 @@ export default function PosTerminalPage() {
         setCompletedOrder({ ...json.data, changeDue, cashGiven });
         setShowCheckoutModal(false);
         setCart([]);
-        setDiscount(0);
+        setDiscountInput("");
         setCustomer(null);
         setCustomerPreBookings([]);
         setSelectedPreBooking(null);
@@ -582,11 +910,16 @@ export default function PosTerminalPage() {
         } else {
           refreshShift();
         }
+
+        // The sale just moved stock and changed what sold last here, so the
+        // counter list the next customer sees is rebuilt rather than left
+        // showing the shelf as it was before this ticket.
+        loadCatalog();
       } else {
-        alert("Checkout failed: " + (json.error || "Unknown error"));
+        notify.error("Checkout failed: " + (json.error || "Unknown error"));
       }
     } catch (err: any) {
-      alert("Error processing checkout: " + err.message);
+      notify.error("Error processing checkout: " + err.message);
     } finally {
       setProcessingCheckout(false);
     }
@@ -735,52 +1068,9 @@ export default function PosTerminalPage() {
                 {searchResults.products.length > 0 && (
                   <div className="space-y-2 mt-4">
                     <p className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider">Catalog Products (Bulk / Standard)</p>
-                    {searchResults.products.map(prod => {
-                      const available = Number(prod.available_quantity ?? 0);
-                      const heldOnVariations = Number(prod.variation_quantity ?? 0);
-                      const sellable = available > 0;
-
-                      return (
-                        <div
-                          key={prod.id}
-                          onClick={sellable ? () => addProductToCart(prod) : undefined}
-                          aria-disabled={!sellable}
-                          className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                            sellable
-                              ? "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer"
-                              : "border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/60 dark:bg-zinc-800/20 opacity-70 cursor-not-allowed"
-                          }`}
-                        >
-                          <div>
-                            <p className="font-bold text-sm text-zinc-900 dark:text-white">{prod.name}</p>
-                            <p className="text-xs text-zinc-500 font-mono mt-0.5">SKU: {prod.sku} · {prod.brand}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-extrabold text-sm text-zinc-900 dark:text-white">{fmt(prod.base_price)}</p>
-                            {sellable ? (
-                              <div className="flex items-center justify-end gap-2 mt-0.5">
-                                <span
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                    available <= 3
-                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                                      : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                                  }`}
-                                >
-                                  {available} in stock
-                                </span>
-                                <span className="text-xs text-emerald-600 font-bold">+ Add to Cart</span>
-                              </div>
-                            ) : (
-                              <span className="block text-[11px] font-bold text-red-500 mt-0.5">
-                                {heldOnVariations > 0
-                                  ? `${heldOnVariations} held on variations — not sellable here`
-                                  : "Out of stock at this branch"}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {(searchResults.products as PosProduct[]).map(prod => (
+                      <ProductRow key={prod.id} product={prod} onSelect={handleProductClick} />
+                    ))}
                   </div>
                 )}
 
@@ -791,10 +1081,62 @@ export default function PosTerminalPage() {
                 )}
               </>
             ) : (
-              <div className="py-16 text-center text-zinc-400">
-                <span className="text-4xl">🎯</span>
-                <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300 mt-2">Ready to Scan or Search</p>
-                <p className="text-xs text-zinc-500 mt-1">Scan any hardware barcode/IMEI with your scanner or type above.</p>
+              <div className="space-y-5">
+                {catalogLoading &&
+                  catalog.recent.length === 0 &&
+                  catalog.top.length === 0 &&
+                  catalog.browse.length === 0 && (
+                    <div className="py-16 text-center text-zinc-400 text-sm font-semibold">
+                      Loading this branch&rsquo;s counter list…
+                    </div>
+                  )}
+
+                {catalog.recent.length > 0 && (
+                  <ProductStrip
+                    title="Last sold here"
+                    hint="Most recent sales at this branch"
+                    products={catalog.recent}
+                    onSelect={handleProductClick}
+                  />
+                )}
+
+                {catalog.top.length > 0 && (
+                  <ProductStrip
+                    title="Most sold here"
+                    hint={`Top sellers over the last ${catalog.top_seller_window_days} days`}
+                    products={catalog.top}
+                    onSelect={handleProductClick}
+                  />
+                )}
+
+                {catalog.browse.length > 0 && (
+                  <div>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <p className="text-[11px] font-extrabold text-zinc-500 uppercase tracking-wider">
+                        In stock at this branch
+                      </p>
+                      <span className="text-[10px] text-zinc-400 font-semibold">
+                        {catalog.browse.length} products
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {catalog.browse.map(prod => (
+                        <ProductRow key={prod.id} product={prod} onSelect={handleProductClick} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!catalogLoading &&
+                  catalog.recent.length === 0 &&
+                  catalog.top.length === 0 &&
+                  catalog.browse.length === 0 && (
+                    <div className="py-16 text-center text-zinc-400">
+                      <span className="text-4xl">🎯</span>
+                      <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300 mt-2">Ready to Scan or Search</p>
+                      <p className="text-xs text-zinc-500 mt-1">Scan any hardware barcode/IMEI with your scanner or type above.</p>
+                    </div>
+                  )}
               </div>
             )}
           </div>
@@ -802,7 +1144,7 @@ export default function PosTerminalPage() {
 
         {/* Right 5 Columns: Customer & Active Ticket */}
         <div className="col-span-5 p-4 flex flex-col bg-white dark:bg-zinc-900 overflow-hidden">
-          {/* Customer & NFC Header */}
+          {/* Customer header */}
           <div className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 mb-3">
             {customer ? (
               <div className="flex items-center justify-between">
@@ -860,19 +1202,20 @@ export default function PosTerminalPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => triggerNfcTap()}
-                    disabled={nfcScanning}
+                    onClick={() => openCustomerPicker("find")}
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
                   >
-                    <span>💳</span>
-                    {nfcScanning ? "Scanning Card..." : "Tap NFC Card"}
+                    <span>👤</span>
+                    Find Customer
                   </button>
-                  <button
-                    onClick={() => setShowCustomerModal(true)}
-                    className="px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 rounded-lg text-xs font-bold transition-all"
-                  >
-                    👤 Select / Find Customer
-                  </button>
+                  {canRegisterCustomers && (
+                    <button
+                      onClick={() => openCustomerPicker("new")}
+                      className="px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 rounded-lg text-xs font-bold transition-all"
+                    >
+                      + New Customer
+                    </button>
+                  )}
                 </div>
                 <span className="text-[11px] text-zinc-400 font-medium">Walk-In Customer</span>
               </div>
@@ -944,17 +1287,48 @@ export default function PosTerminalPage() {
 
             <div className="flex justify-between items-center text-xs text-zinc-600 dark:text-zinc-400">
               <span>Discount</span>
-              <div className="flex items-center gap-1">
-                <span>৳</span>
+              <div className="flex items-center gap-1.5">
+                {/* Flat taka or a percentage of the subtotal — the resolved
+                    figure below is what the invoice carries either way. */}
+                <div className="flex rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+                  {(["amount", "percent"] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setDiscountMode(mode)}
+                      aria-pressed={discountMode === mode}
+                      className={`px-2 py-1 text-xs font-extrabold transition-colors ${
+                        discountMode === mode
+                          ? "bg-blue-600 text-white"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      {mode === "amount" ? "৳" : "%"}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="number"
-                  value={discount || ""}
-                  onChange={e => setDiscount(Math.min(subtotal, Math.max(0, Number(e.target.value))))}
+                  min={0}
+                  max={discountMode === "percent" ? 100 : undefined}
+                  value={discountInput}
+                  onChange={e => setDiscountInput(e.target.value)}
                   placeholder="0"
                   className="w-20 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-right text-xs font-bold text-zinc-900 dark:text-white"
                 />
               </div>
             </div>
+
+            {discount > 0 && (
+              <div className="flex justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>
+                  {discountMode === "percent"
+                    ? `Less ${discountPercent}% of ${fmt(subtotal)}`
+                    : "Less discount"}
+                </span>
+                <span>− {fmt(discount)}</span>
+              </div>
+            )}
 
             <div className="flex justify-between text-base font-extrabold text-zinc-900 dark:text-white pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <span>Payable Total</span>
@@ -1219,7 +1593,7 @@ export default function PosTerminalPage() {
                     setActiveShift(json.data);
                     setShowOpenShiftModal(false);
                   } else {
-                    alert(json.error || "Failed to open shift");
+                    notify.error(json.error || "Failed to open shift");
                     // Another till may have opened one; pick it up.
                     await refreshShift();
                   }
@@ -1313,7 +1687,7 @@ export default function PosTerminalPage() {
                       diff === 0
                         ? "Drawer balanced exactly."
                         : `Drawer is ${fmt(Math.abs(diff))} ${diff > 0 ? "over" : "short"}.`;
-                    alert(
+                    notify.success(
                       `${variance}\n\n${
                         json.message ||
                         (isOwner ? "Drawer closed." : "Submitted for approval.")
@@ -1323,7 +1697,7 @@ export default function PosTerminalPage() {
                     setActualCashInput("");
                     setShowCloseShiftModal(false);
                   } else {
-                    alert(json.error || "Failed to close shift");
+                    notify.error(json.error || "Failed to close shift");
                   }
                 }}
                 className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold"
@@ -1404,7 +1778,7 @@ export default function PosTerminalPage() {
                     // Drawer changed, so pull the recalculated expected cash.
                     await refreshShift();
                   } else {
-                    alert(json.error || "Failed to record movement");
+                    notify.error(json.error || "Failed to record movement");
                   }
                 }}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold"
@@ -1416,34 +1790,265 @@ export default function PosTerminalPage() {
         </div>
       )}
 
-      {/* --- MODAL 6: Customer Search Modal --- */}
+      {/* --- MODAL 6: Customer picker — find or register --- */}
       {showCustomerModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">Find Customer</h2>
-            <div>
-              <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Phone / Name / Code</label>
-              <input
-                type="text"
-                value={customerSearch}
-                onChange={e => setCustomerSearch(e.target.value)}
-                placeholder="017... or CUST-XXXXX"
-                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-white"
-              />
-            </div>
-            <div className="flex gap-2">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">Customer</h2>
               <button
                 onClick={() => setShowCustomerModal(false)}
-                className="flex-1 py-2 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-400"
+                className="text-zinc-400 hover:text-zinc-600 font-bold"
               >
-                Cancel
+                ✕
               </button>
+            </div>
+
+            {canRegisterCustomers && (
+              <div className="flex rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                {([
+                  ["find", "Find existing"],
+                  ["new", "Register new"],
+                ] as const).map(([tab, label]) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setCustomerModalTab(tab)}
+                    aria-pressed={customerModalTab === tab}
+                    className={`flex-1 py-2 text-xs font-extrabold transition-colors ${
+                      customerModalTab === tab
+                        ? "bg-blue-600 text-white"
+                        : "bg-zinc-50 dark:bg-zinc-800/60 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {customerModalTab === "find" || !canRegisterCustomers ? (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Phone / Name / Code
+                  </label>
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={e => setCustomerSearch(e.target.value)}
+                    placeholder="Start typing a name or 017…"
+                    autoFocus
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-white"
+                  />
+                </div>
+
+                {/* The list narrows as they type; nothing is attached to the
+                    sale until a row is actually chosen. */}
+                <div className="max-h-72 overflow-y-auto -mx-1 px-1 space-y-1.5">
+                  {customerSearching && customerResults.length === 0 && (
+                    <p className="py-6 text-center text-xs font-semibold text-zinc-400">Searching…</p>
+                  )}
+
+                  {!customerSearching && customerResults.length === 0 && (
+                    <p className="py-6 text-center text-xs font-semibold text-zinc-400">
+                      {customerSearch.trim()
+                        ? `No customer matches “${customerSearch.trim()}”.`
+                        : "No customers on file yet."}
+                    </p>
+                  )}
+
+                  {customerResults.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => selectCustomer(c.id)}
+                      className="w-full text-left p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/20 transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sm text-zinc-900 dark:text-white truncate">{c.name}</span>
+                        <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-mono text-[10px] rounded font-bold shrink-0">
+                          {c.customer_code}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-0.5">
+                        <span className="font-mono">{c.phone || "no phone"}</span>
+                        {Number(c.advance_balance) > 0 && (
+                          <span className="text-emerald-600 font-bold">Advance {fmt(Number(c.advance_balance))}</span>
+                        )}
+                        {Number(c.outstanding_due) > 0 && (
+                          <span className="text-rose-600 font-bold">Due {fmt(Number(c.outstanding_due))}</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Full name</label>
+                  <input
+                    type="text"
+                    value={newCustomer.name}
+                    onChange={e => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                    placeholder="e.g. Rahim Uddin"
+                    autoFocus
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={newCustomer.phone}
+                      onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                      placeholder="017…"
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Credit limit</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newCustomer.credit_limit}
+                      onChange={e => setNewCustomer({ ...newCustomer, credit_limit: e.target.value })}
+                      placeholder="0"
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-right text-zinc-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">
+                    Email <span className="font-normal text-zinc-400">(optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={newCustomer.email}
+                    onChange={e => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                    placeholder="name@example.com"
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-white"
+                  />
+                </div>
+
+                <p className="text-[11px] text-zinc-500 leading-snug">
+                  A phone number already on file attaches that customer to this sale instead of
+                  creating a second record.
+                </p>
+
+                <button
+                  onClick={registerCustomer}
+                  disabled={savingCustomer}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold transition-all"
+                >
+                  {savingCustomer ? "Registering…" : "Register & attach to sale"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 7: Variation picker --- */}
+      {variationPicker && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <ProductThumb src={firstImage(variationPicker.images)} name={variationPicker.name} />
+                <div className="min-w-0">
+                  <h2 className="text-base font-extrabold text-zinc-900 dark:text-white truncate">
+                    {variationPicker.name}
+                  </h2>
+                  <p className="text-xs text-zinc-500 font-mono">Pick what is going out</p>
+                </div>
+              </div>
               <button
-                onClick={searchManualCustomer}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold"
+                onClick={() => setVariationPicker(null)}
+                className="text-zinc-400 hover:text-zinc-600 font-bold shrink-0"
               >
-                Lookup Customer
+                ✕
               </button>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto space-y-1.5">
+              {/* The base product only appears when the branch holds pooled
+                  stock for it — that is the only row it can sell against. */}
+              {variationPicker.available_quantity > 0 && (
+                <button
+                  type="button"
+                  onClick={() => addProductToCart(variationPicker)}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/20 text-left transition-all"
+                >
+                  <ProductThumb
+                    src={firstImage(variationPicker.images)}
+                    name={variationPicker.name}
+                    className="h-10 w-10"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-zinc-900 dark:text-white">Base product</p>
+                    <p className="text-[11px] text-zinc-500 font-mono truncate">
+                      SKU: {variationPicker.sku || "—"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-extrabold text-sm text-zinc-900 dark:text-white">
+                      {fmt(variationPicker.base_price)}
+                    </p>
+                    <StockBadge available={variationPicker.available_quantity} />
+                  </div>
+                </button>
+              )}
+
+              {variationPicker.variations.map(variation => {
+                const available = Number(variation.available_quantity ?? 0);
+                const sellable = available > 0;
+
+                return (
+                  <button
+                    key={variation.id}
+                    type="button"
+                    onClick={() => addProductToCart(variationPicker, variation)}
+                    disabled={!sellable}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
+                      sellable
+                        ? "border-zinc-200 dark:border-zinc-800 hover:border-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/20"
+                        : "border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/60 dark:bg-zinc-800/20 opacity-60 cursor-not-allowed"
+                    }`}
+                  >
+                    <ProductThumb
+                      src={firstImage(variation.images) || firstImage(variationPicker.images)}
+                      name={variation.name}
+                      className="h-10 w-10"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm text-zinc-900 dark:text-white truncate">
+                        {variation.name}
+                      </p>
+                      <p className="text-[11px] text-zinc-500 font-mono truncate">
+                        SKU: {variation.sku || "—"}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-extrabold text-sm text-zinc-900 dark:text-white">
+                        {fmt(variation.price)}
+                      </p>
+                      <StockBadge available={available} />
+                    </div>
+                  </button>
+                );
+              })}
+
+              {variationPicker.available_quantity <= 0 &&
+                variationPicker.variations.every(v => v.available_quantity <= 0) && (
+                  <p className="py-8 text-center text-xs font-semibold text-zinc-400">
+                    Nothing on this product is in stock at this branch.
+                  </p>
+                )}
             </div>
           </div>
         </div>
