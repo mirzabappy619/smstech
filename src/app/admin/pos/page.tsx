@@ -1400,67 +1400,98 @@ export default function PosTerminalPage() {
             </div>
 
             {/* Split Payment Rows */}
-            <div className="space-y-2 max-h-52 overflow-y-auto">
-              {splitPayments.map((p, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
-                  <select
-                    value={p.method}
-                    onChange={e => {
-                      const updated = [...splitPayments];
-                      updated[idx].method = e.target.value;
-                      setSplitPayments(updated);
-                    }}
-                    className="px-2.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-zinc-900 dark:text-white"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card (POS Terminal)</option>
-                    <option value="bkash">bKash Mobile</option>
-                    <option value="nagad">Nagad Mobile</option>
-                    {customer && customer.advance_balance > 0 && (
-                      <option value="advance">Customer Advance Wallet (Avail: {fmt(customer.advance_balance)})</option>
-                    )}
-                    {selectedPreBooking && (
-                      <option value="prebooking">Pre-Booking Advance ({selectedPreBooking.booking_number})</option>
-                    )}
-                    {customer && (
-                      <option value="due">Create Due Balance (Limit: {fmt(customer.credit_limit || 0)})</option>
-                    )}
-                  </select>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {splitPayments.map((p, idx) => {
+                // What the chosen method is drawing on. This used to live in
+                // the option labels, and an option long enough to carry a
+                // balance is exactly what stretched the row past the modal —
+                // the select sizes itself to its widest option. Under the row
+                // it also stays readable while the row is selected.
+                const methodHint =
+                  p.method === "advance" && customer
+                    ? `Wallet holds ${fmt(customer.advance_balance)}`
+                    : p.method === "due" && customer
+                      ? `Credit limit ${fmt(customer.credit_limit || 0)} · already owes ${fmt(customer.outstanding_due || 0)}`
+                      : p.method === "prebooking" && selectedPreBooking
+                        ? `${selectedPreBooking.booking_number} · ${fmt(selectedPreBooking.advance_paid)} paid`
+                        : null;
 
-                  <input
-                    type="number"
-                    value={p.amount}
-                    onChange={e => {
-                      const updated = [...splitPayments];
-                      updated[idx].amount = Number(e.target.value);
-                      setSplitPayments(updated);
-                    }}
-                    placeholder="Amount"
-                    className="w-28 px-2.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-extrabold text-zinc-900 dark:text-white text-right"
-                  />
+                return (
+                  <div key={idx} className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      {/* min-w-0 is what lets the select shrink at all: flex
+                          children default to min-width:auto and refuse to go
+                          below their content. */}
+                      <select
+                        value={p.method}
+                        onChange={e => {
+                          const updated = [...splitPayments];
+                          updated[idx].method = e.target.value;
+                          setSplitPayments(updated);
+                        }}
+                        aria-label={`Payment method ${idx + 1}`}
+                        className="min-w-0 flex-1 px-2.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-zinc-900 dark:text-white"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="bkash">bKash</option>
+                        <option value="nagad">Nagad</option>
+                        {customer && customer.advance_balance > 0 && (
+                          <option value="advance">Advance wallet</option>
+                        )}
+                        {selectedPreBooking && (
+                          <option value="prebooking">Pre-booking advance</option>
+                        )}
+                        {customer && <option value="due">Charge to due</option>}
+                      </select>
 
-                  <input
-                    type="text"
-                    value={p.reference}
-                    onChange={e => {
-                      const updated = [...splitPayments];
-                      updated[idx].reference = e.target.value;
-                      setSplitPayments(updated);
-                    }}
-                    placeholder="Ref / TrxID (optional)"
-                    className="flex-1 px-2.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs text-zinc-900 dark:text-white"
-                  />
+                      <input
+                        type="number"
+                        value={p.amount}
+                        onChange={e => {
+                          const updated = [...splitPayments];
+                          updated[idx].amount = Number(e.target.value);
+                          setSplitPayments(updated);
+                        }}
+                        placeholder="Amount"
+                        aria-label={`Amount ${idx + 1}`}
+                        className="w-24 shrink-0 px-2.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-extrabold text-zinc-900 dark:text-white text-right"
+                      />
 
-                  {splitPayments.length > 1 && (
-                    <button
-                      onClick={() => setSplitPayments(splitPayments.filter((_, i) => i !== idx))}
-                      className="text-xs text-red-500 font-bold p-1"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
+                      {splitPayments.length > 1 && (
+                        <button
+                          onClick={() => setSplitPayments(splitPayments.filter((_, i) => i !== idx))}
+                          aria-label={`Remove payment ${idx + 1}`}
+                          className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-xs text-zinc-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/40 font-bold transition-colors"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* The reference gets its own line — three fields abreast
+                        left nothing legible at this width. */}
+                    <input
+                      type="text"
+                      value={p.reference}
+                      onChange={e => {
+                        const updated = [...splitPayments];
+                        updated[idx].reference = e.target.value;
+                        setSplitPayments(updated);
+                      }}
+                      placeholder="Ref / TrxID (optional)"
+                      aria-label={`Reference ${idx + 1}`}
+                      className="mt-2 w-full px-2.5 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs text-zinc-900 dark:text-white"
+                    />
+
+                    {methodHint && (
+                      <p className="mt-1.5 px-0.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                        {methodHint}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Add Split Method Button */}

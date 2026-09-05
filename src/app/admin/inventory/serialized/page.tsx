@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatBDT } from "@/lib/currency";
 import { warrantyDaysRemaining, warrantyState } from "@/lib/warranty";
 import { notify } from "@/components/ui/toast";
+import { SearchableSelect } from "@/components/ui";
 
 interface SerializedUnit {
   id: string;
@@ -455,21 +456,23 @@ export default function SerializedInventoryPage() {
             <form onSubmit={handleCreateUnit} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Select Catalog Product *</label>
-                <select
+                <SearchableSelect
+                  options={products.map(p => ({
+                    value: p.id,
+                    label: p.name,
+                    hint: `${p.sku ? `SKU ${p.sku} · ` : ""}${fmt(p.base_price)}`,
+                    keywords: p.sku ?? "",
+                  }))}
                   value={formProductId}
-                  onChange={e => {
-                    setFormProductId(e.target.value);
-                    const sel = products.find(p => p.id === e.target.value);
+                  onChange={(productId) => {
+                    setFormProductId(productId);
+                    const sel = products.find(p => p.id === productId);
                     if (sel) setFormSellingPrice(String(sel.base_price));
                   }}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold"
-                  required
-                >
-                  <option value="">-- Choose Product --</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({fmt(p.base_price)})</option>
-                  ))}
-                </select>
+                  emptyLabel="-- Choose Product --"
+                  placeholder="Type a product name or SKU…"
+                  aria-label="Catalog product"
+                />
               </div>
 
               <div>

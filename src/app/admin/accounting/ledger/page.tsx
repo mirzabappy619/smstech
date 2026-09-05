@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatBDT } from "@/lib/currency";
 import { notify } from "@/components/ui/toast";
+import { SearchableSelect } from "@/components/ui";
 
 
 interface LedgerEntry {
@@ -271,23 +272,23 @@ export default function AccountingLedgerPage() {
             <form onSubmit={handleCollectDue} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-zinc-700 dark:text-zinc-300 mb-1">Select Customer *</label>
-                <select
+                <SearchableSelect
+                  options={customers.map(c => ({
+                    value: c.id,
+                    label: c.name,
+                    hint: `${c.phone ? `${c.phone} · ` : ""}Outstanding due: ${fmt(c.outstanding_due || 0)}`,
+                    keywords: c.phone ?? "",
+                  }))}
                   value={selectedCustId}
-                  onChange={e => {
-                    setSelectedCustId(e.target.value);
-                    const c = customers.find(x => x.id === e.target.value);
+                  onChange={(customerId) => {
+                    setSelectedCustId(customerId);
+                    const c = customers.find(x => x.id === customerId);
                     if (c && c.outstanding_due > 0) setCollectionAmount(String(c.outstanding_due));
                   }}
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold"
-                  required
-                >
-                  <option value="">-- Choose Customer --</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.phone}) — Outstanding Due: {fmt(c.outstanding_due || 0)}
-                    </option>
-                  ))}
-                </select>
+                  emptyLabel="-- Choose Customer --"
+                  placeholder="Type a name or phone number…"
+                  aria-label="Customer"
+                />
               </div>
 
               <div>
